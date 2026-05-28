@@ -79,8 +79,19 @@
 
 :root[data-theme="light"] .sidebar-item.active {
   background:
-    linear-gradient(110deg, rgba(200, 16, 46, 0.18), rgba(15, 35, 64, 0.88), rgba(200, 16, 46, 0.18));
+    linear-gradient(
+      110deg,
+      var(--color-brand-red) 0%,
+      var(--color-brand-navy) 48%,
+      var(--color-brand-red) 100%
+    );
+  background-size: 220% 100%;
   color: var(--color-brand-white);
+  border-color: rgba(15, 35, 64, 0.24);
+  box-shadow:
+    0 14px 34px rgba(200, 16, 46, 0.18),
+    0 8px 22px rgba(15, 35, 64, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
 }
 
 :root[data-theme="light"] .topbar {
