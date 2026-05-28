@@ -17,6 +17,23 @@ describe('settings.js', () => {
     expect(mergeSettings({ theme: 'light' }).theme).toBe('light');
   });
 
+  it('provides and merges phase 3 alert thresholds', () => {
+    const settings = mergeSettings({
+      alerts: {
+        penaltiesMax: 12,
+        ruckWinPctMin: 55,
+      },
+    });
+
+    expect(settings.alerts).toEqual(expect.objectContaining({
+      ruckWinPctMin: 55,
+      penaltiesMax: 12,
+      lineoutWinPctMin: 40,
+      scrumWinPctMin: 50,
+      breakLinesConcededMax: 5,
+    }));
+  });
+
   it('updates settings through a store while preserving nested default fields', async () => {
     const saved = [];
     const store = {

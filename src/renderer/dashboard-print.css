@@ -1,0 +1,191 @@
+@page {
+  size: A4 landscape;
+  margin: 10mm;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #080E1A;
+  color: #F0F4F8;
+  font-family: Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.print-page {
+  min-height: 190mm;
+  page-break-after: always;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background:
+    radial-gradient(ellipse at 18% 0%, rgba(15, 35, 64, 0.74), transparent 52%),
+    radial-gradient(ellipse at 82% 100%, rgba(200, 16, 46, 0.08), transparent 48%),
+    #080E1A;
+}
+
+.print-page:last-child {
+  page-break-after: auto;
+}
+
+.print-brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.print-logo {
+  font: 900 22px 'Arial Black', Arial, sans-serif;
+}
+
+.print-logo span {
+  color: #C8102E;
+}
+
+.print-meta {
+  color: #8A9BB0;
+  font-size: 12px;
+  text-align: right;
+}
+
+.print-score {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 22px;
+  margin: 18px 0 6px;
+}
+
+.print-score span {
+  color: #8A9BB0;
+  font: 900 22px 'Arial Black', Arial, sans-serif;
+}
+
+.print-score strong {
+  color: #F0F4F8;
+  font: 900 56px 'Arial Black', Arial, sans-serif;
+}
+
+.print-grid-4,
+.print-grid-2,
+.print-grid-3 {
+  display: grid;
+  gap: 12px;
+}
+
+.print-grid-4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.print-grid-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.print-grid-2 {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.print-card,
+.print-chart,
+.print-alert,
+.print-notes {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(13, 24, 41, 0.82);
+  padding: 14px;
+}
+
+.print-card span,
+.print-alert span {
+  display: block;
+  margin-bottom: 6px;
+  color: #8A9BB0;
+  font-size: 11px;
+  text-transform: uppercase;
+}
+
+.print-card strong {
+  color: #F0F4F8;
+  font: 900 34px 'Arial Black', Arial, sans-serif;
+}
+
+.print-alerts {
+  display: grid;
+  gap: 8px;
+}
+
+.print-alert {
+  border-color: rgba(200, 16, 46, 0.38);
+  background: rgba(200, 16, 46, 0.10);
+}
+
+.print-alert strong {
+  color: #C8102E;
+}
+
+.print-title {
+  color: #F0F4F8;
+  font: 900 18px 'Arial Black', Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.print-chart {
+  min-height: 250px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.print-chart img {
+  width: 100%;
+  max-height: 260px;
+  object-fit: contain;
+}
+
+.print-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.print-table th,
+.print-table td {
+  padding: 7px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-align: left;
+}
+
+.print-table th {
+  color: #8A9BB0;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+.print-heatmap img {
+  width: 100%;
+  max-height: 156mm;
+  object-fit: contain;
+}
+
+.print-notes {
+  color: #F0F4F8;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.print-notes p {
+  margin: 0 0 8px;
+}
+
+.print-notes li {
+  margin-left: 18px;
+}

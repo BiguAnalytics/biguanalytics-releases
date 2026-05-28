@@ -5,6 +5,13 @@ import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
 
 const DEFAULT_AUTO_CLOSE_MS = 8000;
+const ALERT_THRESHOLD_FIELDS = [
+  { key: 'ruckWinPctMin', label: '% Rucks ganados', comparator: '<', defaultValue: 50, suffix: '%' },
+  { key: 'penaltiesMax', label: 'Penales totales', comparator: '>', defaultValue: 15, suffix: '' },
+  { key: 'lineoutWinPctMin', label: '% Line Outs ganados', comparator: '<', defaultValue: 40, suffix: '%' },
+  { key: 'scrumWinPctMin', label: '% Scrums ganados', comparator: '<', defaultValue: 50, suffix: '%' },
+  { key: 'breakLinesConcededMax', label: 'Break Lines concedidas', comparator: '>', defaultValue: 5, suffix: '' },
+];
 
 /**
  * @param {number|null|undefined} autoCloseMs
@@ -32,6 +39,19 @@ export function getAutoCloseMsFromSeconds(seconds) {
  */
 export function getSelectedThemeValue(container) {
   return normalizeTheme(container.querySelector('input[name="theme"]:checked')?.value);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @returns {object}
+ */
+export function getAlertThresholdPayload(container) {
+  return ALERT_THRESHOLD_FIELDS.reduce((payload, field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-alert-threshold="${field.key}"]`));
+    const value = Number(input?.value);
+    payload[field.key] = Number.isFinite(value) && value >= 0 ? value : field.defaultValue;
+    return payload;
+  }, {});
 }
 
 /**
@@ -81,6 +101,27 @@ export async function renderSettings(container) {
             <span class="form-label">Auto-cierre de popup (segundos)</span>
             <input class="form-input" type="number" id="tagging-auto-close" min="1" step="0.5" />
           </label>
+          <fieldset class="settings-alert-thresholds">
+            <legend class="form-label">Umbrales de alerta</legend>
+            <div class="settings-alert-list">
+              ${ALERT_THRESHOLD_FIELDS.map(field => `
+                <label class="settings-alert-row">
+                  <span>
+                    <strong>${field.label}</strong>
+                    <small>Alerta cuando ${field.comparator} ${field.defaultValue}${field.suffix}</small>
+                  </span>
+                  <input
+                    class="form-input"
+                    type="number"
+                    min="0"
+                    step="1"
+                    data-alert-threshold="${field.key}"
+                    aria-label="${field.label}"
+                  />
+                </label>
+              `).join('')}
+            </div>
+          </fieldset>
           <button class="btn btn-primary" type="submit">Guardar ajustes</button>
           <p class="settings-feedback" id="settings-feedback" role="status"></p>
         </form>
@@ -96,6 +137,26 @@ export async function renderSettings(container) {
   if (themeInput) themeInput.checked = true;
   statsOnly.checked = Boolean(settings.statsOnlyMode);
   autoClose.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
+  ALERT_THRESHOLD_FIELDS.forEach((field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-alert-threshold="${field.key}"]`));
+    if (input) input.value = String(settings.alerts?.[field.key] ?? field.defaultValue);
+  });
+
+  let thresholdSaveTimer = null;
+  const saveThresholds = () => {
+    if (thresholdSaveTimer) window.clearTimeout(thresholdSaveTimer);
+    thresholdSaveTimer = window.setTimeout(async () => {
+      await window.api.settings.set({
+        alerts: getAlertThresholdPayload(container),
+      });
+      if (feedback) feedback.textContent = 'Umbrales guardados.';
+    }, 250);
+  };
+
+  container.querySelectorAll('[data-alert-threshold]').forEach((input) => {
+    input.addEventListener('input', saveThresholds);
+    input.addEventListener('change', saveThresholds);
+  });
 
   container.querySelector('#settings-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -103,6 +164,7 @@ export async function renderSettings(container) {
     await window.api.settings.set({
       theme: selectedTheme,
       statsOnlyMode: statsOnly.checked,
+      alerts: getAlertThresholdPayload(container),
       tagging: {
         autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value),
       },

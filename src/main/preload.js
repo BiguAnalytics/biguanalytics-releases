@@ -15,11 +15,23 @@ contextBridge.exposeInMainWorld('api', {
   },
   settings: {
     get: () => ipcRenderer.invoke('settings:get'),
-    set: (partial) => ipcRenderer.invoke('settings:set', partial)
+    set: (partial) => ipcRenderer.invoke('settings:set', partial),
+    onChanged: (callback) => {
+      const listener = (event, settings) => callback(settings);
+      ipcRenderer.on('settings:changed', listener);
+      return () => ipcRenderer.removeListener('settings:changed', listener);
+    }
+  },
+  analytics: {
+    getMatchStats: (matchId) => ipcRenderer.invoke('analytics:getMatchStats', matchId),
+    exportPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:exportPdf', matchId, printPayload)
   },
   media: {
     selectLocalVideo: () => ipcRenderer.invoke('media:selectLocalVideo'),
     normalizeYouTube: (url) => ipcRenderer.invoke('media:normalizeYouTube', url)
+  },
+  files: {
+    open: (filePath) => ipcRenderer.invoke('files:open', filePath)
   },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),

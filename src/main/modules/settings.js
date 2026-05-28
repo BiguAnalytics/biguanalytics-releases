@@ -4,7 +4,12 @@ const DEFAULT_SETTINGS = {
   autoSave: true,
   alerts: {
     penaltiesThreshold: 10,
-    turnoversThreshold: 15
+    turnoversThreshold: 15,
+    ruckWinPctMin: 50,
+    penaltiesMax: 15,
+    lineoutWinPctMin: 40,
+    scrumWinPctMin: 50,
+    breakLinesConcededMax: 5
   },
   statsOnlyMode: false,
   tagging: {

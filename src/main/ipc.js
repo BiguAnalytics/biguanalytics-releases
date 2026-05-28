@@ -1,8 +1,10 @@
-const { BrowserWindow, dialog, ipcMain } = require('electron');
+const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const { createMatch, getAllMatches, getMatchById, updateMatch, deleteMatch } = require('./modules/storage');
 const { addEvent, updateEvent, deleteEvent } = require('./modules/events');
 const { normalizeYouTubeSource, selectLocalVideo } = require('./modules/media');
 const { getSettings, updateSettings } = require('./modules/settings');
+const { getMatchStats } = require('./modules/analytics');
+const { exportDashboardPdf } = require('./modules/pdf-export');
 
 /**
  * Registers all IPC handlers
@@ -22,7 +24,20 @@ function registerIpcHandlers() {
 
   // Settings
   ipcMain.handle('settings:get', async () => await getSettings());
-  ipcMain.handle('settings:set', async (e, partial) => await updateSettings(partial));
+  ipcMain.handle('settings:set', async (e, partial) => {
+    const updated = await updateSettings(partial);
+    BrowserWindow.getAllWindows().forEach((window) => {
+      window.webContents.send('settings:changed', updated);
+    });
+    return updated;
+  });
+
+  // Analytics
+  ipcMain.handle('analytics:getMatchStats', async (e, matchId) => await getMatchStats(matchId));
+  ipcMain.handle('analytics:exportPdf', async (e, matchId, printPayload) => {
+    const browserWindow = BrowserWindow.fromWebContents(e.sender);
+    return exportDashboardPdf(matchId, printPayload, { dialog, browserWindow });
+  });
 
   // Media
   ipcMain.handle('media:selectLocalVideo', async (e) => {
@@ -30,6 +45,9 @@ function registerIpcHandlers() {
     return selectLocalVideo(dialog, browserWindow);
   });
   ipcMain.handle('media:normalizeYouTube', async (e, url) => normalizeYouTubeSource(url));
+
+  // Files
+  ipcMain.handle('files:open', async (e, filePath) => shell.openPath(filePath));
 }
 
 module.exports = {

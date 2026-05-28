@@ -141,68 +141,70 @@
 > *Objetivo: los datos recolectados se vuelven información útil. El entrenador puede ver el análisis y exportarlo.*
 
 ### 3.1 Motor de cálculo de métricas
-- [ ] 3.1.1 Módulo `analytics.js`: funciones de agregación sobre el JSON del partido
-- [ ] 3.1.2 Cálculo de score final (tries, conversiones, PK goals, drops, tries penales) por equipo
-- [ ] 3.1.3 Posesión % (real por intervalos + estimada por eventos)
-- [ ] 3.1.4 Territorio % (basado en zonas de heatmap si están disponibles)
-- [ ] 3.1.5 Totales: turnovers, penales, break lines, kicks por equipo
-- [ ] 3.1.6 Métricas de Set Pieces: % ganados / perdidos / sucios por tipo (scrums, line outs)
-- [ ] 3.1.7 Métricas de Rucks: totales, % por resultado, KPI ruck/posesiones
-- [ ] 3.1.8 Métricas de Kicks: efectividad por pateador, resultado de kicks
-- [ ] 3.1.9 Métricas de Disciplina: penales por tipo, ataque/defensa, tarjetas
-- [ ] 3.1.10 Métricas de Break Lines: por origen y resultado, Killer Instinct %
-- [ ] 3.1.11 Secuencias BIP por franja de tiempo (0-20, 20-40, 40-60, 60-80, +80)
-- [ ] 3.1.12 Promedio de fases por secuencia, efectividad por zona de inicio
-- [ ] 3.1.13 Alertas automáticas: comparar métricas vs. umbrales configurados → flag rojo
+- [x] 3.1.1 Módulo `analytics.js`: funciones de agregación sobre el JSON del partido
+- [x] 3.1.2 Cálculo de score final (tries, conversiones, PK goals, drops, tries penales) por equipo
+- [x] 3.1.3 Posesión % (real por intervalos + estimada por eventos)
+- [x] 3.1.4 Territorio % (basado en zonas de heatmap si están disponibles)
+- [x] 3.1.5 Totales: turnovers, penales, break lines, kicks por equipo
+- [x] 3.1.6 Métricas de Set Pieces: % ganados / perdidos / sucios por tipo (scrums, line outs)
+- [x] 3.1.7 Métricas de Rucks: totales, % por resultado, KPI ruck/posesiones
+- [x] 3.1.8 Métricas de Kicks: efectividad por pateador, resultado de kicks
+- [x] 3.1.9 Métricas de Disciplina: penales por tipo, ataque/defensa, tarjetas
+- [x] 3.1.10 Métricas de Break Lines: por origen y resultado, Killer Instinct %
+- [x] 3.1.11 Secuencias BIP por franja de tiempo (0-20, 20-40, 40-60, 60-80, +80)
+- [x] 3.1.12 Promedio de fases por secuencia, efectividad por zona de inicio
+- [x] 3.1.13 Alertas automáticas: comparar métricas vs. umbrales configurados → flag rojo
 
 ### 3.2 Pantalla Dashboard — Layout y navegación
-- [ ] 3.2.1 Layout Dashboard: sidebar colapsado, topbar con acciones, header del partido
-- [ ] 3.2.2 Header del partido: score prominente, equipos, fecha, competencia
-- [ ] 3.2.3 KPI row: 4 KPIs principales configurables
-- [ ] 3.2.4 Toggle: vista Bigua / vista rival / vista comparada side-by-side
-- [ ] 3.2.5 Secciones colapsables por categoría (Set Pieces, Rucks, Kicks, Disciplina, etc.)
-- [ ] 3.2.6 Botón "Exportar PDF" sticky en topbar
+- [x] 3.2.1 Layout Dashboard: sidebar colapsado, topbar con acciones, header del partido
+- [x] 3.2.2 Header del partido: score prominente, equipos, fecha, competencia
+- [x] 3.2.3 KPI row: 4 KPIs principales configurables
+- [x] 3.2.4 Toggle: vista Bigua / vista rival / vista comparada side-by-side
+- [x] 3.2.5 Secciones colapsables por categoría (Set Pieces, Rucks, Kicks, Disciplina, etc.)
+- [x] 3.2.6 Botón "Exportar PDF" sticky en topbar
 
 ### 3.3 Gráficos interactivos (Chart.js)
-- [ ] 3.3.1 Configurar Chart.js con el design system (colores, fuentes, fondos)
-- [ ] 3.3.2 Gráfico de posesión: línea de tiempo bicolor + porcentaje final
-- [ ] 3.3.3 Gráfico de Set Pieces: barras agrupadas (ganados/perdidos/sucios) por equipo
-- [ ] 3.3.4 Gráfico de Rucks: donut o barra horizontal con totales y %
-- [ ] 3.3.5 Gráfico de Penales: barras por tipo con desglose ataque/defensa
-- [ ] 3.3.6 Gráfico de Break Lines: origen × resultado (stacked bar o mapa de calor simple)
-- [ ] 3.3.7 Gráfico BIP por franjas: barras por tiempo (0-20, 20-40, etc.)
-- [ ] 3.3.8 Gráfico de Kicks: efectividad por pateador (barras horizontales)
-- [ ] 3.3.9 Hover en todos los gráficos: tooltip con valores exactos
-- [ ] 3.3.10 Alertas visuales: KPI cards con glow rojo pulsante si la métrica cae bajo umbral
+- [x] 3.3.1 Configurar Chart.js con el design system (colores, fuentes, fondos)
+- [x] 3.3.2 Gráfico de posesión: línea de tiempo bicolor + porcentaje final
+- [x] 3.3.3 Gráfico de Set Pieces: barras agrupadas (ganados/perdidos/sucios) por equipo
+- [x] 3.3.4 Gráfico de Rucks: donut o barra horizontal con totales y %
+- [x] 3.3.5 Gráfico de Penales: barras por tipo con desglose ataque/defensa
+- [x] 3.3.6 Gráfico de Break Lines: origen × resultado (stacked bar o mapa de calor simple)
+- [x] 3.3.7 Gráfico BIP por franjas: barras por tiempo (0-20, 20-40, etc.)
+- [x] 3.3.8 Gráfico de Kicks: efectividad por pateador (barras horizontales)
+- [x] 3.3.9 Hover en todos los gráficos: tooltip con valores exactos
+- [x] 3.3.10 Alertas visuales: KPI cards con glow rojo pulsante si la métrica cae bajo umbral
 
 ### 3.4 Heatmap en Dashboard
-- [ ] 3.4.1 Canvas del campo de rugby con zonas del tagging
-- [ ] 3.4.2 Gradiente de intensidad rojo sobre zonas: más eventos = más rojo
-- [ ] 3.4.3 Chips de filtro horizontal: filtrar por tipo de evento (penales, rucks perdidos, tries, etc.)
-- [ ] 3.4.4 Heatmap separado por equipo si se filtra por equipo
+- [x] 3.4.1 Canvas del campo de rugby con zonas del tagging
+- [x] 3.4.2 Gradiente de intensidad rojo sobre zonas: más eventos = más rojo
+- [x] 3.4.3 Chips de filtro horizontal: filtrar por tipo de evento (penales, rucks perdidos, tries, etc.)
+- [x] 3.4.4 Heatmap separado por equipo si se filtra por equipo
 
 ### 3.5 Notas del Entrenador
-- [ ] 3.5.1 Botón discreto (ícono, esquina inferior) abre panel de notas en el dashboard
-- [ ] 3.5.2 Editor de texto libre con formato básico (negrita, listas)
-- [ ] 3.5.3 Guardado automático en el JSON del partido
+- [x] 3.5.1 Botón discreto (ícono, esquina inferior) abre panel de notas en el dashboard
+- [x] 3.5.2 Editor de texto libre con formato básico (negrita, listas)
+- [x] 3.5.3 Guardado automático en el JSON del partido
 
 ### 3.6 Alertas de Patrones — Configuración
-- [ ] 3.6.1 Pantalla de Ajustes: sección de umbrales de alerta
-- [ ] 3.6.2 Umbrales predefinidos razonables (< 50% rucks, > 15 penales, < 40% line outs, etc.)
-- [ ] 3.6.3 El entrenador puede editar cada umbral con input numérico
-- [ ] 3.6.4 Guardar umbrales en `settings.json`
+- [x] 3.6.1 Pantalla de Ajustes: sección de umbrales de alerta
+- [x] 3.6.2 Umbrales predefinidos razonables (< 50% rucks, > 15 penales, < 40% line outs, etc.)
+- [x] 3.6.3 El entrenador puede editar cada umbral con input numérico
+- [x] 3.6.4 Guardar umbrales en `settings.json`
 
 ### 3.7 Exportación PDF
-- [ ] 3.7.1 Configurar Puppeteer (headless Chromium) dentro de Electron
-- [ ] 3.7.2 Renderizar una vista especial del dashboard optimizada para PDF (sin interactividad)
-- [ ] 3.7.3 Encabezado PDF: logo BiguAnalytics, nombre de equipos, fecha, competencia
-- [ ] 3.7.4 Página 1: KPIs generales + score
-- [ ] 3.7.5 Páginas de secciones: Set Pieces, Rucks, Kicks, Penales, Break Lines, BIP
-- [ ] 3.7.6 Página de Heatmap (si hay datos de zona)
-- [ ] 3.7.7 Página final: Notas del Entrenador
-- [ ] 3.7.8 Alertas con indicador visual claro en PDF (color rojo, ícono)
-- [ ] 3.7.9 Diálogo nativo de "Guardar como..." para elegir destino del PDF
-- [ ] 3.7.10 Validar que el PDF tenga el mismo aspecto en distintas versiones de Windows
+- [x] 3.7.1 Configurar Puppeteer (headless Chromium) dentro de Electron
+- [x] 3.7.2 Renderizar una vista especial del dashboard optimizada para PDF (sin interactividad)
+- [x] 3.7.3 Encabezado PDF: logo BiguAnalytics, nombre de equipos, fecha, competencia
+- [x] 3.7.4 Página 1: KPIs generales + score
+- [x] 3.7.5 Páginas de secciones: Set Pieces, Rucks, Kicks, Penales, Break Lines, BIP
+- [x] 3.7.6 Página de Heatmap (si hay datos de zona)
+- [x] 3.7.7 Página final: Notas del Entrenador
+- [x] 3.7.8 Alertas con indicador visual claro en PDF (color rojo, ícono)
+- [x] 3.7.9 Diálogo nativo de "Guardar como..." para elegir destino del PDF
+- [x] 3.7.10 Validar que el PDF tenga el mismo aspecto en distintas versiones de Windows
+
+> **Auditoria Fase 3 - 2026-05-28:** motor `analytics.js`, dashboard, graficos Chart.js, heatmap, notas, umbrales editables, IPC y exportacion PDF quedaron implementados. Verificacion automatizada: `npm test` completo en verde y smoke test de PDF con Puppeteer generando archivo real.
 
 ---
 

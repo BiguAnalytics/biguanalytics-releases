@@ -1,5 +1,6 @@
 // @ts-check
 import { setSidebarActive } from './components/sidebar.js';
+import { renderDashboard } from './views/dashboard.js';
 import { renderHome } from './views/home.js';
 import { renderSettings } from './views/settings.js';
 import { renderTagging } from './views/tagging.js';
@@ -8,7 +9,7 @@ import { renderUnderConstruction } from './views/under-construction.js';
 const routes = {
   home: renderHome,
   tagging: renderTagging,
-  dashboard: (container, params = {}) => renderUnderConstruction(container, { ...params, section: 'dashboard' }),
+  dashboard: renderDashboard,
   season: (container, params = {}) => renderUnderConstruction(container, { ...params, section: 'season' }),
   settings: renderSettings,
 };
