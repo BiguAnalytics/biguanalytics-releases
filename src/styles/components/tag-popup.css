@@ -1,0 +1,260 @@
+/* Tag Popup Component — Phase 2 */
+/* See DESIGN.md §4.4 for full specification */
+.tag-popup-host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  padding: 0 var(--space-4);
+}
+
+.tag-popup {
+  width: min(420px, 100%);
+  border: 1px solid rgba(138, 155, 176, 0.18);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.06), transparent),
+    rgba(13, 24, 41, 0.86);
+  backdrop-filter: blur(22px);
+  box-shadow:
+    0 26px 76px rgba(0, 0, 0, 0.42),
+    0 0 0 1px rgba(200, 16, 46, 0.08);
+  overflow: hidden;
+  animation: tag-popup-in 120ms ease-out;
+}
+
+.tag-popup.closing {
+  animation: tag-popup-out 80ms ease-in forwards;
+}
+
+.tag-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid rgba(138, 155, 176, 0.12);
+}
+
+.tag-popup-kicker {
+  color: var(--color-accent);
+  font: 800 10px var(--font-brand);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tag-popup-header h2 {
+  color: var(--color-text-primary);
+  font: 900 17px var(--font-brand);
+}
+
+.tag-popup-header h2 span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  margin-left: var(--space-1);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(200, 16, 46, 0.34);
+  color: var(--color-brand-white);
+  background: rgba(200, 16, 46, 0.18);
+  font-size: 12px;
+}
+
+.tag-popup-close {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.tag-popup-close:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tag-popup-step,
+.tag-popup-note-only {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-3) var(--space-4) 0;
+  color: var(--color-text-secondary);
+  font: 700 11px var(--font-ui);
+}
+
+.tag-popup-step strong {
+  color: var(--color-text-primary);
+}
+
+.tag-popup-options {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+}
+
+.tag-popup-option {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 38px;
+  padding: var(--space-2);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--color-text-primary);
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 120ms, background 120ms, transform 120ms;
+}
+
+.tag-popup-option:hover {
+  border-color: rgba(200, 16, 46, 0.38);
+  background: rgba(200, 16, 46, 0.12);
+  transform: translateY(-1px);
+}
+
+.tag-popup-option kbd,
+.hotkey-bar kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(8, 14, 26, 0.64);
+  color: var(--color-text-primary);
+  font: 900 11px var(--font-brand);
+}
+
+.tag-popup-option span {
+  font: 800 12px var(--font-ui);
+}
+
+.tag-popup-note {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.tag-popup-note > span {
+  color: var(--color-text-muted);
+  font: 800 10px var(--font-brand);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tag-popup-note-row {
+  display: grid;
+  grid-template-columns: 1fr 44px;
+  gap: var(--space-2);
+}
+
+.tag-popup-note textarea {
+  width: 100%;
+  min-height: 58px;
+  resize: none;
+}
+
+.tag-popup-mic {
+  border: 1px solid rgba(138, 155, 176, 0.16);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.tag-popup-mic:hover {
+  color: var(--color-text-primary);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tag-popup-zone {
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.tag-popup-zone summary {
+  color: var(--color-text-secondary);
+  font: 800 11px var(--font-ui);
+  cursor: pointer;
+}
+
+.tag-popup-zone summary span {
+  color: var(--color-accent);
+}
+
+.tag-popup-field-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 2px;
+  margin-top: var(--space-2);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(17, 88, 50, 0.34), rgba(8, 14, 26, 0.68));
+  padding: var(--space-1);
+}
+
+.tag-popup-field-grid::before {
+  content: '';
+  position: absolute;
+  inset: var(--space-1);
+  background:
+    linear-gradient(90deg, transparent 19%, rgba(255,255,255,0.1) 20%, transparent 21%, transparent 39%, rgba(255,255,255,0.1) 40%, transparent 41%, transparent 59%, rgba(255,255,255,0.1) 60%, transparent 61%, transparent 79%, rgba(255,255,255,0.1) 80%, transparent 81%),
+    linear-gradient(180deg, transparent 32%, rgba(255,255,255,0.08) 33%, transparent 34%, transparent 65%, rgba(255,255,255,0.08) 66%, transparent 67%);
+  pointer-events: none;
+}
+
+.tag-popup-zone-cell {
+  position: relative;
+  z-index: 1;
+  min-height: 28px;
+  border-radius: 4px;
+  color: rgba(240, 244, 248, 0.62);
+  font: 800 10px var(--font-ui);
+  cursor: pointer;
+}
+
+.tag-popup-zone-cell:hover,
+.tag-popup-zone-cell.active {
+  background: rgba(200, 16, 46, 0.24);
+  color: var(--color-text-primary);
+}
+
+.tag-popup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border-top: 1px solid rgba(138, 155, 176, 0.12);
+  color: var(--color-text-muted);
+  font: 700 11px var(--font-ui);
+}
+
+@keyframes tag-popup-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes tag-popup-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}

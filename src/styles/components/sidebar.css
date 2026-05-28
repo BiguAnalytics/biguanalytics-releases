@@ -1,0 +1,286 @@
+.sidebar {
+  background: rgba(13, 24, 41, 0.86);
+  backdrop-filter: blur(18px);
+  border-right: 1px solid var(--color-border);
+  width: var(--sidebar-width);
+  transition: width 240ms cubic-bezier(0.22, 1, 0.36, 1);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 50;
+}
+
+.sidebar.expanded {
+  width: var(--sidebar-width-open);
+}
+
+.sidebar-logo {
+  height: 68px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border-bottom: 1px solid var(--color-border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  flex-shrink: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.sidebar-logo-icon {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-logo-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar-nav {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-2);
+  gap: var(--space-1);
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-items: stretch;
+}
+
+.sidebar-spacer {
+  flex: 1;
+}
+
+.sidebar-divider {
+  height: 1px;
+  background: var(--color-border);
+  width: 32px;
+  margin: var(--space-2) auto;
+  flex-shrink: 0;
+}
+
+.sidebar.expanded .sidebar-divider {
+  width: auto;
+  margin: var(--space-2) var(--space-2);
+}
+
+.sidebar-item {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  padding: 0;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition:
+    background 150ms,
+    background-position 220ms ease,
+    color 150ms,
+    border-color 150ms,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  white-space: nowrap;
+  overflow: hidden;
+  min-height: 44px;
+  border: 1px solid transparent;
+}
+
+.sidebar.expanded .sidebar-item {
+  padding: 0;
+}
+
+.sidebar-item:hover {
+  background:
+    linear-gradient(110deg, rgba(15, 35, 64, 0.78), rgba(200, 16, 46, 0.16), rgba(15, 35, 64, 0.78));
+  background-size: 220% 100%;
+  color: var(--color-text-primary);
+  border-color: var(--color-border);
+  transform: none;
+}
+
+.sidebar.expanded .sidebar-item:hover {
+  transform: translateX(1px);
+}
+
+.sidebar-item.active {
+  background:
+    linear-gradient(110deg, rgba(200, 16, 46, 0.24), rgba(15, 35, 64, 0.78), rgba(200, 16, 46, 0.24));
+  background-size: 220% 100%;
+  color: var(--color-brand-white);
+  border-color: var(--color-border-accent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: club-gradient-shift 7s ease-in-out infinite;
+}
+
+.sidebar-item.active .sidebar-item-label,
+.sidebar-item.active .sidebar-item-icon {
+  color: var(--color-brand-white);
+}
+
+.sidebar-item.disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+.sidebar-item-icon {
+  width: 20px;
+  height: 20px;
+  justify-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-item-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.sidebar-item-label {
+  font: 400 13px var(--font-ui);
+  opacity: 0;
+  max-width: 0;
+  padding-left: 0;
+  overflow: hidden;
+  transform: translateX(-4px);
+  transition:
+    opacity 150ms ease,
+    max-width 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    padding-left 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar.expanded .sidebar-item-label {
+  opacity: 1;
+  max-width: 128px;
+  padding-left: var(--space-3);
+  transform: translateX(0);
+}
+
+.sidebar-badge {
+  background: var(--color-accent);
+  color: white;
+  font: 700 10px var(--font-brand);
+  border-radius: var(--radius-full);
+  padding: 1px 5px;
+  margin-left: auto;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.sidebar.expanded .sidebar-badge {
+  opacity: 1;
+}
+
+.sidebar-toggle {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 28px;
+  align-self: flex-end;
+  margin: var(--space-2) var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition:
+    background 150ms,
+    color 150ms,
+    transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-toggle:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.sidebar-toggle svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 200ms ease;
+}
+
+.sidebar.expanded .sidebar-toggle svg {
+  transform: rotate(180deg);
+}
+
+.sidebar-profile {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 72px;
+  padding: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
+    rgba(8, 14, 26, 0.32);
+  overflow: hidden;
+}
+
+.sidebar-profile-avatar {
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-full);
+  background:
+    linear-gradient(135deg, rgba(200, 16, 46, 0.95), rgba(15, 35, 64, 0.95));
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: var(--color-brand-white);
+  font: 900 12px var(--font-brand);
+  box-shadow: 0 10px 30px rgba(200, 16, 46, 0.18);
+}
+
+.sidebar-profile-details {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  opacity: 0;
+  max-width: 0;
+  transform: translateX(-6px);
+  transition: opacity 180ms ease, max-width 200ms ease, transform 200ms ease;
+}
+
+.sidebar.expanded .sidebar-profile-details {
+  opacity: 1;
+  max-width: 140px;
+  transform: translateX(0);
+}
+
+.sidebar-profile-name {
+  font: 700 13px var(--font-brand);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.sidebar-profile-role {
+  font: 400 11px var(--font-ui);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+}
+
+.sidebar:not(.expanded) .sidebar-profile {
+  justify-content: center;
+  gap: 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.sidebar:not(.expanded) .sidebar-toggle {
+  align-self: center;
+  margin-left: 0;
+  margin-right: 0;
+}

@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+out/
+coverage/
+.env
+.env.*
+*.log
+npm-debug.log*
+
+data/*
+!data/.gitkeep

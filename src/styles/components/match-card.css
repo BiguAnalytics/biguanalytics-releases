@@ -1,0 +1,391 @@
+.match-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 58%),
+    rgba(8, 14, 26, 0.78);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 200ms, transform 200ms, box-shadow 200ms;
+  position: relative;
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
+}
+
+.match-card.win {
+  --match-tone: rgba(15, 98, 54, 0.68);
+  --match-tone-soft: rgba(29, 185, 84, 0.22);
+  --match-tone-strong: rgba(29, 185, 84, 0.48);
+  --match-top-start: rgba(17, 88, 50, 0.72);
+  --match-top-mid: rgba(7, 47, 31, 0.52);
+  --match-score-opacity: 0.13;
+  --match-score-separator-opacity: 0.11;
+}
+
+.match-card.loss {
+  --match-tone: rgba(122, 27, 34, 0.74);
+  --match-tone-soft: rgba(200, 16, 46, 0.22);
+  --match-tone-strong: rgba(200, 16, 46, 0.52);
+  --match-top-start: rgba(118, 29, 33, 0.76);
+  --match-top-mid: rgba(60, 17, 24, 0.56);
+  --match-score-opacity: 0.13;
+  --match-score-separator-opacity: 0.11;
+}
+
+.match-card.pending {
+  --match-tone: rgba(18, 55, 103, 0.78);
+  --match-tone-soft: rgba(53, 105, 180, 0.24);
+  --match-tone-strong: rgba(245, 158, 11, 0.42);
+  --match-top-start: rgba(18, 56, 106, 0.82);
+  --match-top-mid: rgba(10, 33, 67, 0.62);
+  --match-score-opacity: 0.16;
+  --match-score-separator-opacity: 0.13;
+}
+
+.match-card.draw {
+  --match-tone: rgba(128, 78, 11, 0.72);
+  --match-tone-soft: rgba(245, 158, 11, 0.2);
+  --match-tone-strong: rgba(245, 158, 11, 0.36);
+  --match-top-start: rgba(120, 72, 12, 0.76);
+  --match-top-mid: rgba(64, 39, 10, 0.58);
+  --match-score-opacity: 0.13;
+  --match-score-separator-opacity: 0.11;
+}
+
+.match-card:hover {
+  border-color: var(--color-border-strong, rgba(138, 155, 176, 0.28));
+  transform: translateY(-2px);
+  box-shadow: 0 26px 72px rgba(0, 0, 0, 0.32), 0 0 0 1px var(--match-tone);
+}
+
+.match-card-thumbnail {
+  height: 190px;
+  background: var(--color-bg-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+  background-image:
+    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 44%, rgba(8, 14, 26, 0.94) 100%),
+    radial-gradient(ellipse at 16% 0%, var(--match-tone-soft), transparent 42%),
+    radial-gradient(ellipse at 82% 8%, var(--match-tone-soft), transparent 46%),
+    radial-gradient(ellipse at 50% 42%, var(--match-tone-soft), transparent 54%);
+}
+
+.match-card-thumbnail::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.045), transparent 18%, transparent 82%, rgba(255, 255, 255, 0.025)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0.38) 88%);
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.match-card-thumbnail::after {
+  content: '';
+  position: absolute;
+  inset: 28px 26px 28px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background:
+    repeating-linear-gradient(90deg, transparent 0 15%, rgba(255, 255, 255, 0.09) 15% 15.18%, transparent 15.18% 32.8%),
+    linear-gradient(90deg, transparent 49.8%, rgba(255, 255, 255, 0.13) 49.8% 50.1%, transparent 50.1%),
+    linear-gradient(180deg, transparent 49.8%, rgba(255, 255, 255, 0.09) 49.8% 50.1%, transparent 50.1%);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.match-card-field {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 58px;
+  height: 58px;
+  border: 1px solid rgba(255, 255, 255, 0.13);
+  border-radius: var(--radius-full);
+  transform: translate(-50%, -50%);
+  opacity: 0.78;
+}
+
+.match-card-field::before,
+.match-card-field::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 96px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+}
+
+.match-card-field::before {
+  right: 100%;
+}
+
+.match-card-field::after {
+  left: 100%;
+}
+
+.match-card-status {
+  position: absolute;
+  top: var(--space-4);
+  left: var(--space-4);
+  z-index: 2;
+  backdrop-filter: blur(10px);
+}
+
+.match-card-competition {
+  position: absolute;
+  right: var(--space-4);
+  bottom: var(--space-4);
+  z-index: 2;
+  font: 600 11px Consolas, 'Courier New', monospace;
+  color: var(--color-text-secondary);
+  letter-spacing: 0.04em;
+  max-width: 70%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.match-card-score {
+  position: relative;
+  z-index: 1;
+  font: 900 60px var(--font-brand, 'Inter', sans-serif);
+  color: rgba(240, 244, 248, var(--match-score-opacity));
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.match-card-score .home {
+  color: rgba(240, 244, 248, var(--match-score-opacity));
+}
+
+.match-card-score .separator {
+  font-size: 42px;
+  color: rgba(240, 244, 248, var(--match-score-separator-opacity));
+}
+
+.match-card-score .away {
+  color: rgba(240, 244, 248, var(--match-score-opacity));
+}
+
+.match-card-play {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.match-card-body {
+  padding: var(--space-5);
+}
+
+.match-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding-bottom: var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.match-card-title {
+  font: 700 16px var(--font-ui);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.match-card-title .match-card-vs {
+  font-family: var(--font-ui);
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+.match-card-title strong {
+  font: 900 16px var(--font-brand);
+  color: var(--color-text-primary);
+}
+
+.match-card-meta {
+  font: 400 12px var(--font-ui);
+  color: var(--color-text-secondary);
+}
+
+.match-card-result-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--color-text-primary);
+  font: 900 24px var(--font-brand, 'Inter', sans-serif);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.match-card.pending .match-card-result-score {
+  color: rgba(240, 244, 248, 0.44);
+}
+
+.match-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
+}
+
+.match-card-badges {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.badge {
+  font: 700 10px var(--font-brand, 'Inter', sans-serif);
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.match-card-status.badge {
+  background: rgba(8, 14, 26, 0.18);
+  border: 1px solid currentColor;
+  box-shadow: 0 0 22px rgba(0, 0, 0, 0.14);
+  opacity: 0.68;
+}
+
+.match-card-status.badge.analizado {
+  color: var(--tag-ganado, rgb(29, 185, 84));
+  border-color: var(--tag-ganado, rgb(29, 185, 84));
+}
+
+.match-card-status.badge.pendiente {
+  color: var(--tag-sucio, rgb(245, 158, 11));
+  border-color: var(--tag-sucio, rgb(245, 158, 11));
+}
+
+.match-card-badges .badge {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  font: 700 12px var(--font-ui);
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.badge.victoria {
+  color: var(--tag-ganado, rgb(29, 185, 84));
+}
+
+.badge.derrota {
+  color: var(--tag-perdido, rgb(200, 16, 46));
+}
+
+.badge.empate {
+  color: var(--color-text-secondary, rgba(138, 155, 176, 0.75));
+}
+
+.badge.sin-disputar {
+  color: var(--color-text-muted, rgba(138, 155, 176, 0.45));
+}
+
+.match-card-action {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: auto;
+  color: var(--color-text-secondary);
+  font: 700 12px var(--font-brand);
+  white-space: nowrap;
+}
+
+.match-card-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.match-card:hover .match-card-action {
+  color: var(--color-text-primary);
+}
+
+.match-card-delete {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+  opacity: 0;
+  flex: 0 0 28px;
+}
+
+.match-card:hover .match-card-delete {
+  opacity: 1;
+}
+
+.match-card-delete:hover {
+  background: rgba(200, 16, 46, 0.15);
+  color: var(--color-accent);
+}
+
+.match-card-delete svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* Card Nuevo partido */
+.match-card-new {
+  border: 1px dashed var(--color-border-strong);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.035), transparent),
+    rgba(13, 24, 41, 0.38);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 192px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  transition: color 200ms, border-color 200ms, background 200ms, transform 200ms;
+  border-radius: var(--radius-lg);
+}
+
+.match-card-new:hover {
+  color: var(--color-accent);
+  border-color: var(--color-border-accent);
+  background: rgba(200, 16, 46, 0.07);
+  transform: translateY(-2px);
+}
+
+.match-card-new-icon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.match-card-new-icon svg {
+  width: 32px;
+  height: 32px;
+}
+
+.match-card-new-text {
+  font: 700 12px var(--font-brand);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}

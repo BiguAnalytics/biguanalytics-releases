@@ -1,0 +1,121 @@
+.topbar {
+  height: var(--topbar-height);
+  background: rgba(8, 14, 26, 0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-4);
+  gap: var(--space-4);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  flex-shrink: 0;
+}
+
+.topbar-logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  cursor: pointer;
+}
+
+.topbar-logo-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.topbar-logo-text {
+  font: 900 14px var(--font-brand);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+}
+
+.topbar-logo-text .accent {
+  background: linear-gradient(
+    110deg,
+    var(--color-brand-red) 0%,
+    var(--color-brand-white) 46%,
+    var(--color-brand-red) 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: club-gradient-shift 7s ease-in-out infinite;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--color-border);
+}
+
+.topbar-match-info {
+  font: 700 14px var(--font-brand);
+  color: var(--color-text-primary);
+}
+
+.topbar-score-local {
+  color: var(--color-brand-red);
+}
+
+.topbar-score-rival {
+  color: var(--color-text-secondary);
+}
+
+.topbar-status-recording {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font: 400 12px var(--font-ui);
+  color: var(--color-brand-red);
+}
+
+.topbar-status-recording::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--color-brand-red);
+  animation: pulse-red 1.5s ease-in-out infinite;
+}
+
+.topbar-spacer {
+  flex: 1;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.topbar-action-btn {
+  min-width: 44px;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  font: 700 12px var(--font-brand);
+  cursor: pointer;
+  transition: background 150ms, color 150ms;
+}
+
+.topbar-action-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+.topbar-action-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.topbar-context {
+  font: 400 13px var(--font-ui);
+  color: var(--color-text-secondary);
+}
