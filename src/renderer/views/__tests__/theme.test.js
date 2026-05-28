@@ -58,4 +58,17 @@ describe('app theme support', () => {
     const lastComponentIndex = indexHtml.indexOf('../styles/charts.css');
     expect(themeIndex).toBeGreaterThan(lastComponentIndex);
   });
+
+  it('keeps light-mode brand and playback controls high contrast', () => {
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.topbar-logo-text \.accent\s*{[^}]*var\(--color-brand-red\)[^}]*var\(--color-brand-navy\)/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.video-play-btn\s*{[^}]*color:\s*var\(--color-brand-white\);/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.video-play-btn:hover\s*{[^}]*box-shadow:\s*0 16px 36px rgba\(200,\s*16,\s*46,\s*0\.26\);/s);
+  });
+
+  it('strengthens only light-mode atmosphere gradients and match thumbnails', () => {
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.main-content-body\s*{[^}]*rgba\(15,\s*35,\s*64,\s*0\.24\)[^}]*rgba\(200,\s*16,\s*46,\s*0\.18\)/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.tagging-view\s*{[^}]*rgba\(15,\s*35,\s*64,\s*0\.34\)[^}]*rgba\(200,\s*16,\s*46,\s*0\.16\)/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.match-card\.pending\s*{[^}]*rgba\(74,\s*122,\s*194,\s*0\.54\)/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.match-card-thumbnail\s*{[^}]*rgba\(232,\s*239,\s*248,\s*0\.58\)/s);
+  });
 });
