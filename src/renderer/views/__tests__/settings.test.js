@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
 import {
+  getSelectedThemeValue,
   getAutoCloseMsFromSeconds,
   getAutoCloseSecondsValue,
 } from '../settings.js';
@@ -29,5 +30,22 @@ describe('settings auto close unit conversion', () => {
     expect(settingsSource).toContain('autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value)');
     expect(settingsSource).not.toContain('Auto-cierre de popup (ms)');
     expect(settingsSource).not.toContain('min="1000" step="500"');
+  });
+});
+
+describe('settings theme selection', () => {
+  it('reads a checked light theme option from the settings form', () => {
+    expect(getSelectedThemeValue?.({
+      querySelector: () => ({ value: 'light' }),
+    })).toBe('light');
+  });
+
+  it('falls back to dark mode when the settings form has no valid theme option', () => {
+    expect(getSelectedThemeValue?.({
+      querySelector: () => ({ value: 'experimental' }),
+    })).toBe('dark');
+    expect(getSelectedThemeValue?.({
+      querySelector: () => null,
+    })).toBe('dark');
   });
 });

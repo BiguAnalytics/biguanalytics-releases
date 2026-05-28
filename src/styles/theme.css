@@ -1,0 +1,367 @@
+:root[data-theme="light"] body {
+  background: var(--gradient-bg);
+}
+
+:root[data-theme="light"] .ambient-glow-left {
+  background: radial-gradient(circle, rgba(196, 208, 224, 0.58) 0%, transparent 70%);
+}
+
+:root[data-theme="light"] .ambient-glow-red {
+  background: radial-gradient(circle, rgba(200, 16, 46, 0.08) 0%, transparent 70%);
+}
+
+:root[data-theme="light"] .custom-titlebar {
+  background: rgba(244, 247, 251, 0.96);
+  border-bottom: 1px solid var(--color-border);
+}
+
+:root[data-theme="light"] .main-content-body {
+  background:
+    radial-gradient(ellipse at 50% 2%, rgba(217, 228, 241, 0.86), transparent 46%),
+    radial-gradient(ellipse at 86% 14%, rgba(200, 16, 46, 0.08), transparent 34%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(232, 239, 248, 0.86));
+}
+
+:root[data-theme="light"] .home-header::before {
+  background:
+    radial-gradient(ellipse at 26% 8%, rgba(207, 219, 234, 0.78), transparent 42%),
+    radial-gradient(ellipse at 74% 20%, rgba(200, 16, 46, 0.08), transparent 36%);
+}
+
+:root[data-theme="light"] .home-welcome span,
+:root[data-theme="light"] .match-list-new-btn,
+:root[data-theme="light"] .club-gradient-text {
+  background: linear-gradient(
+    110deg,
+    var(--color-brand-red) 0%,
+    var(--color-brand-navy) 42%,
+    var(--color-brand-red) 74%,
+    #6B7C90 100%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+:root[data-theme="light"] .sidebar {
+  background: rgba(255, 255, 255, 0.86);
+  border-right-color: var(--color-border);
+  box-shadow: 12px 0 40px rgba(15, 35, 64, 0.08);
+}
+
+:root[data-theme="light"] .sidebar-logo,
+:root[data-theme="light"] .sidebar-profile {
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(232, 239, 248, 0.54)),
+    rgba(255, 255, 255, 0.72);
+}
+
+:root[data-theme="light"] .sidebar-item:hover {
+  background:
+    linear-gradient(110deg, rgba(232, 239, 248, 0.96), rgba(200, 16, 46, 0.08), rgba(232, 239, 248, 0.96));
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .sidebar-item.active {
+  background:
+    linear-gradient(110deg, rgba(200, 16, 46, 0.18), rgba(15, 35, 64, 0.88), rgba(200, 16, 46, 0.18));
+  color: var(--color-brand-white);
+}
+
+:root[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom-color: var(--color-border);
+  box-shadow: 0 12px 36px rgba(15, 35, 64, 0.07);
+}
+
+:root[data-theme="light"] .construction-panel,
+:root[data-theme="light"] .kpi-card,
+:root[data-theme="light"] .match-card,
+:root[data-theme="light"] .match-card-new,
+:root[data-theme="light"] .modal-container {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.86), rgba(232, 239, 248, 0.32)),
+    rgba(255, 255, 255, 0.82);
+  border-color: var(--color-border);
+  box-shadow: 0 18px 48px rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .kpi-card:hover,
+:root[data-theme="light"] .match-card:hover {
+  box-shadow: 0 24px 58px rgba(15, 35, 64, 0.14);
+}
+
+:root[data-theme="light"] .settings-toggle,
+:root[data-theme="light"] .settings-theme-option,
+:root[data-theme="light"] .form-tabs {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .settings-theme-option:has(input:checked) {
+  background: rgba(200, 16, 46, 0.08);
+}
+
+:root[data-theme="light"] .match-card.win {
+  --match-tone: rgba(21, 128, 61, 0.32);
+  --match-tone-soft: rgba(34, 197, 94, 0.16);
+  --match-tone-strong: rgba(34, 197, 94, 0.34);
+  --match-top-start: rgba(187, 247, 208, 0.9);
+  --match-top-mid: rgba(220, 252, 231, 0.72);
+  --match-score-opacity: 0.34;
+  --match-score-separator-opacity: 0.24;
+}
+
+:root[data-theme="light"] .match-card.loss {
+  --match-tone: rgba(200, 16, 46, 0.28);
+  --match-tone-soft: rgba(200, 16, 46, 0.12);
+  --match-tone-strong: rgba(200, 16, 46, 0.30);
+  --match-top-start: rgba(255, 226, 231, 0.9);
+  --match-top-mid: rgba(255, 241, 243, 0.74);
+  --match-score-opacity: 0.34;
+  --match-score-separator-opacity: 0.24;
+}
+
+:root[data-theme="light"] .match-card.pending {
+  --match-tone: rgba(53, 105, 180, 0.24);
+  --match-tone-soft: rgba(53, 105, 180, 0.14);
+  --match-tone-strong: rgba(245, 158, 11, 0.34);
+  --match-top-start: rgba(219, 234, 254, 0.94);
+  --match-top-mid: rgba(239, 246, 255, 0.74);
+  --match-score-opacity: 0.38;
+  --match-score-separator-opacity: 0.26;
+}
+
+:root[data-theme="light"] .match-card.draw {
+  --match-tone: rgba(180, 83, 9, 0.24);
+  --match-tone-soft: rgba(245, 158, 11, 0.14);
+  --match-tone-strong: rgba(245, 158, 11, 0.30);
+  --match-top-start: rgba(254, 243, 199, 0.94);
+  --match-top-mid: rgba(255, 251, 235, 0.74);
+  --match-score-opacity: 0.34;
+  --match-score-separator-opacity: 0.24;
+}
+
+:root[data-theme="light"] .match-card-thumbnail {
+  background-image:
+    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 48%, rgba(255, 255, 255, 0.86) 100%),
+    radial-gradient(ellipse at 16% 0%, var(--match-tone-soft), transparent 42%),
+    radial-gradient(ellipse at 82% 8%, var(--match-tone-soft), transparent 46%),
+    radial-gradient(ellipse at 50% 42%, var(--match-tone-soft), transparent 54%);
+}
+
+:root[data-theme="light"] .match-card-thumbnail::before {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 18%, transparent 82%, rgba(255, 255, 255, 0.18)),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(15, 35, 64, 0.10) 88%);
+}
+
+:root[data-theme="light"] .match-card-score,
+:root[data-theme="light"] .match-card-score .home,
+:root[data-theme="light"] .match-card-score .away,
+:root[data-theme="light"] .match-card-score .separator {
+  color: rgba(15, 35, 64, var(--match-score-opacity));
+}
+
+:root[data-theme="light"] .modal-overlay {
+  background: rgba(15, 35, 64, 0.28);
+}
+
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .form-select,
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea {
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .form-label {
+  color: rgba(16, 32, 51, 0.68);
+}
+
+:root[data-theme="light"] .form-input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: none;
+}
+
+:root[data-theme="light"] .form-select {
+  background-image:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
+    linear-gradient(120deg, rgba(15, 35, 64, 0.12), rgba(200, 16, 46, 0.18), rgba(15, 35, 64, 0.18)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+:root[data-theme="light"] .form-tab.active {
+  color: var(--color-text-primary);
+  background:
+    linear-gradient(110deg, rgba(200, 16, 46, 0.12), rgba(255, 255, 255, 0.86), rgba(200, 16, 46, 0.10));
+}
+
+:root[data-theme="light"] .tagging-view {
+  background:
+    radial-gradient(ellipse at 34% 0%, rgba(207, 219, 234, 0.84), transparent 42%),
+    radial-gradient(ellipse at 86% 12%, rgba(200, 16, 46, 0.08), transparent 36%),
+    rgba(244, 247, 251, 0.86);
+}
+
+:root[data-theme="light"] .tagging-match-select-view {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.72), transparent 34%),
+    radial-gradient(ellipse at 84% 14%, rgba(200, 16, 46, 0.08), transparent 34%),
+    rgba(244, 247, 251, 0.9);
+}
+
+:root[data-theme="light"] .tagging-match-card,
+:root[data-theme="light"] .event-inspector,
+:root[data-theme="light"] .tag-popup,
+:root[data-theme="light"] .status-card,
+:root[data-theme="light"] .video-controls,
+:root[data-theme="light"] .stats-only-panel,
+:root[data-theme="light"] .video-empty-state {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.88), rgba(232, 239, 248, 0.32)),
+    rgba(255, 255, 255, 0.84);
+  border-color: var(--color-border);
+  box-shadow: 0 20px 54px rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .tagging-video-frame {
+  border-color: var(--color-border);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.68), transparent),
+    rgba(231, 237, 245, 0.9);
+  box-shadow: 0 24px 66px rgba(15, 35, 64, 0.13);
+}
+
+:root[data-theme="light"] .tag-popup-option,
+:root[data-theme="light"] .event-inspector-stat,
+:root[data-theme="light"] .sequence-inspector-stat,
+:root[data-theme="light"] .event-inspector-field-grid,
+:root[data-theme="light"] .event-inspector-zone-picker summary,
+:root[data-theme="light"] .score-stepper button {
+  background: rgba(255, 255, 255, 0.66);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .tag-popup-option kbd,
+:root[data-theme="light"] .hotkey-bar kbd {
+  background: rgba(232, 239, 248, 0.86);
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .tag-popup-field-grid,
+:root[data-theme="light"] .event-inspector-field-grid {
+  background:
+    linear-gradient(180deg, rgba(34, 197, 94, 0.18), rgba(220, 252, 231, 0.72));
+}
+
+:root[data-theme="light"] .tag-popup-zone-cell {
+  color: rgba(16, 32, 51, 0.62);
+}
+
+:root[data-theme="light"] .tag-popup-zone-cell:hover,
+:root[data-theme="light"] .tag-popup-zone-cell.active,
+:root[data-theme="light"] .event-inspector-zone-cell.active {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .video-control-btn,
+:root[data-theme="light"] .video-speed,
+:root[data-theme="light"] .hotkey-toggle {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .video-speed option {
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .tagging-timecode {
+  background: rgba(255, 255, 255, 0.62);
+  border-color: var(--color-border);
+  color: rgba(16, 32, 51, 0.82);
+}
+
+:root[data-theme="light"] .video-scrubber::-webkit-slider-runnable-track {
+  background:
+    linear-gradient(
+      90deg,
+      var(--color-brand-red) 0 var(--scrubber-progress),
+      rgba(15, 35, 64, 0.22) var(--scrubber-progress) 100%
+    );
+}
+
+:root[data-theme="light"] .manual-timestamp input,
+:root[data-theme="light"] .event-inspector-field input,
+:root[data-theme="light"] .event-inspector-field select,
+:root[data-theme="light"] .event-inspector-note textarea {
+  background: rgba(255, 255, 255, 0.78);
+}
+
+:root[data-theme="light"] .possession-meter {
+  background: rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .timeline-host {
+  background: rgba(232, 239, 248, 0.9);
+  border-top-color: var(--color-border);
+}
+
+:root[data-theme="light"] .timeline-track-labels {
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.96), rgba(232, 239, 248, 0.88)),
+    rgba(255, 255, 255, 0.82);
+  border-right-color: var(--color-border);
+}
+
+:root[data-theme="light"] .timeline-ruler,
+:root[data-theme="light"] .timeline-label-ruler,
+:root[data-theme="light"] .timeline-track,
+:root[data-theme="light"] .timeline-possession-track,
+:root[data-theme="light"] .timeline-track-label {
+  border-color: rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .timeline-possession-track {
+  background: rgba(15, 35, 64, 0.045);
+}
+
+:root[data-theme="light"] .timeline-possession-label {
+  color: rgba(16, 32, 51, 0.64);
+}
+
+:root[data-theme="light"] .timeline-scroll {
+  scrollbar-color: rgba(78, 96, 117, 0.52) rgba(232, 239, 248, 0.9);
+}
+
+:root[data-theme="light"] .timeline-scroll::-webkit-scrollbar-track {
+  background: rgba(232, 239, 248, 0.9);
+}
+
+:root[data-theme="light"] .timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(78, 96, 117, 0.52);
+}
+
+:root[data-theme="light"] .timeline-preview {
+  background: rgba(255, 255, 255, 0.82);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .timeline-tick::after {
+  background: rgba(15, 35, 64, 0.08);
+}
+
+:root[data-theme="light"] .timeline-playhead {
+  background: var(--color-brand-red);
+  box-shadow: 0 0 18px rgba(200, 16, 46, 0.34);
+}
+
+:root[data-theme="light"] .timeline-block,
+:root[data-theme="light"] .timeline-sequence-block {
+  box-shadow: 0 8px 18px rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .hotkey-bar {
+  background: rgba(255, 255, 255, 0.88);
+  border-top-color: var(--color-border);
+}

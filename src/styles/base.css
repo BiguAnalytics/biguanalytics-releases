@@ -8,7 +8,7 @@
 html, body {
   height: 100%;
   overflow: hidden;
-  color-scheme: dark;
+  color-scheme: var(--theme-color-scheme);
 }
 
 body {

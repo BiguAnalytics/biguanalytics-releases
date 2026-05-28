@@ -332,6 +332,48 @@
   cursor: pointer;
 }
 
+.settings-theme-field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-theme-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.settings-theme-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-3);
+  align-items: start;
+  min-height: 92px;
+  padding: var(--space-4);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 26, 0.32);
+  cursor: pointer;
+}
+
+.settings-theme-option input {
+  width: 18px;
+  height: 18px;
+  margin-top: 2px;
+  accent-color: var(--color-brand-red);
+  cursor: pointer;
+}
+
+.settings-theme-option:has(input:checked) {
+  border-color: var(--color-border-accent);
+  background: rgba(200, 16, 46, 0.12);
+}
+
 .settings-toggle input {
   width: 18px;
   height: 18px;
@@ -344,6 +386,17 @@
   display: block;
   color: var(--color-text-primary);
   font: 900 14px var(--font-brand);
+}
+
+.settings-theme-option strong {
+  display: block;
+  color: var(--color-text-primary);
+  font: 900 14px var(--font-brand);
+}
+
+.settings-theme-option small {
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
 }
 
 .settings-toggle small,

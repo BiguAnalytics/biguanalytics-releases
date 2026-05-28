@@ -12,6 +12,11 @@ describe('settings.js', () => {
     });
   });
 
+  it('preserves the persisted visual theme setting', () => {
+    expect(mergeSettings().theme).toBe('dark');
+    expect(mergeSettings({ theme: 'light' }).theme).toBe('light');
+  });
+
   it('updates settings through a store while preserving nested default fields', async () => {
     const saved = [];
     const store = {

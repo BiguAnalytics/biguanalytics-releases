@@ -2,13 +2,15 @@
 import { createSidebar } from './components/sidebar.js';
 import { createTopbar, setTopbarActions } from './components/topbar.js';
 import { initRouter, navigate } from './router.js';
+import { loadAndApplyTheme } from './theme.js';
 
 /**
  * Initializes the application.
  */
-function initApp() {
+async function initApp() {
   const app = document.getElementById('app');
   if (!app) return;
+  await loadAndApplyTheme();
 
   // Ambient glows
   const glowLeft = document.createElement('div');
@@ -88,4 +90,6 @@ function initApp() {
 }
 
 // Boot
-document.addEventListener('DOMContentLoaded', initApp);
+document.addEventListener('DOMContentLoaded', () => {
+  initApp();
+});

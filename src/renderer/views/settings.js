@@ -2,6 +2,7 @@
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { navigate } from '../router.js';
+import { applyAppTheme, normalizeTheme } from '../theme.js';
 
 const DEFAULT_AUTO_CLOSE_MS = 8000;
 
@@ -26,6 +27,14 @@ export function getAutoCloseMsFromSeconds(seconds) {
 }
 
 /**
+ * @param {{querySelector: function(string): {value?: string}|null}} container
+ * @returns {'dark'|'light'}
+ */
+export function getSelectedThemeValue(container) {
+  return normalizeTheme(container.querySelector('input[name="theme"]:checked')?.value);
+}
+
+/**
  * @param {HTMLElement} container
  */
 export async function renderSettings(container) {
@@ -42,6 +51,25 @@ export async function renderSettings(container) {
         <h1 class="construction-title">Preferencias de tagging</h1>
         <p class="construction-text">Opciones operativas para el flujo de analisis durante el partido.</p>
         <form class="settings-form" id="settings-form">
+          <fieldset class="settings-theme-field">
+            <legend class="form-label">Tema visual</legend>
+            <div class="settings-theme-grid">
+              <label class="settings-theme-option">
+                <input type="radio" name="theme" value="dark" id="theme-dark" />
+                <span>
+                  <strong>Oscuro</strong>
+                  <small>Interfaz original para cabina y video.</small>
+                </span>
+              </label>
+              <label class="settings-theme-option">
+                <input type="radio" name="theme" value="light" id="theme-light" />
+                <span>
+                  <strong>Claro</strong>
+                  <small>Mayor luminosidad para lectura y revision.</small>
+                </span>
+              </label>
+            </div>
+          </fieldset>
           <label class="settings-toggle">
             <input type="checkbox" id="stats-only-mode" />
             <span>
@@ -64,17 +92,22 @@ export async function renderSettings(container) {
   const statsOnly = /** @type {HTMLInputElement} */ (container.querySelector('#stats-only-mode'));
   const autoClose = /** @type {HTMLInputElement} */ (container.querySelector('#tagging-auto-close'));
   const feedback = container.querySelector('#settings-feedback');
+  const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
+  if (themeInput) themeInput.checked = true;
   statsOnly.checked = Boolean(settings.statsOnlyMode);
   autoClose.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
 
   container.querySelector('#settings-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    const selectedTheme = getSelectedThemeValue(container);
     await window.api.settings.set({
+      theme: selectedTheme,
       statsOnlyMode: statsOnly.checked,
       tagging: {
         autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value),
       },
     });
+    applyAppTheme(selectedTheme);
     if (feedback) feedback.textContent = 'Ajustes guardados.';
   });
 }
