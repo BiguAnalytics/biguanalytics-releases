@@ -1,5 +1,7 @@
 // @ts-check
 import { renderTagPopup, getPopupOptionByNumber, getPopupZoneByNumber, getZones } from '../components/tag-popup.js';
+import { createDrawingEditor } from '../components/drawing-editor.js';
+import { openModal } from '../components/modal.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { SEQUENCE_COLOR_CHOICES, formatClock, renderTimeline, updateTimelinePlayback } from '../components/timeline.js';
@@ -573,6 +575,8 @@ export function renderTagging(container, params = {}) {
   let lastPersistedVideoDuration = null;
   let undoStack = [];
   let redoStack = [];
+  let drawingSession = null;
+  let timelineContextMenu = null;
 
   const cleanup = () => {
     disposed = true;
@@ -584,6 +588,8 @@ export function renderTagging(container, params = {}) {
     if (ticker) window.clearInterval(ticker);
     if (autoCloseTicker) window.clearInterval(autoCloseTicker);
     if (mediaResizeCleanup) mediaResizeCleanup();
+    drawingSession?.close?.(false);
+    closeTimelineContextMenu();
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
   };
@@ -810,6 +816,7 @@ export function renderTagging(container, params = {}) {
             <span><kbd>2</kbd>Posesion rival</span>
             <span><kbd>Q</kbd>Inicio secuencia</span>
             <span><kbd>E</kbd>Fin secuencia</span>
+            <span><kbd>D</kbd>Dibujo</span>
           </div>
         </div>
       </section>
@@ -1468,6 +1475,7 @@ export function renderTagging(container, params = {}) {
     renderTimeline(host, {
       events: match.events || [],
       sequences: match.sequences || [],
+      drawings: match.drawings || [],
       possessionSegments: getPossessionTimelineSegments(state.possession, getTimelinePossessionScaleEnd()),
       currentTime: getVisualCurrentTime(),
       duration,
@@ -1475,8 +1483,261 @@ export function renderTagging(container, params = {}) {
       onSeek: seekTo,
       onEventSelect: selectTimelineEvent,
       onSequenceSelect: selectTimelineSequence,
+      onDrawingSelect: selectTimelineDrawing,
+      onEventContextMenu: openTimelineContextMenu,
       onEventMove: moveTimelineEvent,
       preserveScroll: options.preserveScroll,
+    });
+  }
+
+  /**
+   * @param {object|null} drawing
+   */
+  function selectTimelineDrawing(drawing) {
+    if (!drawing) return;
+    selectedTimelineEventId = null;
+    selectedTimelineSequenceKey = null;
+    renderEventInspector();
+  }
+
+  function closeTimelineContextMenu() {
+    timelineContextMenu?.remove?.();
+    timelineContextMenu = null;
+  }
+
+  /**
+   * @param {object|null} timelineEvent
+   * @param {{x: number, y: number, block?: HTMLElement}} position
+   */
+  function openTimelineContextMenu(timelineEvent, position) {
+    if (!timelineEvent?.id || !match) return;
+    closeTimelineContextMenu();
+    const canCaptureFrame = match.video?.type === 'local' && Boolean(localVideo);
+    const menu = document.createElement('div');
+    menu.className = 'timeline-context-menu';
+    menu.style.left = `${Math.min(position.x, window.innerWidth - 230)}px`;
+    menu.style.top = `${Math.min(position.y, window.innerHeight - 170)}px`;
+    menu.innerHTML = `
+      <button type="button" data-context-edit>Editar</button>
+      <button type="button" data-context-delete>Eliminar</button>
+      <button type="button" data-context-capture${canCaptureFrame ? '' : ' disabled'}>Capturar frame y dibujar</button>
+    `;
+    document.body.appendChild(menu);
+    timelineContextMenu = menu;
+
+    menu.querySelector('[data-context-edit]')?.addEventListener('click', () => {
+      closeTimelineContextMenu();
+      openEventEditModal(timelineEvent);
+    });
+    menu.querySelector('[data-context-delete]')?.addEventListener('click', () => {
+      menu.innerHTML = `
+        <div class="timeline-context-confirm">Â¿Eliminar este evento?</div>
+        <div class="timeline-context-confirm-actions">
+          <button type="button" data-context-delete-no>No</button>
+          <button type="button" data-context-delete-yes>Si</button>
+        </div>
+      `;
+      menu.querySelector('[data-context-delete-no]')?.addEventListener('click', closeTimelineContextMenu);
+      menu.querySelector('[data-context-delete-yes]')?.addEventListener('click', async () => {
+        await deleteTimelineEventWithFade(timelineEvent, position.block);
+      });
+    });
+    menu.querySelector('[data-context-capture]')?.addEventListener('click', () => {
+      if (!canCaptureFrame) return;
+      closeTimelineContextMenu();
+      captureFrameAndDraw(timelineEvent);
+    });
+    window.setTimeout(() => {
+      document.addEventListener('pointerdown', handleContextOutside, { once: true });
+    });
+  }
+
+  /**
+   * @param {PointerEvent} event
+   */
+  function handleContextOutside(event) {
+    if (timelineContextMenu?.contains(/** @type {Node} */ (event.target))) {
+      document.addEventListener('pointerdown', handleContextOutside, { once: true });
+      return;
+    }
+    closeTimelineContextMenu();
+  }
+
+  /**
+   * @param {object} timelineEvent
+   */
+  function openEventEditModal(timelineEvent) {
+    if (!match) return;
+    const selectedEvent = (match.events || []).find(event => event.id === timelineEvent.id);
+    if (!selectedEvent) return;
+    let modal;
+    modal = openModal({
+      title: `Editar ${getTimelineEventTitle(selectedEvent)}`,
+      body: `
+        <div class="timeline-edit-modal">
+          <div class="timeline-edit-type">
+            <span>Tipo de evento</span>
+            <strong>${escapeHtml(getTimelineEventTitle(selectedEvent))}</strong>
+          </div>
+          <label class="form-group">
+            <span class="form-label">Resultado</span>
+            <input class="form-input" type="text" data-edit-result value="${escapeHtml(formatEventValue(selectedEvent.result || ''))}" />
+          </label>
+          <label class="form-group">
+            <span class="form-label">Subtipo</span>
+            <input class="form-input" type="text" data-edit-subtype value="${escapeHtml(selectedEvent.subtype || '')}" />
+          </label>
+          <label class="form-group">
+            <span class="form-label">Nota</span>
+            <textarea class="form-input timeline-edit-note" rows="4" data-edit-note>${escapeHtml(selectedEvent.note || '')}</textarea>
+          </label>
+          ${renderInspectorZonePicker('Zona del campo', 'data-edit-zone', selectedEvent.zone)}
+        </div>
+      `,
+      buttons: [
+        { label: 'Cancelar', className: 'btn-secondary', onClick: () => modal.close() },
+        { label: 'Guardar cambios', className: 'btn-primary', onClick: saveEventEditModal },
+      ],
+      className: 'timeline-event-edit-modal',
+    });
+
+    const overlay = document.getElementById('modal-overlay');
+    async function saveEventEditModal() {
+      if (!overlay) return;
+      const resultInput = /** @type {HTMLInputElement|null} */ (overlay.querySelector('[data-edit-result]'));
+      const subtypeInput = /** @type {HTMLInputElement|null} */ (overlay.querySelector('[data-edit-subtype]'));
+      const noteInput = /** @type {HTMLTextAreaElement|null} */ (overlay.querySelector('[data-edit-note]'));
+      const zoneInput = /** @type {HTMLInputElement|null} */ (overlay.querySelector('[data-edit-zone]'));
+      pushUndoSnapshot();
+      await window.api.events.update(match.id, selectedEvent.id, {
+        result: normalizeEventResultInput(resultInput?.value || ''),
+        subtype: subtypeInput?.value.trim() || '',
+        note: noteInput?.value || '',
+        zone: zoneInput?.value.trim() || null,
+      });
+      match = await window.api.matches.getById(match.id);
+      modal.close();
+      renderAll();
+    }
+    if (overlay) wireInspectorZonePickers(overlay);
+  }
+
+  /**
+   * @param {object} timelineEvent
+   * @param {HTMLElement|undefined} block
+   */
+  async function deleteTimelineEventWithFade(timelineEvent, block) {
+    if (!match || !timelineEvent?.id) return;
+    pushUndoSnapshot();
+    block?.classList.add('removing');
+    await new Promise(resolve => window.setTimeout(resolve, 150));
+    await window.api.events.delete(match.id, timelineEvent.id);
+    closeTimelineContextMenu();
+    selectedTimelineEventId = null;
+    match = await window.api.matches.getById(match.id);
+    renderAll();
+  }
+
+  async function startLiveDrawing() {
+    if (!match || statsOnlyMode || drawingSession) return;
+    closeActivePopupAnimated();
+    if (localVideo && !localVideo.paused) {
+      localVideo.pause();
+      isPlaying = false;
+      renderControls();
+    }
+    if (youtubePlayer && youtubePlayerReady) {
+      youtubePlayer.pauseVideo();
+      isPlaying = false;
+      renderControls();
+    }
+    const mediaHost = /** @type {HTMLElement|null} */ (container.querySelector('#tagging-media-host'));
+    if (!mediaHost) return;
+    const rect = mediaHost.getBoundingClientRect();
+    drawingSession = createDrawingEditor(mediaHost, {
+      width: localVideo?.videoWidth || Math.round(rect.width) || 1280,
+      height: localVideo?.videoHeight || Math.round(rect.height) || 720,
+      onSave: async (payload) => {
+        await window.api.drawings.saveLive(match.id, {
+          timestamp: getVisualCurrentTime(),
+          durationSeconds: payload.durationSeconds,
+          canvas: payload.canvas,
+          strokes: payload.strokes,
+        });
+        match = await window.api.matches.getById(match.id);
+        drawingSession = null;
+        renderTimelineView({ preserveScroll: true });
+      },
+      onCancel: () => {
+        drawingSession = null;
+      },
+    });
+  }
+
+  /**
+   * @param {object} timelineEvent
+   */
+  async function captureFrameAndDraw(timelineEvent) {
+    if (!match || !localVideo || !timelineEvent?.id) return;
+    const timestamp = Math.max(0, Number(timelineEvent.timestamp) || 0);
+    localVideo.pause();
+    isPlaying = false;
+    currentTime = timestamp;
+    optimisticSeek = { time: timestamp, until: Date.now() + SEEK_VISUAL_LOCK_MS };
+    const seeked = new Promise(resolve => {
+      localVideo.addEventListener('seeked', () => window.requestAnimationFrame(resolve), { once: true });
+    });
+    const fallbackFrame = new Promise(resolve => {
+      window.setTimeout(() => window.requestAnimationFrame(resolve), 250);
+    });
+    localVideo.currentTime = timestamp;
+    await Promise.race([seeked, fallbackFrame]);
+    renderControls();
+    updateTimelinePlaybackView();
+    const frameCanvas = document.createElement('canvas');
+    frameCanvas.width = localVideo.videoWidth || localVideo.clientWidth || 1280;
+    frameCanvas.height = localVideo.videoHeight || localVideo.clientHeight || 720;
+    frameCanvas.getContext('2d')?.drawImage(localVideo, 0, 0, frameCanvas.width, frameCanvas.height);
+    openFrameDrawingEditor(timelineEvent, frameCanvas.toDataURL('image/png'), frameCanvas.width, frameCanvas.height);
+  }
+
+  /**
+   * @param {object} timelineEvent
+   * @param {string} frameDataUrl
+   * @param {number} width
+   * @param {number} height
+   */
+  function openFrameDrawingEditor(timelineEvent, frameDataUrl, width, height) {
+    if (!match) return;
+    let modal;
+    modal = openModal({
+      title: 'Capturar frame y dibujar',
+      body: '<div class="frame-drawing-editor" data-frame-drawing-host></div>',
+      className: 'frame-drawing-modal',
+    });
+    const host = /** @type {HTMLElement|null} */ (document.querySelector('[data-frame-drawing-host]'));
+    if (!host) return;
+    createDrawingEditor(host, {
+      width,
+      height,
+      backgroundImage: frameDataUrl,
+      includeImageData: true,
+      allowExport: true,
+      onSave: async (payload) => {
+        await window.api.drawings.saveFrame(match.id, timelineEvent.id, {
+          imageDataUrl: payload.imageDataUrl,
+          durationSeconds: payload.durationSeconds,
+          canvas: payload.canvas,
+          strokes: payload.strokes,
+        });
+        match = await window.api.matches.getById(match.id);
+        modal.close();
+        renderAll();
+      },
+      onExport: async (dataUrl) => {
+        await window.api.drawings.exportPng(dataUrl, `frame-${formatClock(Number(timelineEvent.timestamp)).replace(':', '-')}.png`);
+      },
+      onCancel: () => modal.close(),
     });
   }
 
@@ -1917,6 +2178,8 @@ export function renderTagging(container, params = {}) {
     const key = event.key.toUpperCase();
     const popupHost = /** @type {HTMLElement|null} */ (container.querySelector('#tag-popup-host'));
 
+    if (drawingSession) return;
+
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !isEditableTarget(event.target)) {
       event.preventDefault();
       event.shiftKey ? redoLastChange() : undoLastChange();
@@ -2029,6 +2292,11 @@ export function renderTagging(container, params = {}) {
       event.preventDefault();
       sequencePrompt = { timestamp: getTagTimestamp() || currentTime };
       renderSequencePrompt();
+      return;
+    }
+    if (key === 'D') {
+      event.preventDefault();
+      startLiveDrawing();
       return;
     }
     if (EVENT_DEFINITIONS[key]) {

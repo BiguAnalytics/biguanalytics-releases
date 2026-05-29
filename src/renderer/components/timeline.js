@@ -20,6 +20,14 @@ export const SEQUENCE_COLOR_CHOICES = [
 ];
 
 /**
+ * @param {object} drawing
+ * @returns {string}
+ */
+function getDrawingTitle(drawing) {
+  return `Dibujo Â· ${formatClock(drawing.timestamp)} Â· ${Number(drawing.durationSeconds) || 3}s`;
+}
+
+/**
  * @param {string} value
  * @returns {string}
  */
@@ -200,10 +208,14 @@ export function renderTimeline(host, options) {
       && segment.end > segment.start
     ))
     .sort((a, b) => a.start - b.start);
+  const drawings = (options.drawings || [])
+    .filter(drawing => Number.isFinite(drawing.timestamp))
+    .sort((a, b) => a.timestamp - b.timestamp);
   const scaleEvents = [
     ...events,
     ...sequences.map(sequence => ({ timestamp: sequence.end })),
     ...possessionSegments.map(segment => ({ timestamp: segment.end })),
+    ...drawings.map(drawing => ({ timestamp: drawing.timestamp })),
   ];
   const { duration, durationKnown, tickCount, timelineWidth } = getTimelineScale(options.duration, scaleEvents);
   const selectedSequenceKey = String(options.selectedSequenceKey || '');
@@ -261,13 +273,32 @@ export function renderTimeline(host, options) {
                   ></button>
                 `;
               }).join('') : ''}
+              ${track.id === 'notes' ? drawings.map(drawing => {
+                const left = Math.min(100, (drawing.timestamp / duration) * 100);
+                const title = getDrawingTitle(drawing);
+                return `
+                  <button
+                    class="timeline-drawing-block"
+                    type="button"
+                    style="left:${left}%"
+                    data-drawing-id="${escapeHtml(drawing.id)}"
+                    data-drawing-timestamp="${drawing.timestamp}"
+                    title="${escapeHtml(title)}"
+                    aria-label="${escapeHtml(title)}"
+                  >
+                    <span class="timeline-drawing-icon" aria-hidden="true">D</span>
+                  </button>
+                `;
+              }).join('') : ''}
               ${events.filter(event => getTrackId(event) === track.id).map(event => {
                 const left = Math.min(100, (event.timestamp / duration) * 100);
                 const eventResult = formatEventValue(event.result || event.subtype);
+                const hasNote = Boolean(String(event.note || '').trim());
+                const hasDrawing = Boolean(event.drawingId);
                 const title = `${event.type} · ${event.result || event.subtype || 'sin resultado'} · ${event.note || formatClock(event.timestamp)}`;
                 return `
                   <button
-                    class="timeline-block ${getTone(event)}"
+                    class="timeline-block ${getTone(event)}${hasNote ? ' has-note' : ''}${hasDrawing ? ' has-drawing' : ''}"
                     type="button"
                     style="left:${left}%"
                     data-event-id="${event.id || event.timestamp}"
@@ -275,9 +306,13 @@ export function renderTimeline(host, options) {
                     data-event-type="${event.type}"
                     data-event-result="${eventResult}"
                     data-event-note="${event.note || ''}"
-                    title="${title.replaceAll('"', '&quot;')}"
-                    aria-label="${title.replaceAll('"', '&quot;')}"
-                  ></button>
+                    data-event-drawing-id="${event.drawingId || ''}"
+                    title="${escapeHtml(title)}"
+                    aria-label="${escapeHtml(title)}"
+                  >
+                    ${hasNote ? '<span class="timeline-note-dot" aria-hidden="true"></span>' : ''}
+                    ${hasDrawing ? '<span class="timeline-pencil-indicator" aria-hidden="true">D</span>' : ''}
+                  </button>
                 `;
               }).join('')}
             </div>
@@ -358,8 +393,36 @@ export function renderTimeline(host, options) {
       event.preventDefault();
       selectEventBlock();
     });
+    block.addEventListener('contextmenu', (event) => {
+      event.preventDefault();
+      const timelineEvent = events.find(item => String(item.id || item.timestamp) === block.dataset.eventId);
+      options.onEventContextMenu?.(timelineEvent, {
+        x: event.clientX,
+        y: event.clientY,
+        block,
+      });
+    });
     block.addEventListener('mouseenter', () => updateTimelinePreview(host, block));
     block.addEventListener('focus', () => updateTimelinePreview(host, block));
+  });
+
+  host.querySelectorAll('[data-drawing-timestamp]').forEach((block) => {
+    const selectDrawingBlock = () => {
+      const drawing = drawings.find(item => String(item.id) === block.dataset.drawingId);
+      options.onDrawingSelect?.(drawing);
+      options.onSeek?.(Number(block.dataset.drawingTimestamp));
+    };
+    block.addEventListener('pointerdown', (event) => {
+      event.preventDefault();
+      selectDrawingBlock();
+    });
+    block.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      event.preventDefault();
+      selectDrawingBlock();
+    });
+    block.addEventListener('mouseenter', () => updateDrawingPreview(host, block));
+    block.addEventListener('focus', () => updateDrawingPreview(host, block));
   });
 
   host.querySelectorAll('[data-sequence-start]').forEach((block) => {
@@ -414,5 +477,16 @@ function updateSequencePreview(host, block) {
   const start = Number(block.dataset.sequenceStart);
   const end = Number(block.dataset.sequenceEnd);
   preview.textContent = `${formatClock(start)}-${formatClock(end)} · ${block.dataset.sequenceName || 'Secuencia'} · ${block.dataset.sequenceResult}`;
+  preview.classList.add('active');
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {HTMLElement} block
+ */
+function updateDrawingPreview(host, block) {
+  const preview = host.querySelector('#timeline-preview');
+  if (!preview) return;
+  preview.textContent = `Dibujo Â· ${formatClock(Number(block.dataset.drawingTimestamp))}`;
   preview.classList.add('active');
 }

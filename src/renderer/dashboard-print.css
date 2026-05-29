@@ -176,6 +176,41 @@ body {
   object-fit: contain;
 }
 
+.print-frame-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.print-frame-grid.inline {
+  grid-template-columns: minmax(0, 1fr);
+  margin-top: 8px;
+}
+
+.print-frame-card {
+  margin: 0;
+  padding: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(13, 24, 41, 0.82);
+  text-align: center;
+}
+
+.print-frame-card img {
+  display: block;
+  width: 100%;
+  max-width: 400px;
+  max-height: 260px;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.print-frame-card figcaption {
+  margin-top: 8px;
+  color: #8A9BB0;
+  font-size: 11px;
+}
+
 .print-notes {
   color: #F0F4F8;
   font-size: 14px;

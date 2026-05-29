@@ -1,0 +1,180 @@
+.drawing-editor-shell {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: rgba(5, 9, 17, 0.16);
+  cursor: crosshair;
+}
+
+.drawing-editor-bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #050917;
+}
+
+.drawing-editor-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.drawing-toolbar {
+  position: absolute;
+  left: var(--space-4);
+  bottom: var(--space-4);
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  cursor: default;
+}
+
+.drawing-toolbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.drawing-tool-btn,
+.drawing-color-btn,
+.drawing-width-btn,
+.drawing-action-btn,
+.drawing-color-picker {
+  cursor: pointer;
+}
+
+.drawing-tool-btn {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(8, 14, 26, 0.56);
+  color: var(--color-text-primary);
+  font: 900 14px var(--font-brand);
+}
+
+.drawing-tool-btn.active {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+}
+
+.drawing-color-row,
+.drawing-width-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.drawing-color-btn {
+  width: 24px;
+  height: 24px;
+  border: 2px solid transparent;
+  border-radius: var(--radius-full);
+  background: var(--drawing-color);
+}
+
+.drawing-color-btn.active {
+  border-color: var(--color-brand-white);
+}
+
+.drawing-color-picker {
+  position: relative;
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-full);
+  color: var(--color-text-primary);
+  font: 900 14px var(--font-brand);
+  overflow: hidden;
+}
+
+.drawing-color-picker input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.drawing-width-btn {
+  width: 32px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(8, 14, 26, 0.48);
+}
+
+.drawing-width-btn span {
+  width: 18px;
+  border-radius: var(--radius-full);
+  background: var(--color-text-primary);
+}
+
+.drawing-width-btn.active {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+}
+
+.drawing-toolbar-actions {
+  justify-content: flex-end;
+}
+
+.drawing-duration-field {
+  display: grid;
+  gap: 2px;
+  min-width: 120px;
+  color: var(--color-text-secondary);
+  font: 700 10px var(--font-ui);
+}
+
+.drawing-duration-field input {
+  cursor: pointer;
+}
+
+.drawing-action-btn {
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: rgba(8, 14, 26, 0.56);
+  color: var(--color-text-primary);
+  font: 900 10px var(--font-brand);
+  text-transform: uppercase;
+}
+
+.drawing-action-btn.primary {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent);
+  color: var(--color-brand-white);
+}
+
+.drawing-text-input {
+  position: absolute;
+  z-index: 45;
+  min-width: 160px;
+  min-height: 34px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  outline: none;
+  font: 700 16px var(--font-ui);
+}

@@ -20,6 +20,17 @@ function escapeHtml(value) {
 function formatPct(value) {
   return `${Number.isFinite(Number(value)) ? Math.round(Number(value)) : 0}%`;
 }
+/**
+ * @param {number|null|undefined} seconds
+ * @returns {string}
+ */
+function formatClock(seconds) {
+  if (!Number.isFinite(Number(seconds))) return '--:--';
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds)));
+  const minutes = Math.floor(safeSeconds / 60);
+  const remainder = String(safeSeconds % 60).padStart(2, '0');
+  return `${minutes}:${remainder}`;
+}
 
 /**
  * @param {object} stats
@@ -36,15 +47,86 @@ function getKpis(stats) {
 }
 
 /**
- * @param {string} title
- * @param {string} src
+ * @param {object} frame
+ * @returns {string|null}
+ */
+function frameSectionId(frame) {
+  const type = String(frame?.type || '');
+  if (['scrum', 'lineout', 'maul'].includes(type)) return 'set-pieces';
+  if (type === 'ruck') return 'rucks';
+  if (type === 'penal' || type === 'card') return 'discipline';
+  if (type === 'kick') return 'kicks';
+  if (type === 'break-line') return 'break-lines';
+  return null;
+}
+
+/**
+ * @param {Array<object>} frames
+ * @param {string} sectionId
+ * @returns {Array<object>}
+ */
+function framesForSection(frames, sectionId) {
+  return (Array.isArray(frames) ? frames : []).filter(frame => frameSectionId(frame) === sectionId);
+}
+
+/**
+ * @param {Array<object>} frames
  * @returns {string}
  */
-function chartBlock(title, src) {
+function frameCards(frames = []) {
+  if (!Array.isArray(frames) || frames.length === 0) return '';
+  return `
+    <div class="print-frame-grid inline">
+      ${frames.map(frame => `
+        <figure class="print-frame-card">
+          <img src="${frame.imageDataUrl}" alt="Frame anotado ${escapeHtml(formatClock(frame.timestamp))}">
+          <figcaption>Frame del minuto ${escapeHtml(formatClock(frame.timestamp))}</figcaption>
+        </figure>
+      `).join('')}
+    </div>
+  `;
+}
+
+/**
+ * @param {Array<object>} frames
+ * @returns {string}
+ */
+function annotatedFramesPage(frames = []) {
+  if (!Array.isArray(frames) || frames.length === 0) return '';
+  return `
+    <section class="print-page print-drawing-frames">
+      <h2 class="print-title">Frames anotados</h2>
+      <div class="print-frame-grid">
+        ${frames.map(frame => `
+          <figure class="print-frame-card">
+            <img src="${frame.imageDataUrl}" alt="Frame anotado ${escapeHtml(formatClock(frame.timestamp))}">
+            <figcaption>Frame del minuto ${escapeHtml(formatClock(frame.timestamp))}</figcaption>
+          </figure>
+        `).join('')}
+      </div>
+    </section>
+  `;
+}
+
+/**
+ * @param {Array<object>} frames
+ * @returns {Array<object>}
+ */
+function unsectionedFrames(frames = []) {
+  return (Array.isArray(frames) ? frames : []).filter(frame => !frameSectionId(frame));
+}
+/**
+ * @param {string} title
+ * @param {string} src
+ * @param {Array<object>} frames
+ * @returns {string}
+ */
+function chartBlock(title, src, frames = []) {
   return `
     <section class="print-chart">
       <h2 class="print-title">${escapeHtml(title)}</h2>
       ${src ? `<img src="${src}" alt="${escapeHtml(title)}">` : '<p>Grafico no disponible.</p>'}
+      ${frameCards(frames)}
     </section>
   `;
 }
@@ -84,6 +166,7 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
   const stats = payload.stats;
   const chartImages = payload.chartImages || {};
   const notesHtml = payload.notesHtml || '';
+  const drawingFrames = payload.pdfTemplate === 'alerts' ? [] : payload.drawingFrames || [];
   const pages = [];
 
   pages.push(`
@@ -123,8 +206,8 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
   pages.push(`
     <section class="print-page">
       <div class="print-grid-2">
-        ${chartBlock('Set Pieces', chartImages.setPieces)}
-        ${chartBlock('Rucks', chartImages.rucks)}
+        ${chartBlock('Set Pieces', chartImages.setPieces, framesForSection(drawingFrames, 'set-pieces'))}
+        ${chartBlock('Rucks', chartImages.rucks, framesForSection(drawingFrames, 'rucks'))}
       </div>
     </section>
   `);
@@ -132,9 +215,9 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
   pages.push(`
     <section class="print-page">
       <div class="print-grid-3">
-        ${chartBlock('Disciplina', chartImages.discipline)}
-        ${chartBlock('Kicks', chartImages.kicks)}
-        ${chartBlock('Break Lines', chartImages.breakLines)}
+        ${chartBlock('Disciplina', chartImages.discipline, framesForSection(drawingFrames, 'discipline'))}
+        ${chartBlock('Kicks', chartImages.kicks, framesForSection(drawingFrames, 'kicks'))}
+        ${chartBlock('Break Lines', chartImages.breakLines, framesForSection(drawingFrames, 'break-lines'))}
       </div>
     </section>
   `);
@@ -158,6 +241,8 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
     `);
   }
 
+  pages.push(annotatedFramesPage(unsectionedFrames(drawingFrames)));
+
   if (notesHtml.trim()) {
     pages.push(`
       <section class="print-page">
@@ -167,5 +252,5 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
     `);
   }
 
-  root.innerHTML = pages.join('');
+  root.innerHTML = pages.filter(Boolean).join('');
 };

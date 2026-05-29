@@ -94,6 +94,22 @@ describe('timeline event selection', () => {
     expect(timelineSource).toContain('data-timeline-duration="${duration}"');
   });
 
+  it('computes note and drawing indicators inside the event marker template', () => {
+    const sequenceTemplate = timelineSource.slice(
+      timelineSource.indexOf("track.id === 'notes' ? sequences.map"),
+      timelineSource.indexOf("track.id === 'notes' ? drawings.map")
+    );
+    const eventTemplate = timelineSource.slice(
+      timelineSource.indexOf("events.filter(event => getTrackId(event) === track.id).map(event =>"),
+      timelineSource.indexOf("host.querySelectorAll('[data-event-timestamp]')")
+    );
+
+    expect(sequenceTemplate).not.toContain('event.note');
+    expect(sequenceTemplate).not.toContain('event.drawingId');
+    expect(eventTemplate).toContain("const hasNote = Boolean(String(event.note || '').trim())");
+    expect(eventTemplate).toContain('const hasDrawing = Boolean(event.drawingId)');
+  });
+
   it('keeps the zero minute tick inside the timeline frame', () => {
     expect(timelineSource).toContain('timeline-tick zero-tick');
     expect(timelineCss).toMatch(/\.timeline-tick\.zero-tick\s*{[^}]*transform:\s*translateX\(0\);[^}]*padding-left:\s*var\(--space-1\);/s);

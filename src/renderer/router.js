@@ -2,15 +2,17 @@
 import { setSidebarActive } from './components/sidebar.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderHome } from './views/home.js';
+import { renderSeason } from './views/season.js';
 import { renderSettings } from './views/settings.js';
+import { renderTacticalBoard } from './views/tactical-board.js';
 import { renderTagging } from './views/tagging.js';
-import { renderUnderConstruction } from './views/under-construction.js';
 
 const routes = {
   home: renderHome,
   tagging: renderTagging,
   dashboard: renderDashboard,
-  season: (container, params = {}) => renderUnderConstruction(container, { ...params, section: 'season' }),
+  tactical: renderTacticalBoard,
+  season: renderSeason,
   settings: renderSettings,
 };
 

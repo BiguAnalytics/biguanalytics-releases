@@ -212,50 +212,52 @@
 > *Objetivo: agregar las herramientas de dibujo, tablero táctico y edición de eventos. La app queda completa.*
 
 ### 4.1 Timeline — Edición de eventos
-- [ ] 4.1.1 Click derecho en bloque de timeline → menú contextual (Editar / Eliminar / Capturar frame)
-- [ ] 4.1.2 Modal de edición: modificar resultado, nota, zona del evento
-- [ ] 4.1.3 Eliminar evento con confirmación
-- [ ] 4.1.4 Indicador visual en bloques que tienen nota o dibujo asociado
+- [x] 4.1.1 Click derecho en bloque de timeline → menú contextual (Editar / Eliminar / Capturar frame)
+- [x] 4.1.2 Modal de edición: modificar resultado, nota, zona del evento
+- [x] 4.1.3 Eliminar evento con confirmación
+- [x] 4.1.4 Indicador visual en bloques que tienen nota o dibujo asociado
 
 ### 4.2 Herramienta de Dibujo — Modo en vivo
-- [ ] 4.2.1 Hotkey `D` → activar modo dibujo: video se pausa, canvas transparente se superpone
-- [ ] 4.2.2 Toolbar flotante en esquina inferior izquierda del video: herramientas de dibujo
-- [ ] 4.2.3 Herramienta flecha (dirección de movimiento)
-- [ ] 4.2.4 Herramienta línea recta
-- [ ] 4.2.5 Herramienta círculo / elipse
-- [ ] 4.2.6 Herramienta rectángulo
-- [ ] 4.2.7 Herramienta trazo libre (freehand)
-- [ ] 4.2.8 Herramienta texto
-- [ ] 4.2.9 Borrador (eliminar trazos individuales)
-- [ ] 4.2.10 Deshacer / Rehacer (Ctrl+Z / Ctrl+Y)
-- [ ] 4.2.11 Paleta de colores rápidos (blanco, rojo, amarillo, verde, azul, negro)
-- [ ] 4.2.12 Selector de color completo (color picker)
-- [ ] 4.2.13 Control de grosor de trazo (fino / medio / grueso)
+- [x] 4.2.1 Hotkey `D` → activar modo dibujo: video se pausa, canvas transparente se superpone
+- [x] 4.2.2 Toolbar flotante en esquina inferior izquierda del video: herramientas de dibujo
+- [x] 4.2.3 Herramienta flecha (dirección de movimiento)
+- [x] 4.2.4 Herramienta línea recta
+- [x] 4.2.5 Herramienta círculo / elipse
+- [x] 4.2.6 Herramienta rectángulo
+- [x] 4.2.7 Herramienta trazo libre (freehand)
+- [x] 4.2.8 Herramienta texto
+- [x] 4.2.9 Borrador (eliminar trazos individuales)
+- [x] 4.2.10 Deshacer / Rehacer (Ctrl+Z / Ctrl+Y)
+- [x] 4.2.11 Paleta de colores rápidos (blanco, rojo, amarillo, verde, azul, negro)
+- [x] 4.2.12 Selector de color completo (color picker)
+- [x] 4.2.13 Control de grosor de trazo (fino / medio / grueso)
 
 ### 4.3 Herramienta de Dibujo — Captura de frame
-- [ ] 4.3.1 Click derecho en evento del timeline → "Capturar frame y dibujar"
-- [ ] 4.3.2 Extraer imagen nítida del frame exacto del timestamp del evento (via canvas snapshot del video)
-- [ ] 4.3.3 Abrir el editor de dibujo sobre la captura en alta calidad
-- [ ] 4.3.4 Guardar imagen anotada vinculada al evento en el JSON del partido
-- [ ] 4.3.5 Exportar frame anotado como PNG independiente
-- [ ] 4.3.6 Configurar duración de visualización del dibujo sobre el video (0.5s a 10s)
+- [x] 4.3.1 Click derecho en evento del timeline → "Capturar frame y dibujar"
+- [x] 4.3.2 Extraer imagen nítida del frame exacto del timestamp del evento (via canvas snapshot del video)
+- [x] 4.3.3 Abrir el editor de dibujo sobre la captura en alta calidad
+- [x] 4.3.4 Guardar imagen anotada vinculada al evento en el JSON del partido
+- [x] 4.3.5 Exportar frame anotado como PNG independiente
+- [x] 4.3.6 Configurar duración de visualización del dibujo sobre el video (0.5s a 10s)
 
 ### 4.4 Tablero Táctico independiente
-- [ ] 4.4.1 Pantalla accesible desde sidebar (ícono dibujo) sin video activo
-- [ ] 4.4.2 Canvas en blanco con diagrama del campo de rugby de fondo
-- [ ] 4.4.3 Mismas herramientas de dibujo que el modo en vivo
-- [ ] 4.4.4 Guardar tablero como imagen exportable (PNG)
-- [ ] 4.4.5 Múltiples tableros guardados (biblioteca de jugadas)
+- [x] 4.4.1 Pantalla accesible desde sidebar (ícono dibujo) sin video activo
+- [x] 4.4.2 Canvas en blanco con diagrama del campo de rugby de fondo
+- [x] 4.4.3 Mismas herramientas de dibujo que el modo en vivo
+- [x] 4.4.4 Guardar tablero como imagen exportable (PNG)
+- [x] 4.4.5 Múltiples tableros guardados (biblioteca de jugadas)
 
 ### 4.5 Integración de dibujos en el PDF
-- [ ] 4.5.1 Incluir imágenes anotadas (frames capturados) en la sección correspondiente del PDF
-- [ ] 4.5.2 Indicador en la timeline de eventos con dibujos asociados
+- [x] 4.5.1 Incluir imágenes anotadas (frames capturados) en la sección correspondiente del PDF
+- [x] 4.5.2 Indicador en la timeline de eventos con dibujos asociados
 
 ### 4.6 Pantalla Temporada
-- [ ] 4.6.1 Vista de todos los partidos de la temporada en tabla
-- [ ] 4.6.2 Evolución de métricas clave a lo largo de la temporada (gráfico de línea)
-- [ ] 4.6.3 Promedios generales de la temporada (% rucks, penales promedio, % line outs, etc.)
-- [ ] 4.6.4 Filtro por competencia
+- [x] 4.6.1 Vista de todos los partidos de la temporada en tabla
+- [x] 4.6.2 Evolución de métricas clave a lo largo de la temporada (gráfico de línea)
+- [x] 4.6.3 Promedios generales de la temporada (% rucks, penales promedio, % line outs, etc.)
+- [x] 4.6.4 Filtro por competencia
+
+> **Auditoria Fase 4 - 2026-05-29:** edicion/eliminacion de eventos desde timeline, dibujo en vivo, captura de frames, tablero tactico, integracion de frames en PDF y pantalla Temporada quedaron implementados sobre Electron + renderer vanilla. Verificacion automatizada: `npm test` completo en verde.
 
 ---
 

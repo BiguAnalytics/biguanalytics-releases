@@ -5,6 +5,7 @@ const puppeteer = require('puppeteer');
 const { calculateMatchStats } = require('./analytics');
 const { getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
+const { getAnnotatedFramesForPdf } = require('./drawings');
 
 /**
  * @param {string} value
@@ -55,7 +56,8 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
     getMatchById(matchId),
     getSettings(),
   ]);
-  const stats = calculateMatchStats(match, settings);
+  const drawingFrames = await getAnnotatedFramesForPdf(matchId);
+  const stats = calculateMatchStats(match, settings, printPayload.filters || settings.dashboard?.filters || {});
   const saveResult = await choosePdfPath(options.dialog, options.browserWindow, stats);
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
   await fs.mkdir(path.dirname(saveResult.filePath), { recursive: true });
@@ -78,6 +80,7 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
           ...match,
           coachNotes: match.coachNotes || '',
         },
+        drawingFrames,
       }
     );
     await page.pdf({

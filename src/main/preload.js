@@ -24,7 +24,23 @@ contextBridge.exposeInMainWorld('api', {
   },
   analytics: {
     getMatchStats: (matchId) => ipcRenderer.invoke('analytics:getMatchStats', matchId),
+    getSeasonStats: (year) => ipcRenderer.invoke('analytics:getSeasonStats', year),
     exportPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:exportPdf', matchId, printPayload)
+  },
+  drawings: {
+    saveLive: (matchId, drawing) => ipcRenderer.invoke('drawings:saveLive', matchId, drawing),
+    saveFrame: (matchId, eventId, drawing) => ipcRenderer.invoke('drawings:saveFrame', matchId, eventId, drawing),
+    getForMatch: (matchId) => ipcRenderer.invoke('drawings:getForMatch', matchId),
+    exportPng: (dataUrl, suggestedName) => ipcRenderer.invoke('drawings:exportPng', dataUrl, suggestedName)
+  },
+  tacticalBoards: {
+    list: () => ipcRenderer.invoke('tacticalBoards:list'),
+    get: (id) => ipcRenderer.invoke('tacticalBoards:get', id),
+    create: (data) => ipcRenderer.invoke('tacticalBoards:create', data),
+    update: (id, data) => ipcRenderer.invoke('tacticalBoards:update', id, data),
+    rename: (id, name) => ipcRenderer.invoke('tacticalBoards:rename', id, name),
+    delete: (id) => ipcRenderer.invoke('tacticalBoards:delete', id),
+    exportPng: (dataUrl, suggestedName) => ipcRenderer.invoke('tacticalBoards:exportPng', dataUrl, suggestedName)
   },
   media: {
     selectLocalVideo: () => ipcRenderer.invoke('media:selectLocalVideo'),

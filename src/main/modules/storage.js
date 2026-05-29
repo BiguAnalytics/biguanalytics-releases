@@ -14,6 +14,15 @@ function getDataPath() {
 }
 
 /**
+ * Gets the data directory for a match.
+ * @param {string} id
+ * @returns {string}
+ */
+function getMatchDataPath(id) {
+  return path.join(getDataPath(), id);
+}
+
+/**
  * Ensures the data directory exists
  */
 async function ensureDataPath() {
@@ -52,6 +61,7 @@ async function createMatch(data) {
     awayScore: 0,
     status: 'created',
     events: [],
+    drawings: [],
     sequences: [],
     possession: [],
     coachNotes: '',
@@ -103,7 +113,7 @@ async function getAllMatches() {
  * @returns {Promise<object>}
  */
 async function getMatchById(id) {
-  const matchPath = path.join(getDataPath(), id, 'match.json');
+  const matchPath = path.join(getMatchDataPath(id), 'match.json');
   try {
     const content = await fs.readFile(matchPath, 'utf-8');
     return JSON.parse(content);
@@ -148,6 +158,8 @@ async function deleteMatch(id) {
 }
 
 module.exports = {
+  getDataPath,
+  getMatchDataPath,
   createMatch,
   getAllMatches,
   getMatchById,

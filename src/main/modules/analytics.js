@@ -1,5 +1,5 @@
 // @ts-check
-const { getMatchById } = require('./storage');
+const { getAllMatches, getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
 
 const TEAMS = ['home', 'away'];
@@ -739,9 +739,108 @@ async function getMatchStats(matchId) {
   return calculateMatchStats(match, settings);
 }
 
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {Date|null}
+ */
+function parseSeasonDate(value) {
+  const raw = String(value || '');
+  if (!raw) return null;
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(raw);
+  const date = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(raw);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+/**
+ * @param {Array<number>} values
+ * @returns {number}
+ */
+function average(values) {
+  const valid = values.filter(value => Number.isFinite(value));
+  if (valid.length === 0) return 0;
+  return Math.round((valid.reduce((sum, value) => sum + value, 0) / valid.length) * 10) / 10;
+}
+
+/**
+ * @param {object} match
+ * @param {object} stats
+ * @returns {object}
+ */
+function buildSeasonMatchRow(match, stats) {
+  const bigua = stats.teams.biguaTeam;
+  const rival = stats.teams.rivalTeam;
+  const homeScore = Number.isFinite(Number(match.homeScore)) ? Number(match.homeScore) : stats.score.home.total;
+  const awayScore = Number.isFinite(Number(match.awayScore)) ? Number(match.awayScore) : stats.score.away.total;
+  const rivalName = rival === 'home' ? match.homeTeam || 'Local' : match.awayTeam || 'Rival';
+  const date = match.date || match.createdAt || '';
+
+  return {
+    id: match.id,
+    date,
+    label: rivalName + ' ' + date,
+    rival: rivalName,
+    score: homeScore + ' - ' + awayScore,
+    competition: match.competition || 'Sin competencia',
+    ruckWinPct: stats.rucks[bigua].wonPct,
+    penalties: stats.discipline[bigua].penalties.total,
+    lineoutWinPct: stats.setPieces.lineouts[bigua].wonPct,
+    breakLines: stats.breakLines[bigua].total,
+    breakLinesConceded: stats.breakLines[rival].total,
+  };
+}
+
+/**
+ * @param {number|string} year
+ * @returns {Promise<object>}
+ */
+async function getSeasonStats(year = new Date().getFullYear()) {
+  const safeYear = Number(year) || new Date().getFullYear();
+  const [summaries, settings] = await Promise.all([
+    getAllMatches(),
+    getSettings(),
+  ]);
+  const rows = [];
+
+  for (const summary of summaries) {
+    const date = parseSeasonDate(summary.date || summary.createdAt);
+    if (!date || date.getFullYear() !== safeYear) continue;
+    const match = await getMatchById(summary.id);
+    rows.push(buildSeasonMatchRow(match, calculateMatchStats(match, settings)));
+  }
+
+  rows.sort((a, b) => {
+    const dateA = parseSeasonDate(a.date)?.getTime() || 0;
+    const dateB = parseSeasonDate(b.date)?.getTime() || 0;
+    return dateA - dateB;
+  });
+
+  const thresholds = {
+    ...DEFAULT_ALERT_THRESHOLDS,
+    ...(settings.alerts || {}),
+  };
+
+  return {
+    year: safeYear,
+    matches: rows,
+    competitions: Array.from(new Set(rows.map(row => row.competition))).sort((a, b) => a.localeCompare(b)),
+    averages: {
+      ruckWinPct: average(rows.map(row => row.ruckWinPct)),
+      penalties: average(rows.map(row => row.penalties)),
+      lineoutWinPct: average(rows.map(row => row.lineoutWinPct)),
+      breakLines: average(rows.map(row => row.breakLines)),
+      breakLinesConceded: average(rows.map(row => row.breakLinesConceded)),
+    },
+    thresholds,
+  };
+}
+
 module.exports = {
   DEFAULT_ALERT_THRESHOLDS,
   calculateMatchStats,
   getMatchStats,
+  getSeasonStats,
   identifyBiguaTeam,
 };
