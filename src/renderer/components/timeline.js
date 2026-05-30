@@ -217,6 +217,7 @@ export function renderTimeline(host, options) {
     ...possessionSegments.map(segment => ({ timestamp: segment.end })),
     ...drawings.map(drawing => ({ timestamp: drawing.timestamp })),
   ];
+  const hasTimelineEntries = events.length > 0 || sequences.length > 0 || drawings.length > 0;
   const { duration, durationKnown, tickCount, timelineWidth } = getTimelineScale(options.duration, scaleEvents);
   const selectedSequenceKey = String(options.selectedSequenceKey || '');
 
@@ -237,6 +238,12 @@ export function renderTimeline(host, options) {
               return `<span class="${tickClass}" style="left:${left}%">${Math.floor(seconds / 60)}'</span>`;
             }).join('') : '<span class="timeline-duration-pending">Cargá un video para ver la escala real</span>'}
           </div>
+          ${hasTimelineEntries ? '' : `
+            <div class="timeline-empty-state">
+              <strong>Todavia no hay eventos taggeados</strong>
+              <span>Usa las hotkeys de Tagging para cargar el primer evento.</span>
+            </div>
+          `}
           <div class="timeline-preview" id="timeline-preview">Selecciona un evento</div>
           <div class="timeline-playhead" style="left:${getTimelineSeekPercent(currentTime, duration)}"></div>
           <div class="timeline-possession-track" aria-label="Posesion en timeline">

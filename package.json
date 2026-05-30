@@ -1,6 +1,6 @@
 {
   "name": "biguanalytics",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Rugby match analysis tool for Bigua Rugby Club",
   "main": "src/main/main.js",
   "scripts": {
@@ -13,16 +13,65 @@
   "author": "Bigua Rugby Club",
   "license": "UNLICENSED",
   "private": true,
+  "build": {
+    "appId": "com.biguanalytics.app",
+    "productName": "BiguAnalytics",
+    "artifactName": "${productName}-Setup-${version}.${ext}",
+    "afterPack": "scripts/after-pack.js",
+    "directories": {
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "build/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "build/icon.ico",
+        "to": "icon.ico"
+      }
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "signAndEditExecutable": false,
+      "signExts": [
+        "!.exe",
+        "!.dll",
+        "!.node"
+      ],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "shortcutName": "BiguAnalytics"
+    }
+  },
   "devDependencies": {
     "electron": "^35.0.0",
     "electron-builder": "^26.0.0",
     "vitest": "^3.2.1"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.106.2",
     "chart.js": "^4.5.1",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^8.2.0",
-    "puppeteer": "^25.1.0",
+    "puppeteer-core": "^25.1.0",
     "uuid": "^11.1.0"
   }
 }

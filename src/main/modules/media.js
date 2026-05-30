@@ -1,5 +1,6 @@
 // @ts-check
 const path = require('path');
+const fs = require('fs/promises');
 
 const YOUTUBE_EMBED_REFERER = 'https://biguanalytics.local/';
 const YOUTUBE_EMBED_ORIGIN = 'https://biguanalytics.local';
@@ -70,7 +71,10 @@ function toFileUrl(filePath) {
  */
 function getYouTubeVideoId(url) {
   const parsed = new URL(url);
-  if (parsed.hostname.includes('youtu.be')) {
+  const host = parsed.hostname.replace(/^www\./, '');
+  const isYouTubeHost = host === 'youtube.com' || host === 'youtube-nocookie.com' || host === 'youtu.be';
+  if (!isYouTubeHost) return '';
+  if (host === 'youtu.be') {
     return parsed.pathname.slice(1);
   }
   if (parsed.pathname.includes('/embed/')) {
@@ -86,9 +90,14 @@ function getYouTubeVideoId(url) {
  */
 function normalizeYouTubeSource(url) {
   const trimmed = String(url || '').trim();
-  const videoId = getYouTubeVideoId(trimmed);
+  let videoId = '';
+  try {
+    videoId = getYouTubeVideoId(trimmed);
+  } catch {
+    videoId = '';
+  }
   if (!videoId) {
-    throw new Error('Invalid YouTube URL');
+    throw new Error('Ingresá una URL válida de YouTube.');
   }
 
   return {
@@ -97,6 +106,22 @@ function normalizeYouTubeSource(url) {
     embedUrl: buildYouTubeEmbedUrl(videoId),
     videoId,
   };
+}
+
+/**
+ * Checks whether a saved local video path still exists.
+ * @param {string} filePath
+ * @returns {Promise<boolean>}
+ */
+async function localVideoExists(filePath) {
+  const value = String(filePath || '').trim();
+  if (!value) return false;
+  try {
+    await fs.access(value);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 /**
@@ -152,6 +177,7 @@ async function selectLocalVideo(dialog, browserWindow) {
 
 module.exports = {
   buildYouTubeRequestHeaders,
+  localVideoExists,
   normalizeYouTubeSource,
   selectLocalVideo,
   toFileUrl,

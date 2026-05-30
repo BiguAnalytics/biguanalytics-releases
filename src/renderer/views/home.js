@@ -1,5 +1,5 @@
 // @ts-check
-import { createMatchCard, createNewMatchCard } from '../components/match-card.js';
+import { createMatchCard, createNewMatchCard, isMatchDisputed } from '../components/match-card.js';
 import { createKpiCard } from '../components/kpi-card.js';
 import { openNewMatchModal } from '../components/new-match-form.js';
 import { openConfirmDialog } from '../components/confirm-dialog.js';
@@ -43,22 +43,48 @@ function calculateSeasonKpis(matches) {
  */
 export function getMatchDestination(match) {
   return {
-    route: match.status === 'analyzed' ? 'dashboard' : 'tagging',
+    route: isMatchDisputed(match) ? 'dashboard' : 'tagging',
     params: { matchId: match.id },
   };
 }
 
 /**
- * Gets the configured user name for the welcome header.
- * @returns {Promise<string>}
+ * Gets the configured home settings.
+ * @returns {Promise<object>}
  */
-async function getWelcomeName() {
+async function getHomeSettings() {
   try {
-    const settings = await window.api?.settings?.get?.();
-    return settings?.user?.name || 'Jorge G.';
+    return await window.api?.settings?.get?.();
   } catch {
-    return 'Jorge G.';
+    return { user: { name: 'Usuario' }, firstLaunch: false };
   }
+}
+
+/**
+ * @param {object} settings
+ * @returns {string}
+ */
+function getWelcomeName(settings) {
+  return settings?.user?.name || 'Usuario';
+}
+
+/**
+ * @param {HTMLElement} host
+ */
+function renderFirstLaunchHomeTooltip(host) {
+  if (window.sessionStorage?.getItem('bigu:firstLaunchHomeTooltipDismissed') === 'true') return;
+  const tooltip = document.createElement('div');
+  tooltip.className = 'home-first-launch-tooltip';
+  tooltip.innerHTML = `
+    <strong>Primer paso</strong>
+    <span>Creá un partido desde Nuevo partido para cargar video o usar modo solo estadisticas.</span>
+    <button type="button" aria-label="Cerrar ayuda de primer uso">Entendido</button>
+  `;
+  host.appendChild(tooltip);
+  tooltip.querySelector('button')?.addEventListener('click', () => {
+    window.sessionStorage?.setItem('bigu:firstLaunchHomeTooltipDismissed', 'true');
+    tooltip.remove();
+  });
 }
 
 /**
@@ -77,10 +103,11 @@ export async function renderHome(container) {
   container.classList.add('view-enter');
 
   try {
-    const [matches, userName] = await Promise.all([
+    const [matches, homeSettings] = await Promise.all([
       window.api.matches.getAll(),
-      getWelcomeName(),
+      getHomeSettings(),
     ]);
+    const userName = getWelcomeName(homeSettings);
     const kpis = calculateSeasonKpis(matches);
 
     // Header
@@ -116,6 +143,9 @@ export async function renderHome(container) {
     statsAction.querySelector('#stats-new-match-btn')?.addEventListener('click', () => {
       openNewMatchModal(() => renderHome(container));
     });
+    if (homeSettings?.firstLaunch) {
+      renderFirstLaunchHomeTooltip(statsAction);
+    }
 
     // Match List Section
     const matchSection = document.createElement('div');
@@ -137,9 +167,13 @@ export async function renderHome(container) {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" width="64" height="64" opacity="0.3"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
         </div>
         <h3 class="empty-state-title">Aún no hay partidos</h3>
-        <p class="empty-state-text">Creá tu primer partido para empezar a analizar.</p>
+        <p class="empty-state-text">Crea tu primer partido para empezar a analizar. Podes cargar un MP4, usar YouTube o trabajar en modo solo estadisticas.</p>
+        <button class="btn btn-primary" id="empty-new-match-btn" type="button">Nuevo partido</button>
       `;
       matchSection.appendChild(empty);
+      empty.querySelector('#empty-new-match-btn')?.addEventListener('click', () => {
+        openNewMatchModal(() => renderHome(container));
+      });
     } else {
       // Match cards grid
       const grid = document.createElement('div');

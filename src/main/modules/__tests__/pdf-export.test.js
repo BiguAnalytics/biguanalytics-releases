@@ -9,4 +9,11 @@ describe('pdf export drawing payload', () => {
     expect(pdfExportSource).toContain('const drawingFrames = await getAnnotatedFramesForPdf(matchId)');
     expect(pdfExportSource).toContain('drawingFrames,');
   });
+
+  it('uses puppeteer-core with Electron Chromium for packaged PDF export', () => {
+    expect(pdfExportSource).toContain("require('puppeteer-core')");
+    expect(pdfExportSource).toContain('getElectronChromiumExecutablePath');
+    expect(pdfExportSource).toContain('executablePath:');
+    expect(pdfExportSource).not.toContain("require('puppeteer')");
+  });
 });

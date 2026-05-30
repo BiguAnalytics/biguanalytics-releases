@@ -19,10 +19,23 @@
   overflow-y: auto;
   overflow-x: hidden;
   position: relative;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(138, 155, 176, 0.42) transparent;
   background:
     radial-gradient(ellipse at 50% 2%, rgba(15, 35, 64, 0.68), transparent 46%),
     radial-gradient(ellipse at 86% 14%, rgba(200, 16, 46, 0.13), transparent 34%),
     linear-gradient(180deg, rgba(8, 14, 26, 0.16), rgba(8, 14, 26, 0.72));
+}
+
+.main-content-body::-webkit-scrollbar {
+  width: 10px;
+}
+
+.main-content-body::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  background: rgba(138, 155, 176, 0.42);
+  background-clip: content-box;
 }
 
 /* Home specific layout */
@@ -230,6 +243,60 @@
   color: var(--color-text-secondary);
   margin-bottom: var(--space-6);
   max-width: 400px;
+}
+
+.home-stats-action {
+  position: relative;
+}
+
+.home-first-launch-tooltip {
+  position: absolute;
+  top: calc(100% + var(--space-3));
+  left: 0;
+  z-index: 40;
+  width: min(320px, calc(100vw - var(--space-8)));
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-lg);
+  background: rgba(18, 32, 53, 0.98);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+}
+
+.home-first-launch-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: var(--space-6);
+  width: 12px;
+  height: 12px;
+  transform: rotate(45deg);
+  border-left: 1px solid var(--color-border-accent);
+  border-top: 1px solid var(--color-border-accent);
+  background: rgba(18, 32, 53, 0.98);
+}
+
+.home-first-launch-tooltip strong {
+  color: var(--color-text-primary);
+  font: 900 13px var(--font-brand);
+}
+
+.home-first-launch-tooltip span {
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+  line-height: 1.45;
+}
+
+.home-first-launch-tooltip button {
+  justify-self: start;
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border-radius: var(--radius-md);
+  color: var(--color-accent);
+  background: var(--color-accent-muted);
+  font: 800 11px var(--font-brand);
+  cursor: pointer;
 }
 
 /* Error state */

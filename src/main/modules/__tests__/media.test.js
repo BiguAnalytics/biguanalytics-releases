@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildYouTubeRequestHeaders, normalizeYouTubeSource, selectLocalVideo, toFileUrl } from '../media.js';
+import { buildYouTubeRequestHeaders, localVideoExists, normalizeYouTubeSource, selectLocalVideo, toFileUrl } from '../media.js';
 
 describe('media.js', () => {
   it('opens a native MP4 picker and returns a local file reference', async () => {
@@ -57,6 +57,14 @@ describe('media.js', () => {
 
   it('converts Windows paths into file URLs', () => {
     expect(toFileUrl('D:\\Partidos\\fecha 1.mp4')).toBe('file:///D:/Partidos/fecha%201.mp4');
+  });
+
+  it('checks whether a saved local MP4 path still exists without throwing', async () => {
+    await expect(localVideoExists('Z:\\Partidos\\no-existe.mp4')).resolves.toBe(false);
+  });
+
+  it('rejects non-YouTube URLs with a user-facing message before iframe loading', () => {
+    expect(() => normalizeYouTubeSource('https://vimeo.com/123')).toThrow('Ingresá una URL válida de YouTube.');
   });
 
   it('adds identity headers for YouTube embedded player requests', () => {

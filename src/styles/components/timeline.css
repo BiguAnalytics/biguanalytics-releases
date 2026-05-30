@@ -160,6 +160,28 @@
   border-color: rgba(200, 16, 46, 0.28);
 }
 
+.timeline-empty-state {
+  position: absolute;
+  inset: calc(var(--timeline-ruler-height) + var(--timeline-possession-height)) var(--space-4) var(--space-4);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: var(--space-1);
+  pointer-events: none;
+  color: var(--color-text-secondary);
+  text-align: center;
+}
+
+.timeline-empty-state strong {
+  color: var(--color-text-primary);
+  font: 900 13px var(--font-brand);
+}
+
+.timeline-empty-state span {
+  font: 500 12px var(--font-ui);
+}
+
 .timeline-track {
   position: relative;
   min-height: var(--timeline-track-min-height);

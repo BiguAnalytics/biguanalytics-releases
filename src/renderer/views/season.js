@@ -205,9 +205,22 @@ export function renderSeason(container) {
   };
 
   async function load() {
-    state.season = await window.api.analytics.getSeasonStats(year);
-    applyFilters();
-    render();
+    try {
+      state.season = await window.api.analytics.getSeasonStats(year);
+      applyFilters();
+      render();
+    } catch (error) {
+      container.innerHTML = `
+        <section class="season-view view-enter">
+          <div class="error-state">
+            <h3 class="error-state-title">No se pudo cargar la temporada</h3>
+            <p class="error-state-text">${escapeHtml(error.message || 'Reintenta desde Inicio.')}</p>
+            <button class="btn btn-primary" id="season-retry-btn">Reintentar</button>
+          </div>
+        </section>
+      `;
+      container.querySelector('#season-retry-btn')?.addEventListener('click', load);
+    }
   }
 
   function applyFilters() {
@@ -224,7 +237,7 @@ export function renderSeason(container) {
         <header class="season-header">
           <div>
             <span class="season-eyebrow">Temporada ${season.year}</span>
-            <h1>Evolution historica</h1>
+            <h1>Evolución histórica</h1>
           </div>
           <label class="season-filter">
             <span>Competencia</span>
@@ -237,6 +250,14 @@ export function renderSeason(container) {
         <div class="season-kpi-row">
           ${buildSeasonKpis(season).map(kpi => createKpiCard(kpi).outerHTML).join('')}
         </div>
+        ${state.season.matches.length === 0 ? `
+          <section class="season-empty-state">
+            <span>Sin partidos</span>
+            <h2>Todavia no hay datos de temporada</h2>
+            <p>Cuando cargues partidos, esta pantalla va a mostrar evolucion, promedios y comparativas por competencia.</p>
+            <button class="btn btn-primary" type="button" data-season-home>Crear partido</button>
+          </section>
+        ` : ''}
         <section class="season-table-panel">
           <table class="season-table">
             <thead>
@@ -265,11 +286,11 @@ export function renderSeason(container) {
                   <td>${escapeHtml(match.lineoutWinPct)}%</td>
                   <td>${escapeHtml(match.breakLinesConceded)}</td>
                 </tr>
-              `).join('') || '<tr><td colspan="8">Sin partidos para esta temporada.</td></tr>'}
+              `).join('') || '<tr><td colspan="8">Sin partidos para esta competencia. Cambia el filtro o carga un partido desde Inicio.</td></tr>'}
             </tbody>
           </table>
         </section>
-        <section class="season-chart-grid">
+        <section class="season-chart-grid" ${state.filteredMatches.length === 0 ? 'hidden' : ''}>
           ${METRICS.map(metric => `
             <article class="season-chart-card">
               <h2>${escapeHtml(metric.label)}</h2>
@@ -285,6 +306,7 @@ export function renderSeason(container) {
       applyFilters();
       render();
     });
+    container.querySelector('[data-season-home]')?.addEventListener('click', () => navigate('home'));
     container.querySelectorAll('[data-season-sort]').forEach(button => {
       button.addEventListener('click', () => {
         const key = button.getAttribute('data-season-sort') || 'date';

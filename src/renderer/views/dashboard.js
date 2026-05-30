@@ -1,4 +1,5 @@
 // @ts-check
+import { getPrintLicensePayload, refreshAccessState } from '../auth/access-guard.js';
 import { createKpiCard } from '../components/kpi-card.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
@@ -31,7 +32,87 @@ const SECTION_ORDER = [
   ['heatmap', 'Heatmap'],
 ];
 
+const SECTION_LABELS = Object.fromEntries(SECTION_ORDER);
+const DEFAULT_SECTION_IDS = SECTION_ORDER.map(([id]) => id);
+
+const TIME_FILTERS = [
+  { id: 'all', label: 'Todo el partido' },
+  { id: 'first-half', label: 'Primer tiempo' },
+  { id: 'second-half', label: 'Segundo tiempo' },
+  { id: '0-20', label: '0-20' },
+  { id: '20-40', label: '20-40' },
+  { id: '40-60', label: '40-60' },
+  { id: '60-80', label: '60-80' },
+  { id: '+80', label: '+80' },
+];
+
+const PDF_TEMPLATES = [
+  { id: 'complete', label: 'Completo' },
+  { id: 'short', label: 'Resumen corto' },
+  { id: 'alerts', label: 'Solo alertas' },
+  { id: 'forwards', label: 'Forwards' },
+];
+
+const DEFAULT_DASHBOARD_PREFERENCES = {
+  template: 'general',
+  pdfTemplate: 'complete',
+  selectedKpis: ['ruckWinPct', 'penalties', 'lineoutWinPct', 'breakLines'],
+  sectionOrder: DEFAULT_SECTION_IDS,
+  visibleSections: DEFAULT_SECTION_IDS,
+  filters: {
+    team: 'bigua',
+    timeBand: 'all',
+    zone: 'all',
+  },
+};
+
+const KPI_IDS = [
+  'ruckWinPct',
+  'penalties',
+  'lineoutWinPct',
+  'scrumWinPct',
+  'breakLines',
+  'breakLinesConceded',
+  'turnovers',
+  'kicks',
+  'kickEffectiveness',
+  'possession',
+  'territory',
+  'killerInstinct',
+  'cards',
+];
+
+const DASHBOARD_TEMPLATES = {
+  general: {
+    label: 'Resumen general',
+    selectedKpis: ['ruckWinPct', 'penalties', 'lineoutWinPct', 'breakLines'],
+    visibleSections: DEFAULT_SECTION_IDS,
+  },
+  forwards: {
+    label: 'Forwards',
+    selectedKpis: ['scrumWinPct', 'lineoutWinPct', 'ruckWinPct', 'penalties'],
+    visibleSections: ['set-pieces', 'rucks', 'discipline', 'heatmap', 'sequences'],
+  },
+  discipline: {
+    label: 'Disciplina',
+    selectedKpis: ['penalties', 'cards', 'ruckWinPct', 'breakLinesConceded'],
+    visibleSections: ['discipline', 'rucks', 'bip', 'heatmap'],
+  },
+  kicking: {
+    label: 'Kicking game',
+    selectedKpis: ['kicks', 'kickEffectiveness', 'possession', 'territory'],
+    visibleSections: ['kicks', 'possession', 'bip', 'heatmap'],
+  },
+  opponent: {
+    label: 'Post partido rival',
+    selectedKpis: ['breakLinesConceded', 'penalties', 'territory', 'turnovers'],
+    visibleSections: ['break-lines', 'discipline', 'kicks', 'possession', 'heatmap'],
+  },
+};
+
 let cleanupDashboard = null;
+const ZERO_WIDTH_FORMAT_MARKER = '\u200B';
+const NOTE_FORMAT_COMMANDS = ['bold', 'italic', 'underline'];
 
 /**
  * @param {string|number|null|undefined} value
@@ -52,6 +133,30 @@ function escapeHtml(value) {
  */
 function formatPct(value) {
   return `${Number.isFinite(Number(value)) ? Math.round(Number(value)) : 0}%`;
+}
+
+/**
+ * @param {number|null|undefined} value
+ * @param {number|null|undefined} total
+ * @returns {number}
+ */
+function calculatePercent(value, total) {
+  const numericValue = Number(value);
+  const numericTotal = Number(total);
+  if (!Number.isFinite(numericValue) || !Number.isFinite(numericTotal) || numericTotal <= 0) return 0;
+  return Math.round((numericValue / numericTotal) * 100);
+}
+
+/**
+ * @param {number|null|undefined} value
+ * @param {number} digits
+ * @returns {number}
+ */
+function roundTo(value, digits = 2) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return 0;
+  const factor = 10 ** digits;
+  return Math.round(numericValue * factor) / factor;
 }
 
 /**
@@ -94,6 +199,102 @@ function getTeamName(stats, team) {
 }
 
 /**
+ * @param {object} stats
+ * @returns {Record<string, object>}
+ */
+function KPI_DEFINITIONS(stats) {
+  const bigua = stats.teams.biguaTeam;
+  const rival = stats.teams.rivalTeam;
+  const totalCards = stats.discipline[bigua].cards.amarilla + stats.discipline[bigua].cards.roja;
+  const territory = stats.territory.available ? stats.territory.percentages[bigua] : null;
+  return {
+    ruckWinPct: {
+      label: '% Rucks ganados',
+      value: formatPct(stats.rucks[bigua].wonPct),
+      delta: `${stats.rucks[bigua].won}/${stats.rucks[bigua].total} rucks`,
+      metric: '% Rucks ganados',
+      state: 'positive',
+    },
+    penalties: {
+      label: 'Penales totales',
+      value: formatNumber(stats.discipline[bigua].penalties.total),
+      delta: `${stats.discipline[bigua].penalties.attack} ataque / ${stats.discipline[bigua].penalties.defense} defensa`,
+      metric: 'Penales totales',
+      state: 'normal',
+    },
+    lineoutWinPct: {
+      label: '% Line Outs ganados',
+      value: formatPct(stats.setPieces.lineouts[bigua].wonPct),
+      delta: `${stats.setPieces.lineouts[bigua].won}/${stats.setPieces.lineouts[bigua].total} line outs`,
+      metric: '% Line Outs ganados',
+      state: 'positive',
+    },
+    scrumWinPct: {
+      label: '% Scrums ganados',
+      value: formatPct(stats.setPieces.scrums[bigua].wonPct),
+      delta: `${stats.setPieces.scrums[bigua].won}/${stats.setPieces.scrums[bigua].total} scrums`,
+      metric: '% Scrums ganados',
+      state: 'positive',
+    },
+    breakLines: {
+      label: 'Break Lines',
+      value: formatNumber(stats.breakLines[bigua].total),
+      delta: `Killer instinct ${formatPct(stats.breakLines[bigua].killerInstinctPct)}`,
+      state: 'normal',
+    },
+    breakLinesConceded: {
+      label: 'Break Lines concedidas',
+      value: formatNumber(stats.breakLines[rival].total),
+      delta: `${getTeamName(stats, rival)} generadas`,
+      metric: 'Break Lines concedidas',
+      state: 'normal',
+    },
+    turnovers: {
+      label: 'Turnovers',
+      value: formatNumber(stats.totals[bigua].turnovers),
+      delta: `${getTeamName(stats, rival)} ${stats.totals[rival].turnovers}`,
+      state: 'normal',
+    },
+    kicks: {
+      label: 'Kicks',
+      value: formatNumber(stats.kicks[bigua].total),
+      delta: `${stats.kicks[bigua].favorable} favorables`,
+      state: 'normal',
+    },
+    kickEffectiveness: {
+      label: '% Kicks efectivos',
+      value: formatPct(stats.kicks[bigua].favorablePct),
+      delta: `${stats.kicks[bigua].favorable}/${stats.kicks[bigua].total} favorables`,
+      state: 'normal',
+    },
+    possession: {
+      label: 'Posesion',
+      value: formatPct(stats.possession.percentages[bigua]),
+      delta: stats.possession.source === 'intervals' ? 'Intervalos reales' : 'Estimado por eventos',
+      state: 'normal',
+    },
+    territory: {
+      label: 'Territorio',
+      value: territory === null ? 'N/D' : formatPct(territory),
+      delta: territory === null ? 'Sin zonas' : 'Eventos con zona',
+      state: 'normal',
+    },
+    killerInstinct: {
+      label: 'Killer Instinct',
+      value: formatPct(stats.breakLines[bigua].killerInstinctPct),
+      delta: `${stats.breakLines[bigua].byResult.try} tries tras break`,
+      state: 'normal',
+    },
+    cards: {
+      label: 'Tarjetas',
+      value: formatNumber(totalCards),
+      delta: `${stats.discipline[bigua].cards.amarilla} amarillas / ${stats.discipline[bigua].cards.roja} rojas`,
+      state: totalCards > 0 ? 'alert' : 'normal',
+    },
+  };
+}
+
+/**
  * @returns {object}
  */
 function getChartColors() {
@@ -122,6 +323,7 @@ function configureChartDefaults(colors) {
   window.Chart.defaults.borderColor = colors.border;
   window.Chart.defaults.font.family = 'Arial, sans-serif';
   window.Chart.defaults.font.size = 11;
+  window.Chart.defaults.animation = false;
   window.Chart.defaults.plugins.legend.labels.color = colors.text;
   window.Chart.defaults.plugins.tooltip.backgroundColor = colors.tooltipBg;
   window.Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.12)';
@@ -147,10 +349,16 @@ function renderDashboardSelection(container, matches) {
       <header class="dashboard-empty-header">
         <span>Dashboard</span>
         <h1>Elegir partido para analizar</h1>
-        <p>Selecciona un partido con eventos taggeados para abrir el tablero.</p>
+        <p>${matches.length === 0 ? 'Todavia no hay partidos para analizar. Crea uno desde Inicio.' : 'Selecciona un partido con eventos taggeados para abrir el tablero.'}</p>
       </header>
       <div class="dashboard-match-grid">
-        ${sorted.map(match => `
+        ${sorted.length === 0 ? `
+          <button class="dashboard-match-option" type="button" data-dashboard-home>
+            <span>Sin partidos</span>
+            <strong>Crear primer partido</strong>
+            <em>Inicio abre el modal de Nuevo partido</em>
+          </button>
+        ` : sorted.map(match => `
           <button class="dashboard-match-option" type="button" data-dashboard-match-id="${escapeHtml(match.id)}">
             <span>${escapeHtml(match.competition || 'Sin competencia')}</span>
             <strong>${escapeHtml(match.homeTeam || 'Bigua')} vs ${escapeHtml(match.awayTeam || 'Rival')}</strong>
@@ -161,6 +369,7 @@ function renderDashboardSelection(container, matches) {
     </section>
   `;
 
+  container.querySelector('[data-dashboard-home]')?.addEventListener('click', () => navigate('home'));
   container.querySelectorAll('[data-dashboard-match-id]').forEach(button => {
     button.addEventListener('click', () => navigate('dashboard', { matchId: button.dataset.dashboardMatchId }));
   });
@@ -168,53 +377,830 @@ function renderDashboardSelection(container, matches) {
 
 /**
  * @param {object} stats
+ * @param {object} match
  * @returns {'victoria'|'derrota'|'empate'}
  */
-function getResultBadge(stats) {
-  const bigua = stats.teams.biguaTeam;
-  const rival = stats.teams.rivalTeam;
-  if (stats.score[bigua].total > stats.score[rival].total) return 'victoria';
-  if (stats.score[bigua].total < stats.score[rival].total) return 'derrota';
+function getResultBadge(stats, match) {
+  const score = getDashboardScore(stats, match);
+  const biguaScore = stats.teams.biguaTeam === 'away' ? score.away : score.home;
+  const rivalScore = stats.teams.rivalTeam === 'away' ? score.away : score.home;
+  if (biguaScore > rivalScore) return 'victoria';
+  if (biguaScore < rivalScore) return 'derrota';
   return 'empate';
 }
 
 /**
+ * @param {number|string|null|undefined} value
+ * @returns {number}
+ */
+function scoreNumber(value) {
+  return Math.max(0, Number.isFinite(Number(value)) ? Number(value) : 0);
+}
+
+/**
  * @param {object} stats
+ * @param {object} match
+ * @returns {{home: number, away: number}}
+ */
+function getDashboardScore(stats, match) {
+  const manual = {
+    home: scoreNumber(match?.homeScore),
+    away: scoreNumber(match?.awayScore),
+  };
+  const calculated = {
+    home: scoreNumber(stats?.score?.home?.total),
+    away: scoreNumber(stats?.score?.away?.total),
+  };
+  const hasPersistedScore = manual.home > 0 || manual.away > 0 || stats?.score?.source === 'manual';
+  return hasPersistedScore ? manual : calculated;
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function inlineMarkdownToHtml(text) {
+  return escapeHtml(text)
+    .replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/g, '<u>$1</u>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1<em>$2</em>');
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function markdownToNoteHtml(text) {
+  if (!String(text || '').trim()) return '';
+  const lines = String(text || '').split('\n');
+  const blocks = [];
+  let listItems = [];
+  const flushList = () => {
+    if (listItems.length === 0) return;
+    blocks.push(`<ul><li>${listItems.map(inlineMarkdownToHtml).join('</li><li>')}</li></ul>`);
+    listItems = [];
+  };
+
+  lines.forEach((line) => {
+    if (line.startsWith('- ')) {
+      listItems.push(line.slice(2));
+      return;
+    }
+    flushList();
+    blocks.push(line.trim() ? `<p>${inlineMarkdownToHtml(line)}</p>` : '<p><br></p>');
+  });
+  flushList();
+  return blocks.join('') || '<p><br></p>';
+}
+
+/**
+ * @param {string} text
+ * @returns {string}
+ */
+function markdownToPrintHtml(text) {
+  if (!String(text || '').trim()) return '';
+  return markdownToNoteHtml(text);
+}
+
+/**
+ * @param {Node} node
+ * @returns {string}
+ */
+function nodeToInlineMarkdown(node) {
+  if (node.nodeType === Node.TEXT_NODE) return (node.textContent || '').replaceAll(ZERO_WIDTH_FORMAT_MARKER, '');
+  if (!(node instanceof HTMLElement)) return '';
+  const content = Array.from(node.childNodes).map(nodeToInlineMarkdown).join('');
+  const tag = node.tagName.toLowerCase();
+  if (tag === 'strong' || tag === 'b') return `**${content}**`;
+  if (tag === 'em' || tag === 'i') return `*${content}*`;
+  if (tag === 'u') return `<u>${content}</u>`;
+  if (tag === 'br') return '\n';
+  return content;
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @returns {string}
+ */
+function serializeCoachNotes(editor) {
+  const lines = [];
+  const appendBlock = (element) => {
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'ul') {
+      element.querySelectorAll(':scope > li').forEach((item) => {
+        const content = nodeToInlineMarkdown(item).trim();
+        if (content) lines.push(`- ${content}`);
+      });
+      return;
+    }
+    const content = nodeToInlineMarkdown(element).trim();
+    if (content) lines.push(content);
+  };
+
+  Array.from(editor.children).forEach((child) => {
+    if (child instanceof HTMLElement) appendBlock(child);
+  });
+  if (lines.length === 0) {
+    const content = nodeToInlineMarkdown(editor).trim();
+    if (content) lines.push(content);
+  }
+  return lines.join('\n');
+}
+
+/**
+ * @param {HTMLElement} element
+ */
+function placeCaretAtEnd(element) {
+  const selection = window.getSelection();
+  if (!selection) return;
+  const range = document.createRange();
+  range.selectNodeContents(element);
+  range.collapse(false);
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+/**
+ * @param {Node|null} node
+ * @param {HTMLElement} root
+ * @returns {HTMLElement}
+ */
+function getEditableBlock(node, root) {
+  let current = node instanceof HTMLElement ? node : node?.parentElement;
+  while (current && current !== root) {
+    if (['P', 'DIV', 'LI'].includes(current.tagName)) return current;
+    current = current.parentElement;
+  }
+  return root;
+}
+
+/**
+ * @param {HTMLElement} editor
+ */
+function maybeConvertMarkdownList(editor) {
+  const selection = window.getSelection();
+  if (!selection?.anchorNode || !editor.contains(selection.anchorNode)) return;
+  const block = getEditableBlock(selection.anchorNode, editor);
+  if (block.tagName === 'LI') return;
+  const text = (block.textContent || '').replaceAll(ZERO_WIDTH_FORMAT_MARKER, '');
+  if (!/^\s*-[\s\u00A0]/.test(text)) return;
+
+  if (block === editor) {
+    editor.innerHTML = `<ul><li>${escapeHtml(text.replace(/^\s*-[\s\u00A0]/, ''))}</li></ul>`;
+    const item = editor.querySelector('li');
+    if (item) placeCaretAtEnd(item);
+    return;
+  }
+
+  block.textContent = text.replace(/^\s*-[\s\u00A0]/, '');
+  placeCaretAtEnd(block);
+  document.execCommand('insertUnorderedList', false, null);
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @param {KeyboardEvent} event
+ * @returns {boolean}
+ */
+function handleMarkdownListShortcut(editor, event) {
+  if (!(event.key === ' ' || event.code === 'Space') || event.ctrlKey || event.metaKey || event.altKey) return false;
+  const selection = window.getSelection();
+  if (!selection?.anchorNode || !editor.contains(selection.anchorNode)) return false;
+  const block = getEditableBlock(selection.anchorNode, editor);
+  if (block.tagName === 'LI') return false;
+  if ((block.textContent || '').replaceAll(ZERO_WIDTH_FORMAT_MARKER, '').trim() !== '-') return false;
+
+  event.preventDefault();
+  if (block === editor) {
+    editor.innerHTML = '<ul><li><br></li></ul>';
+    const item = editor.querySelector('li');
+    if (item) placeCaretAtEnd(item);
+    return true;
+  }
+
+  const list = document.createElement('ul');
+  list.innerHTML = '<li><br></li>';
+  block.replaceWith(list);
+  const item = list.querySelector('li');
+  if (item) placeCaretAtEnd(item);
+  return true;
+}
+
+/**
+ * @returns {{bold: boolean, italic: boolean, underline: boolean}}
+ */
+function createEmptyNoteFormats() {
+  return {
+    bold: false,
+    italic: false,
+    underline: false,
+  };
+}
+
+/**
+ * @param {object|null|undefined} formats
+ * @returns {{bold: boolean, italic: boolean, underline: boolean}}
+ */
+function normalizeNoteFormats(formats) {
+  return {
+    bold: Boolean(formats?.bold),
+    italic: Boolean(formats?.italic),
+    underline: Boolean(formats?.underline),
+  };
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object|null} noteFormats
+ */
+function updateNoteToolbarState(container, noteFormats = null) {
+  container.querySelectorAll('[data-note-command]').forEach((button) => {
+    const command = button.dataset.noteCommand;
+    const active = Boolean(command && (noteFormats ? noteFormats[command] : document.queryCommandState(command)));
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
+
+/**
+ * @param {string} command
+ * @returns {string}
+ */
+function getFormatSelector(command) {
+  if (command === 'bold') return 'strong,b';
+  if (command === 'italic') return 'em,i';
+  if (command === 'underline') return 'u';
+  return '';
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @returns {boolean}
+ */
+function canSyncNoteFormatsFromSelection(editor) {
+  const selection = window.getSelection();
+  return Boolean(selection?.anchorNode && selection.anchorNode !== editor && editor.contains(selection.anchorNode));
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @returns {{bold: boolean, italic: boolean, underline: boolean}}
+ */
+function getNoteFormatsAtSelection(editor) {
+  const selection = window.getSelection();
+  const anchorElement = selection?.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection?.anchorNode?.parentElement;
+  const containsAnchor = Boolean(anchorElement && editor.contains(anchorElement));
+  return {
+    bold: Boolean((containsAnchor && anchorElement.closest('strong,b')) || document.queryCommandState('bold')),
+    italic: Boolean((containsAnchor && anchorElement.closest('em,i')) || document.queryCommandState('italic')),
+    underline: Boolean((containsAnchor && anchorElement.closest('u')) || document.queryCommandState('underline')),
+  };
+}
+
+/**
+ * @param {string} text
+ * @param {object} noteFormats
+ * @returns {Node}
+ */
+function createFormattedTextNode(text, noteFormats) {
+  let node = document.createTextNode(text);
+  if (noteFormats.underline) {
+    const wrapper = document.createElement('u');
+    wrapper.append(node);
+    node = wrapper;
+  }
+  if (noteFormats.italic) {
+    const wrapper = document.createElement('em');
+    wrapper.append(node);
+    node = wrapper;
+  }
+  if (noteFormats.bold) {
+    const wrapper = document.createElement('strong');
+    wrapper.append(node);
+    node = wrapper;
+  }
+  return node;
+}
+
+/**
+ * @param {Node} first
+ * @param {Node|null} second
+ * @returns {boolean}
+ */
+function canMergeInlineNodes(first, second) {
+  if (!(first instanceof HTMLElement) || !(second instanceof HTMLElement)) return false;
+  const mergeableTags = new Set(['STRONG', 'B', 'EM', 'I', 'U']);
+  return first.tagName === second.tagName && mergeableTags.has(first.tagName);
+}
+
+/**
+ * @param {HTMLElement} root
+ */
+function mergeAdjacentInlineFormatting(root) {
+  let node = root.firstChild;
+  while (node) {
+    if (node instanceof HTMLElement) mergeAdjacentInlineFormatting(node);
+    const next = node.nextSibling;
+    if (canMergeInlineNodes(node, next)) {
+      while (next.firstChild) node.append(next.firstChild);
+      next.remove();
+      if (node instanceof HTMLElement) mergeAdjacentInlineFormatting(node);
+      continue;
+    }
+    node = next;
+  }
+  root.normalize();
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @param {string} text
+ * @param {object} noteFormats
+ */
+function insertFormattedText(editor, text, noteFormats) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.anchorNode || !editor.contains(selection.anchorNode)) {
+    placeCaretAtEnd(editor);
+  }
+  const activeSelection = window.getSelection();
+  if (!activeSelection?.rangeCount) return;
+
+  const range = activeSelection.getRangeAt(0);
+  range.deleteContents();
+  const marker = document.createTextNode(ZERO_WIDTH_FORMAT_MARKER);
+  const fragment = document.createDocumentFragment();
+  fragment.append(createFormattedTextNode(text, noteFormats), marker);
+  range.insertNode(fragment);
+  mergeAdjacentInlineFormatting(editor);
+
+  const nextRange = document.createRange();
+  nextRange.setStartBefore(marker);
+  nextRange.collapse(true);
+  activeSelection.removeAllRanges();
+  activeSelection.addRange(nextRange);
+  marker.remove();
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @param {InputEvent} event
+ * @param {object} noteFormats
+ * @returns {boolean}
+ */
+function handleFormattedTextInput(editor, event, noteFormats) {
+  if (event.inputType !== 'insertText' || typeof event.data !== 'string' || event.data.length === 0) return false;
+  event.preventDefault();
+  insertFormattedText(editor, event.data, noteFormats);
+  return true;
+}
+
+/**
+ * @param {Range} range
+ * @param {HTMLElement} element
+ * @param {'start'|'end'} boundary
+ * @returns {boolean}
+ */
+function rangeIsAtElementBoundary(range, element, boundary) {
+  const comparisonRange = document.createRange();
+  if (boundary === 'start') {
+    comparisonRange.setStart(element, 0);
+    comparisonRange.setEnd(range.startContainer, range.startOffset);
+  } else {
+    comparisonRange.selectNodeContents(element);
+    comparisonRange.setStart(range.startContainer, range.startOffset);
+  }
+  return comparisonRange.toString().replaceAll(ZERO_WIDTH_FORMAT_MARKER, '').trim() === '';
+}
+
+/**
+ * @param {string} command
+ * @param {HTMLElement} editor
+ * @returns {boolean}
+ */
+function moveCaretOutsideActiveFormat(command, editor) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.isCollapsed || !selection.anchorNode || !editor.contains(selection.anchorNode)) return false;
+  const selector = getFormatSelector(command);
+  const anchorElement = selection.anchorNode instanceof HTMLElement ? selection.anchorNode : selection.anchorNode.parentElement;
+  const formatElement = selector ? anchorElement?.closest(selector) : null;
+  if (!formatElement || !editor.contains(formatElement)) return false;
+
+  const range = selection.getRangeAt(0);
+  const marker = document.createTextNode(ZERO_WIDTH_FORMAT_MARKER);
+  if (rangeIsAtElementBoundary(range, formatElement, 'start')) {
+    formatElement.before(marker);
+  } else if (rangeIsAtElementBoundary(range, formatElement, 'end')) {
+    formatElement.after(marker);
+  } else {
+    return false;
+  }
+
+  const nextRange = document.createRange();
+  nextRange.setStartAfter(marker);
+  nextRange.collapse(true);
+  selection.removeAllRanges();
+  selection.addRange(nextRange);
+  return true;
+}
+
+/**
+ * @param {HTMLElement} editor
+ * @returns {Range|null}
+ */
+function getCurrentNoteSelection(editor) {
+  const selection = window.getSelection();
+  if (!selection?.rangeCount || !selection.anchorNode || !editor.contains(selection.anchorNode)) return null;
+  return selection.getRangeAt(0).cloneRange();
+}
+
+/**
+ * @param {Range|null} range
+ */
+function restoreNoteSelection(range) {
+  if (!range) return;
+  const selection = window.getSelection();
+  if (!selection) return;
+  selection.removeAllRanges();
+  selection.addRange(range);
+}
+
+/**
+ * @param {string} command
+ * @param {HTMLElement|null} editor
+ * @param {Range|null} range
+ * @param {object|null} noteFormats
+ */
+function toggleNoteCommand(command, editor = null, range = null, noteFormats = null) {
+  editor?.focus();
+  restoreNoteSelection(range);
+  if (!NOTE_FORMAT_COMMANDS.includes(command)) return;
+
+  const selection = window.getSelection();
+  const hasSelection = Boolean(
+    editor
+    && selection?.rangeCount
+    && !selection.getRangeAt(0).collapsed
+    && selection.anchorNode
+    && editor.contains(selection.anchorNode)
+  );
+
+  if (hasSelection) {
+    document.execCommand(command, false, null);
+    if (editor && noteFormats) Object.assign(noteFormats, getNoteFormatsAtSelection(editor));
+    return;
+  }
+
+  if (noteFormats) {
+    noteFormats[command] = !noteFormats[command];
+    if (editor && !noteFormats[command]) moveCaretOutsideActiveFormat(command, editor);
+    return;
+  }
+
+  document.execCommand(command, false, null);
+}
+
+/**
+ * @param {Array<string>} values
+ * @param {Array<string>} fallback
+ * @returns {Array<string>}
+ */
+function normalizeIdList(values, fallback) {
+  const valid = new Set([...DEFAULT_SECTION_IDS, ...Object.keys(DASHBOARD_TEMPLATES), ...KPI_IDS]);
+  const normalized = Array.isArray(values) ? values.filter(id => valid.has(id)) : [];
+  return normalized.length > 0 ? [...new Set(normalized)] : [...fallback];
+}
+
+/**
+ * @param {object} preferences
+ * @returns {object}
+ */
+function normalizeDashboardPreferences(preferences = {}) {
+  const selectedKpis = normalizeIdList(preferences.selectedKpis, DEFAULT_DASHBOARD_PREFERENCES.selectedKpis).slice(0, 4);
+  while (selectedKpis.length < 4) {
+    selectedKpis.push(DEFAULT_DASHBOARD_PREFERENCES.selectedKpis[selectedKpis.length]);
+  }
+  const baseSectionOrder = normalizeIdList(preferences.sectionOrder, DEFAULT_SECTION_IDS);
+  const sectionOrder = baseSectionOrder.concat(DEFAULT_SECTION_IDS.filter(id => !baseSectionOrder.includes(id)));
+  const visibleSections = normalizeIdList(preferences.visibleSections, DEFAULT_SECTION_IDS)
+    .filter(id => sectionOrder.includes(id));
+  const pdfTemplate = PDF_TEMPLATES.some(template => template.id === preferences.pdfTemplate)
+    ? preferences.pdfTemplate
+    : DEFAULT_DASHBOARD_PREFERENCES.pdfTemplate;
+  const template = DASHBOARD_TEMPLATES[preferences.template] ? preferences.template : DEFAULT_DASHBOARD_PREFERENCES.template;
+  return {
+    template,
+    pdfTemplate,
+    selectedKpis,
+    sectionOrder,
+    visibleSections,
+    filters: {
+      team: ['bigua', 'rival', 'compare', 'all'].includes(preferences.filters?.team) ? preferences.filters.team : 'bigua',
+      timeBand: TIME_FILTERS.some(filter => filter.id === preferences.filters?.timeBand) ? preferences.filters.timeBand : 'all',
+      zone: preferences.filters?.zone || 'all',
+    },
+  };
+}
+
+/**
+ * @param {object} preferences
+ * @returns {Array<string>}
+ */
+function getVisibleSections(preferences) {
+  const normalized = normalizeDashboardPreferences(preferences);
+  return normalized.sectionOrder.filter(id => normalized.visibleSections.includes(id));
+}
+
+/**
+ * @param {object} preferences
+ * @param {string} templateId
+ * @returns {object}
+ */
+function applyDashboardTemplate(preferences, templateId) {
+  const template = DASHBOARD_TEMPLATES[templateId] || DASHBOARD_TEMPLATES.general;
+  return normalizeDashboardPreferences({
+    ...preferences,
+    template: DASHBOARD_TEMPLATES[templateId] ? templateId : 'general',
+    selectedKpis: template.selectedKpis,
+    visibleSections: template.visibleSections,
+  });
+}
+
+/**
+ * @param {object} match
+ * @returns {Array<string>}
+ */
+function getZoneOptions(match) {
+  const zones = new Set();
+  (match.events || []).forEach((event) => {
+    if (event.zone) zones.add(String(event.zone));
+  });
+  return Array.from(zones).sort((a, b) => {
+    const aNumber = Number(a.replace(/\D/g, ''));
+    const bNumber = Number(b.replace(/\D/g, ''));
+    return aNumber - bNumber || a.localeCompare(b);
+  });
+}
+
+/**
+ * @param {Array<{id: string, label: string}>} options
+ * @param {string} selected
+ * @returns {string}
+ */
+function renderOptions(options, selected) {
+  return options.map(option => `
+    <option value="${escapeHtml(option.id)}"${option.id === selected ? ' selected' : ''}>${escapeHtml(option.label)}</option>
+  `).join('');
+}
+
+/**
+ * @param {object} stats
+ * @param {object} match
+ * @param {object} preferences
+ * @param {boolean} customizerOpen
+ * @returns {string}
+ */
+function buildDashboardControls(stats, match, preferences, customizerOpen) {
+  const normalized = normalizeDashboardPreferences(preferences);
+  const zones = getZoneOptions(match).map(zone => ({ id: zone, label: zone }));
+  const kpiDefinitions = KPI_DEFINITIONS(stats);
+  const kpiOptions = KPI_IDS.map(id => ({ id, label: kpiDefinitions[id]?.label || id }));
+  return `
+    <div class="dashboard-controls">
+      <label class="dashboard-control">
+        <span>Plantilla</span>
+        <select data-dashboard-template>
+          ${renderOptions(Object.entries(DASHBOARD_TEMPLATES).map(([id, template]) => ({ id, label: template.label })), normalized.template)}
+        </select>
+      </label>
+      <label class="dashboard-control">
+        <span>Periodo</span>
+        <select data-filter-time>
+          ${renderOptions(TIME_FILTERS, normalized.filters.timeBand)}
+        </select>
+      </label>
+      <label class="dashboard-control">
+        <span>Zona</span>
+        <select data-filter-zone>
+          ${renderOptions([{ id: 'all', label: 'Todas' }, ...zones], normalized.filters.zone)}
+        </select>
+      </label>
+      <label class="dashboard-control">
+        <span>PDF</span>
+        <select data-pdf-template>
+          ${renderOptions(PDF_TEMPLATES, normalized.pdfTemplate)}
+        </select>
+      </label>
+      <button class="dashboard-customize-btn" type="button" data-customizer-toggle>${customizerOpen ? 'Cerrar personalizacion' : 'Personalizar'}</button>
+    </div>
+
+    <div class="dashboard-customizer" ${customizerOpen ? '' : 'hidden'}>
+      <section>
+        <h2>KPIs principales</h2>
+        <div class="dashboard-kpi-picker">
+          ${normalized.selectedKpis.map((selectedKpi, index) => `
+            <label class="dashboard-control">
+              <span>KPI ${index + 1}</span>
+              <select data-kpi-slot="${index}">
+                ${renderOptions(kpiOptions, selectedKpi)}
+              </select>
+            </label>
+          `).join('')}
+        </div>
+      </section>
+      <section>
+        <h2>Secciones</h2>
+        <div class="dashboard-section-picker">
+          ${normalized.sectionOrder.map((sectionId, index) => `
+            <div class="dashboard-section-picker-row">
+              <label>
+                <input type="checkbox" data-section-visible="${sectionId}" ${normalized.visibleSections.includes(sectionId) ? 'checked' : ''}>
+                <span>${escapeHtml(SECTION_LABELS[sectionId] || sectionId)}</span>
+              </label>
+              <div>
+                <button type="button" data-section-up="${sectionId}" ${index === 0 ? 'disabled' : ''}>Subir</button>
+                <button type="button" data-section-down="${sectionId}" ${index === normalized.sectionOrder.length - 1 ? 'disabled' : ''}>Bajar</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </section>
+    </div>
+  `;
+}
+
+/**
+ * @param {object} stats
+ * @param {Array<string>} selectedKpis
  * @returns {Array<object>}
  */
-function buildKpis(stats) {
-  const bigua = stats.teams.biguaTeam;
-  const hasAlert = (metric) => stats.alerts.some(alert => alert.equipo === stats.teams.biguaName && alert.metrica === metric);
-  return [
-    {
-      label: '% Rucks ganados',
-      value: formatPct(stats.rucks[bigua].wonPct),
-      delta: `${stats.rucks[bigua].won}/${stats.rucks[bigua].total} rucks`,
-      state: hasAlert('% Rucks ganados') ? 'alert' : 'positive',
-      size: 'large',
-    },
-    {
-      label: 'Penales totales',
-      value: formatNumber(stats.discipline[bigua].penalties.total),
-      delta: `${stats.discipline[bigua].penalties.attack} ataque / ${stats.discipline[bigua].penalties.defense} defensa`,
-      state: hasAlert('Penales totales') ? 'alert' : 'normal',
-      size: 'large',
-    },
-    {
-      label: '% Line Outs ganados',
-      value: formatPct(stats.setPieces.lineouts[bigua].wonPct),
-      delta: `${stats.setPieces.lineouts[bigua].won}/${stats.setPieces.lineouts[bigua].total} line outs`,
-      state: hasAlert('% Line Outs ganados') ? 'alert' : 'positive',
-      size: 'large',
-    },
-    {
-      label: 'Break Lines',
-      value: formatNumber(stats.breakLines[bigua].total),
-      delta: `Killer instinct ${formatPct(stats.breakLines[bigua].killerInstinctPct)}`,
-      state: 'normal',
-      size: 'large',
-    },
-  ];
+function buildKpis(stats, selectedKpis = DEFAULT_DASHBOARD_PREFERENCES.selectedKpis) {
+  const definitions = KPI_DEFINITIONS(stats);
+  const hasAlert = (metric) => metric && stats.alerts.some(alert => alert.equipo === stats.teams.biguaName && alert.metrica === metric);
+  return normalizeIdList(selectedKpis, DEFAULT_DASHBOARD_PREFERENCES.selectedKpis)
+    .slice(0, 4)
+    .map((id) => {
+      const definition = definitions[id] || definitions.ruckWinPct;
+      return {
+        label: definition.label,
+        value: definition.value,
+        delta: definition.delta,
+        state: hasAlert(definition.metric) ? 'alert' : definition.state,
+        size: 'large',
+      };
+    });
+}
+
+/**
+ * @param {Array<object>} items
+ * @param {string} title
+ * @param {string} emptyText
+ * @returns {string}
+ */
+function renderAIEvidenceList(items, title, emptyText = 'Sin datos suficientes.') {
+  const rows = Array.isArray(items) ? items : [];
+  return `
+    <section class="dashboard-ai-block">
+      <h3>${escapeHtml(title)}</h3>
+      ${rows.length > 0 ? `
+        <div class="dashboard-ai-list">
+          ${rows.map(item => `
+            <article>
+              <strong>${escapeHtml(item.title || item.area || 'Sin titulo')}</strong>
+              <p>${escapeHtml(item.detail || item.objective || item.reason || '')}</p>
+              ${Array.isArray(item.evidence) && item.evidence.length > 0 ? `
+                <ul class="dashboard-ai-evidence">
+                  ${item.evidence.map(evidence => `<li>${escapeHtml(evidence)}</li>`).join('')}
+                </ul>
+              ` : ''}
+            </article>
+          `).join('')}
+        </div>
+      ` : `<p class="dashboard-ai-muted">${escapeHtml(emptyText)}</p>`}
+    </section>
+  `;
+}
+
+/**
+ * @param {Array<object>} items
+ * @returns {string}
+ */
+function renderAIRecommendations(items) {
+  const rows = Array.isArray(items) ? items : [];
+  return `
+    <section class="dashboard-ai-block dashboard-ai-wide">
+      <h3>Recomendaciones de entrenamiento</h3>
+      ${rows.length > 0 ? `
+        <div class="dashboard-ai-recommendations">
+          ${rows.map(item => `
+            <article>
+              <span class="dashboard-ai-priority ${escapeHtml(item.priority || 'medium')}">${escapeHtml(item.priority || 'medium')}</span>
+              <strong>${escapeHtml(item.area || 'Area')}</strong>
+              <p>${escapeHtml(item.objective || item.reason || '')}</p>
+              ${Array.isArray(item.drills) && item.drills.length > 0 ? `
+                <ul>
+                  ${item.drills.map(drill => `<li>${escapeHtml(drill)}</li>`).join('')}
+                </ul>
+              ` : ''}
+            </article>
+          `).join('')}
+        </div>
+      ` : '<p class="dashboard-ai-muted">Sin recomendaciones disponibles.</p>'}
+    </section>
+  `;
+}
+
+/**
+ * @param {object|null|undefined} aiState
+ * @returns {object|null}
+ */
+function getAIAnalysisEntry(aiState) {
+  return aiState?.analysis || (aiState?.result ? aiState : null);
+}
+
+/**
+ * @param {object|null|undefined} aiState
+ * @param {boolean} aiLoading
+ * @returns {string}
+ */
+function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
+  const status = aiLoading ? 'loading' : (aiState?.status || 'missing');
+  const analysis = getAIAnalysisEntry(aiState);
+  const result = analysis?.result || aiState?.result || null;
+  const generatedAt = analysis?.generatedAt || aiState?.generatedAt || '';
+  const model = analysis?.model || aiState?.model || '';
+  const staleWarning = 'Los hitos, eventos, notas, metadatos o métricas cambiaron desde el último análisis.';
+  const badgeLabel = {
+    loading: 'Analizando',
+    valid: 'Análisis guardado',
+    stale: 'Desactualizado',
+    error: 'Error',
+    missing: 'Pendiente',
+  }[status] || 'Pendiente';
+
+  return `
+    <section class="dashboard-ai-panel" data-ai-panel data-ai-status="${escapeHtml(status)}">
+      <header class="dashboard-ai-header">
+        <div>
+          <span>Análisis IA</span>
+          <h2>Lectura post-partido</h2>
+        </div>
+        <strong class="dashboard-ai-badge ${escapeHtml(status)}">${escapeHtml(badgeLabel)}</strong>
+      </header>
+
+      ${status === 'loading' ? `
+        <div class="dashboard-ai-empty">
+          <strong>Analizando datos del partido...</strong>
+          <p>Se está usando el contexto estructurado local. No cierres el dashboard hasta que termine.</p>
+        </div>
+      ` : ''}
+
+      ${status === 'missing' ? `
+        <div class="dashboard-ai-empty">
+          <strong>Todavía no se generó un análisis para este partido.</strong>
+          <p>El botón consume una llamada a Gemini sólo cuando no existe un análisis guardado válido.</p>
+        </div>
+      ` : ''}
+
+      ${status === 'error' ? `
+        <div class="dashboard-ai-empty dashboard-ai-warning">
+          <strong>No se pudo generar el análisis IA.</strong>
+          <p>${escapeHtml(aiState?.error || 'Revisá la configuración de IA e intentá nuevamente.')}</p>
+        </div>
+      ` : ''}
+
+      ${status === 'stale' ? `
+        <div class="dashboard-ai-warning">
+          <strong>Desactualizado</strong>
+          <p>${staleWarning}</p>
+        </div>
+      ` : ''}
+
+      ${result ? `
+        <div class="dashboard-ai-summary">
+          <p>${escapeHtml(result.summary || 'Sin resumen disponible.')}</p>
+          ${result.score_context ? `<p>${escapeHtml(result.score_context)}</p>` : ''}
+        </div>
+        <div class="dashboard-ai-grid">
+          ${renderAIEvidenceList(result.key_findings, 'Hallazgos clave')}
+          ${renderAIEvidenceList(result.strengths, 'Fortalezas')}
+          ${renderAIEvidenceList(result.weaknesses, 'Debilidades')}
+          ${renderAIRecommendations(result.training_recommendations)}
+        </div>
+        <footer class="dashboard-ai-meta">
+          ${generatedAt ? `<span>Generado ${escapeHtml(new Date(generatedAt).toLocaleString())}</span>` : ''}
+          ${model ? `<span>Modelo ${escapeHtml(model)}</span>` : ''}
+          <span>Confianza ${formatPct((Number(result.confidence) || 0) * 100)}</span>
+        </footer>
+      ` : ''}
+
+      <div class="dashboard-ai-actions">
+        <button class="dashboard-ai-button primary" type="button" data-ai-generate ${aiLoading ? 'disabled' : ''}>Generar Análisis</button>
+        ${status === 'stale' ? `<button class="dashboard-ai-button secondary" type="button" data-ai-regenerate ${aiLoading ? 'disabled' : ''}>Volver a generar análisis</button>` : ''}
+      </div>
+    </section>
+  `;
 }
 
 /**
@@ -222,11 +1208,18 @@ function buildKpis(stats) {
  * @param {object} match
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {string} heatmapFilter
+ * @param {object} preferences
+ * @param {boolean} customizerOpen
+ * @param {object} aiState
+ * @param {boolean} aiLoading
  * @returns {string}
  */
-function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
-  const badge = getResultBadge(stats);
-  const kpis = buildKpis(stats);
+function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false) {
+  const displayScore = getDashboardScore(stats, match);
+  const badge = getResultBadge(stats, match);
+  const normalized = normalizeDashboardPreferences(preferences);
+  const kpis = buildKpis(stats, normalized.selectedKpis);
+  const visibleSections = getVisibleSections(normalized);
   return `
     <section class="dashboard-view view-enter">
       <header class="dashboard-match-header">
@@ -236,7 +1229,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
         </div>
         <div class="dashboard-scoreline" aria-label="Score final">
           <span>${escapeHtml(stats.match.homeTeam)}</span>
-          <strong class="tabular-nums">${stats.score.home.total} - ${stats.score.away.total}</strong>
+          <strong class="tabular-nums">${displayScore.home} - ${displayScore.away}</strong>
           <span>${escapeHtml(stats.match.awayTeam)}</span>
         </div>
         <div class="badge ${badge}">${badge}</div>
@@ -245,6 +1238,8 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
       <div class="dashboard-kpi-row">
         ${kpis.map(kpi => `<div data-kpi>${createKpiCard(kpi).outerHTML}</div>`).join('')}
       </div>
+
+      ${buildDashboardControls(stats, match, normalized, customizerOpen)}
 
       <div class="dashboard-view-toggle" role="tablist" aria-label="Vista dashboard">
         ${VIEW_OPTIONS.map(option => `
@@ -263,8 +1258,10 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
         `).join('')}
       </div>
 
+      ${buildAIAnalysisPanel(aiState, aiLoading)}
+
       <div class="dashboard-sections">
-        ${SECTION_ORDER.map(([id, title]) => buildSection(id, title, stats, selectedView, heatmapFilter)).join('')}
+        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, selectedView, heatmapFilter)).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
       </div>
 
       <button class="dashboard-notes-button${match.coachNotes ? ' has-notes' : ''}" type="button" data-notes-open aria-label="Notas del entrenador">
@@ -281,8 +1278,22 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
             </div>
             <button type="button" data-notes-close aria-label="Cerrar notas">x</button>
           </header>
-          <textarea id="coach-notes" spellcheck="true" placeholder="Escribi conclusiones, decisiones tacticas o focos de entrenamiento.">${escapeHtml(match.coachNotes || '')}</textarea>
-          <p>Ctrl+B aplica negrita. Las lineas que empiezan con - se exportan como lista.</p>
+          <div class="dashboard-note-toolbar" role="toolbar" aria-label="Formato de notas">
+            <button type="button" data-note-command="bold" aria-label="Negrita" aria-pressed="false"><strong>B</strong></button>
+            <button type="button" data-note-command="italic" aria-label="Italica" aria-pressed="false"><em>I</em></button>
+            <button type="button" data-note-command="underline" aria-label="Subrayado" aria-pressed="false"><u>U</u></button>
+          </div>
+          <div
+            id="coach-notes"
+            class="dashboard-notes-editor"
+            data-coach-notes-editor
+            contenteditable="true"
+            role="textbox"
+            aria-multiline="true"
+            spellcheck="true"
+            data-placeholder="Escribi conclusiones, decisiones tacticas o focos de entrenamiento."
+          >${markdownToNoteHtml(match.coachNotes || '')}</div>
+          <p>Ctrl+B negrita. Ctrl+I italica. Ctrl+U subrayado. Escribir "- " inicia una lista.</p>
         </div>
       </aside>
 
@@ -301,13 +1312,13 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter) {
  */
 function buildSection(id, title, stats, selectedView, heatmapFilter) {
   const body = {
-    'set-pieces': '<div class="chart-shell"><canvas id="chart-set-pieces"></canvas></div>',
-    rucks: '<div class="chart-shell chart-shell-compact"><canvas id="chart-rucks"></canvas></div>',
-    discipline: '<div class="chart-shell"><canvas id="chart-discipline"></canvas></div>',
-    kicks: '<div class="chart-shell"><canvas id="chart-kicks"></canvas></div>',
-    'break-lines': '<div class="chart-shell"><canvas id="chart-break-lines"></canvas></div>',
+    'set-pieces': '<div class="chart-shell"><canvas id="chart-set-pieces" data-chart-key="setPieces"></canvas></div>',
+    rucks: '<div class="chart-shell chart-shell-compact"><canvas id="chart-rucks" data-chart-key="rucks"></canvas></div>',
+    discipline: '<div class="chart-shell"><canvas id="chart-discipline" data-chart-key="discipline"></canvas></div>',
+    kicks: '<div class="chart-shell"><canvas id="chart-kicks" data-chart-key="kicks"></canvas></div>',
+    'break-lines': '<div class="chart-shell"><canvas id="chart-break-lines" data-chart-key="breakLines"></canvas></div>',
     possession: buildPossessionBody(stats),
-    bip: '<div class="chart-shell"><canvas id="chart-bip"></canvas></div>',
+    bip: '<div class="chart-shell"><canvas id="chart-bip" data-chart-key="bip"></canvas></div>',
     sequences: buildSequencesBody(stats),
     heatmap: buildHeatmapBody(stats, selectedView, heatmapFilter),
   }[id];
@@ -336,7 +1347,7 @@ function buildPossessionBody(stats) {
       <span>${escapeHtml(stats.teams.away.name)} <strong>${formatPct(stats.possession.percentages.away)}</strong></span>
       <em>${stats.possession.source === 'intervals' ? 'Intervalos reales' : 'Estimado por eventos'}</em>
     </div>
-    <div class="chart-shell"><canvas id="chart-possession"></canvas></div>
+    <div class="chart-shell"><canvas id="chart-possession" data-chart-key="possession"></canvas></div>
     ${stats.territory.available ? `
       <div class="dashboard-territory-readout">
         Territorio: ${escapeHtml(stats.teams.home.name)} ${formatPct(stats.territory.percentages.home)} - ${formatPct(stats.territory.percentages.away)} ${escapeHtml(stats.teams.away.name)}
@@ -393,8 +1404,8 @@ function buildHeatmapBody(stats, selectedView, heatmapFilter) {
       `).join('')}
     </div>
     <div class="dashboard-heatmap-shell">
-      <canvas id="dashboard-heatmap" width="960" height="520" data-view="${selectedView}"></canvas>
-      <p class="dashboard-heatmap-empty" id="dashboard-heatmap-empty" hidden>No hay datos de zona para este partido.</p>
+      <svg id="dashboard-heatmap" viewBox="0 0 960 520" data-view="${selectedView}" role="img" aria-label="Heatmap por zonas del campo de rugby"></svg>
+      <p class="dashboard-heatmap-empty" id="dashboard-heatmap-empty" hidden><strong>Sin zonas cargadas todavia</strong><span>Selecciona zonas en los popups de tagging para activar este heatmap.</span></p>
     </div>
   `;
 }
@@ -403,7 +1414,10 @@ function buildHeatmapBody(stats, selectedView, heatmapFilter) {
  * @param {Record<string, object>} charts
  */
 function destroyCharts(charts) {
-  Object.values(charts).forEach(chart => chart?.destroy?.());
+  charts.__observer?.disconnect?.();
+  Object.entries(charts).forEach(([key, chart]) => {
+    if (key !== '__observer') chart?.destroy?.();
+  });
   Object.keys(charts).forEach(key => delete charts[key]);
 }
 
@@ -415,7 +1429,39 @@ function destroyCharts(charts) {
  */
 function createChart(canvas, config, charts, key) {
   if (!canvas || !window.Chart) return;
+  charts[key]?.destroy?.();
   charts[key] = new window.Chart(canvas, config);
+}
+
+/**
+ * @param {object} stats
+ * @param {'bigua'|'rival'|'compare'} selectedView
+ * @param {object} colors
+ * @param {Record<string, object>} charts
+ * @returns {Record<string, function(): void>}
+ */
+function createLazyChartRenderer(stats, selectedView, colors, charts) {
+  return {
+    setPieces: () => createSetPiecesChart(stats, selectedView, colors, charts),
+    rucks: () => createRucksChart(stats, selectedView, colors, charts),
+    discipline: () => createDisciplineChart(stats, selectedView, colors, charts),
+    kicks: () => createKicksChart(stats, selectedView, colors, charts),
+    breakLines: () => createBreakLinesChart(stats, selectedView, colors, charts),
+    possession: () => createPossessionChart(stats, colors, charts),
+    bip: () => createBipChart(stats, colors, charts),
+  };
+}
+
+/**
+ * @param {object} stats
+ * @param {'bigua'|'rival'|'compare'} selectedView
+ * @param {Record<string, object>} charts
+ */
+function renderAllDashboardCharts(stats, selectedView, charts) {
+  const colors = getChartColors();
+  configureChartDefaults(colors);
+  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts);
+  Object.values(renderers).forEach(render => render());
 }
 
 /**
@@ -427,14 +1473,27 @@ function renderCharts(stats, selectedView, charts) {
   destroyCharts(charts);
   const colors = getChartColors();
   configureChartDefaults(colors);
+  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts);
+  const canvases = Array.from(document.querySelectorAll('[data-chart-key]'));
 
-  createSetPiecesChart(stats, selectedView, colors, charts);
-  createRucksChart(stats, selectedView, colors, charts);
-  createDisciplineChart(stats, selectedView, colors, charts);
-  createKicksChart(stats, selectedView, colors, charts);
-  createBreakLinesChart(stats, selectedView, colors, charts);
-  createPossessionChart(stats, colors, charts);
-  createBipChart(stats, colors, charts);
+  if (!('IntersectionObserver' in window)) {
+    canvases.forEach(canvas => renderers[canvas.dataset.chartKey]?.());
+    return;
+  }
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => {
+      if (!entry.isIntersecting) return;
+      const canvas = /** @type {HTMLCanvasElement} */ (entry.target);
+      renderers[canvas.dataset.chartKey]?.();
+      observer.unobserve(canvas);
+    });
+  }, { root: document.querySelector('.main-content-body'), rootMargin: '160px 0px' });
+
+  charts.__observer = observer;
+  canvases.forEach((canvas) => {
+    observer.observe(canvas);
+  });
 }
 
 /**
@@ -624,7 +1683,7 @@ function createPossessionChart(stats, colors, charts) {
               const observed = stats.possession.segments.slice(0, index + 1);
               const home = observed.filter(item => item.team === 'home').reduce((sum, item) => sum + item.end - item.start, 0);
               const total = observed.reduce((sum, item) => sum + item.end - item.start, 0);
-              return pct(home, total);
+              return calculatePercent(home, total);
             }),
             fill: true,
             borderColor: colors.local,
@@ -637,7 +1696,7 @@ function createPossessionChart(stats, colors, charts) {
               const observed = stats.possession.segments.slice(0, index + 1);
               const away = observed.filter(item => item.team === 'away').reduce((sum, item) => sum + item.end - item.start, 0);
               const total = observed.reduce((sum, item) => sum + item.end - item.start, 0);
-              return pct(away, total);
+              return calculatePercent(away, total);
             }),
             fill: true,
             borderColor: colors.rival,
@@ -698,104 +1757,223 @@ function eventMatchesHeatmapFilter(event, filter) {
 }
 
 /**
- * @param {CanvasRenderingContext2D} ctx
- * @param {number} width
- * @param {number} height
+ * @param {number} timestamp
+ * @param {string} timeBand
+ * @returns {boolean}
  */
-function drawRugbyField(ctx, width, height) {
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = 'rgba(10, 64, 42, 0.42)';
-  ctx.fillRect(0, 0, width, height);
-  ctx.strokeStyle = 'rgba(255,255,255,0.28)';
-  ctx.lineWidth = 2;
-  ctx.strokeRect(16, 16, width - 32, height - 32);
-  for (let x = 1; x < 5; x += 1) {
-    ctx.beginPath();
-    ctx.moveTo(16 + ((width - 32) / 5) * x, 16);
-    ctx.lineTo(16 + ((width - 32) / 5) * x, height - 16);
-    ctx.stroke();
-  }
-  for (let y = 1; y < 3; y += 1) {
-    ctx.beginPath();
-    ctx.moveTo(16, 16 + ((height - 32) / 3) * y);
-    ctx.lineTo(width - 16, 16 + ((height - 32) / 3) * y);
-    ctx.stroke();
-  }
+function timestampMatchesTimeBand(timestamp, timeBand) {
+  if (!timeBand || timeBand === 'all') return true;
+  if (!Number.isFinite(timestamp)) return false;
+  const ranges = {
+    'first-half': [0, 40 * 60],
+    'second-half': [40 * 60, Number.POSITIVE_INFINITY],
+    '0-20': [0, 20 * 60],
+    '20-40': [20 * 60, 40 * 60],
+    '40-60': [40 * 60, 60 * 60],
+    '60-80': [60 * 60, 80 * 60],
+    '+80': [80 * 60, Number.POSITIVE_INFINITY],
+  };
+  const range = ranges[timeBand];
+  if (!range) return true;
+  return timestamp >= range[0] && timestamp < range[1];
+}
+
+function getHeatmapGeometry() {
+  const x = 54;
+  const y = 34;
+  const width = 852;
+  const height = 452;
+  return {
+    x,
+    y,
+    width,
+    height,
+    cellW: width / 5,
+    cellH: height / 3,
+  };
 }
 
 /**
- * @param {HTMLCanvasElement|null} canvas
- * @param {HTMLElement|null} empty
- * @param {object} match
- * @param {object} stats
- * @param {'bigua'|'rival'|'compare'} selectedView
- * @param {string} heatmapFilter
+ * @param {object} zoneCounts
+ * @param {number} max
+ * @returns {string}
  */
-function renderHeatmap(canvas, empty, match, stats, selectedView, heatmapFilter) {
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return;
-  const width = canvas.width;
-  const height = canvas.height;
-  drawRugbyField(ctx, width, height);
-
-  const team = getSelectedTeam(stats, selectedView);
-  const zoneCounts = {};
-  (match.events || [])
-    .filter(event => event.zone && eventMatchesHeatmapFilter(event, heatmapFilter))
-    .filter(event => !team || event.team === team)
-    .forEach((event) => {
-      zoneCounts[event.zone] = (zoneCounts[event.zone] || 0) + 1;
-    });
-  const max = Object.values(zoneCounts).reduce((value, count) => Math.max(value, count), 0);
-  if (empty) empty.hidden = max > 0;
-  if (max <= 0) return;
-
-  const fieldX = 16;
-  const fieldY = 16;
-  const fieldW = width - 32;
-  const fieldH = height - 32;
-  const cellW = fieldW / 5;
-  const cellH = fieldH / 3;
+function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
+  const field = getHeatmapGeometry();
+  const verticalLines = Array.from({ length: 6 }, (_, index) => field.x + field.cellW * index);
+  const horizontalLines = Array.from({ length: 4 }, (_, index) => field.y + field.cellH * index);
+  const hashRows = [field.y + field.height * 0.18, field.y + field.height * 0.50, field.y + field.height * 0.82];
+  const hashColumns = verticalLines.slice(1, -1);
+  const zones = [];
 
   for (let column = 0; column < 5; column += 1) {
     for (let row = 0; row < 3; row += 1) {
       const zone = `Z${column * 3 + row + 1}`;
       const count = zoneCounts[zone] || 0;
-      const intensity = count / max;
-      ctx.fillStyle = `rgba(200, 16, 46, ${round(intensity, 2)})`;
-      ctx.fillRect(fieldX + column * cellW, fieldY + row * cellH, cellW, cellH);
-      ctx.fillStyle = 'rgba(240, 244, 248, 0.86)';
-      ctx.font = '900 18px Arial';
-      ctx.fillText(zone.replace('Z', ''), fieldX + column * cellW + 16, fieldY + row * cellH + 28);
-      if (count > 0) {
-        ctx.font = '400 13px Arial';
-        ctx.fillText(String(count), fieldX + column * cellW + 16, fieldY + row * cellH + 50);
-      }
+      const intensity = max > 0 ? roundTo(count / max, 2) : 0;
+      const x = field.x + column * field.cellW;
+      const y = field.y + row * field.cellH;
+      zones.push(`
+        <g class="heatmap-zone" data-zone="${zone}">
+          <rect x="${x}" y="${y}" width="${field.cellW}" height="${field.cellH}" fill="#C8102E" fill-opacity="${intensity}" />
+          <text class="heatmap-zone-number" x="${x + 18}" y="${y + 34}">${zone.replace('Z', '')}</text>
+          ${count > 0 ? `<text class="heatmap-zone-count" x="${x + 18}" y="${y + 62}">${count}</text>` : ''}
+        </g>
+      `);
     }
+  }
+
+  return `
+    <defs>
+      <linearGradient id="heatmap-field-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0B8F4E" />
+        <stop offset="52%" stop-color="#087E45" />
+        <stop offset="100%" stop-color="#066C3C" />
+      </linearGradient>
+    </defs>
+    <style>
+      .heatmap-zone-number { fill: rgba(255,255,255,0.88); font: 900 28px Arial Black, Arial, sans-serif; paint-order: stroke; stroke: rgba(0,0,0,0.12); stroke-width: 2px; }
+      .heatmap-zone-count { fill: rgba(255,255,255,0.86); font: 900 18px Arial, sans-serif; }
+    </style>
+    <rect x="0" y="0" width="960" height="520" rx="0" fill="url(#heatmap-field-gradient)" />
+    <rect x="28" y="24" width="904" height="472" fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="5" vector-effect="non-scaling-stroke" />
+    <rect x="40" y="36" width="880" height="448" fill="none" stroke="rgba(255,255,255,0.82)" stroke-width="3" vector-effect="non-scaling-stroke" />
+    ${zones.join('')}
+    <g class="heatmap-field-lines" fill="none" stroke="rgba(255,255,255,0.78)" stroke-width="2.4" vector-effect="non-scaling-stroke">
+      ${verticalLines.map(x => `<line x1="${x}" y1="${field.y}" x2="${x}" y2="${field.y + field.height}" />`).join('')}
+      ${horizontalLines.map(y => `<line x1="${field.x}" y1="${y}" x2="${field.x + field.width}" y2="${y}" />`).join('')}
+      <path d="M84 202 L30 184 M84 318 L30 336 M84 202 L84 318" />
+      <path d="M876 202 L930 184 M876 318 L930 336 M876 202 L876 318" />
+    </g>
+    <g class="heatmap-hash-lines" fill="none" stroke="rgba(255,255,255,0.86)" stroke-width="3" vector-effect="non-scaling-stroke">
+      ${hashRows.flatMap(y => hashColumns.map(x => `<line x1="${x - 8}" y1="${y}" x2="${x + 8}" y2="${y}" />`)).join('')}
+      ${hashColumns.map(x => `<line x1="${x}" y1="${field.y + 122}" x2="${x}" y2="${field.y + 150}" stroke-dasharray="18 16" />`).join('')}
+      ${hashColumns.map(x => `<line x1="${x}" y1="${field.y + field.height - 150}" x2="${x}" y2="${field.y + field.height - 122}" stroke-dasharray="18 16" />`).join('')}
+    </g>
+  `;
+}
+
+/**
+ * @param {SVGSVGElement|null} svg
+ * @param {HTMLElement|null} empty
+ * @param {object} match
+ * @param {object} stats
+ * @param {'bigua'|'rival'|'compare'} selectedView
+ * @param {string} heatmapFilter
+ * @param {object} dashboardFilters
+ */
+function renderHeatmap(svg, empty, match, stats, selectedView, heatmapFilter, dashboardFilters = {}) {
+  if (!svg) return;
+  const team = getSelectedTeam(stats, selectedView);
+  const zoneCounts = {};
+  (match.events || [])
+    .filter(event => event.zone && eventMatchesHeatmapFilter(event, heatmapFilter))
+    .filter(event => !team || event.team === team)
+    .filter(event => timestampMatchesTimeBand(Number(event.timestamp), dashboardFilters.timeBand))
+    .filter(event => !dashboardFilters.zone || dashboardFilters.zone === 'all' || event.zone === dashboardFilters.zone)
+    .forEach((event) => {
+      zoneCounts[event.zone] = (zoneCounts[event.zone] || 0) + 1;
+    });
+  const max = Object.values(zoneCounts).reduce((value, count) => Math.max(value, count), 0);
+  if (empty) empty.hidden = max > 0;
+  svg.innerHTML = drawRugbyFieldSvg(zoneCounts, max);
+}
+
+/**
+ * @param {object} preferences
+ * @returns {'bigua'|'rival'|'compare'}
+ */
+function getViewFromPreferences(preferences) {
+  const team = normalizeDashboardPreferences(preferences).filters.team;
+  if (team === 'rival') return 'rival';
+  if (team === 'compare' || team === 'all') return 'compare';
+  return 'bigua';
+}
+
+/**
+ * @param {Array<string>} items
+ * @param {string} id
+ * @param {-1|1} direction
+ * @returns {Array<string>}
+ */
+function moveItem(items, id, direction) {
+  const next = [...items];
+  const index = next.indexOf(id);
+  const target = index + direction;
+  if (index < 0 || target < 0 || target >= next.length) return next;
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+/**
+ * @param {object} state
+ * @returns {Promise<void>}
+ */
+async function reloadDashboardStats(state) {
+  if (!state.match?.id) return;
+  state.stats = await window.api.analytics.getMatchStats(state.match.id, state.preferences.filters);
+}
+
+/**
+ * @param {object} state
+ * @returns {Promise<void>}
+ */
+async function refreshAIAnalysis(state) {
+  if (!state.match?.id || !window.biguAI?.getMatchAnalysis) return;
+  try {
+    state.ai = await window.biguAI.getMatchAnalysis(state.match.id);
+  } catch (error) {
+    state.ai = {
+      status: 'error',
+      hasAnalysis: false,
+      error: error instanceof Error ? error.message : 'No se pudo cargar el análisis IA.',
+    };
   }
 }
 
 /**
- * @param {HTMLTextAreaElement} textarea
+ * @param {HTMLElement} container
+ * @param {object} state
+ * @param {'generate'|'regenerate'} action
+ * @returns {Promise<void>}
  */
-function applyBoldShortcut(textarea) {
-  const start = textarea.selectionStart;
-  const end = textarea.selectionEnd;
-  const selected = textarea.value.slice(start, end) || 'texto';
-  textarea.setRangeText(`**${selected}**`, start, end, 'select');
+async function runAIAnalysisAction(container, state, action) {
+  if (state.aiLoading || !state.match?.id) return;
+  if (action === 'regenerate') {
+    const confirmed = window.confirm('Esto consumirá una nueva llamada a la IA. ¿Querés continuar?');
+    if (!confirmed) return;
+  }
+
+  state.aiLoading = true;
+  renderLoadedDashboard(container, state);
+  try {
+    state.ai = action === 'regenerate'
+      ? await window.biguAI.regenerateMatchAnalysis(state.match.id)
+      : await window.biguAI.generateMatchAnalysis(state.match.id);
+  } catch (error) {
+    state.ai = {
+      status: 'error',
+      hasAnalysis: false,
+      error: error instanceof Error ? error.message : 'No se pudo generar el análisis IA.',
+    };
+  } finally {
+    state.aiLoading = false;
+    renderLoadedDashboard(container, state);
+  }
 }
 
 /**
- * @param {string} text
- * @returns {string}
+ * @param {HTMLElement} container
+ * @param {object} state
+ * @param {object} nextPreferences
+ * @param {{reload?: boolean}} options
  */
-function markdownToPrintHtml(text) {
-  return escapeHtml(text)
-    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-    .split('\n')
-    .map(line => line.startsWith('- ') ? `<li>${line.slice(2)}</li>` : `<p>${line}</p>`)
-    .join('');
+async function updateDashboardPreferences(container, state, nextPreferences, options = {}) {
+  state.preferences = normalizeDashboardPreferences(nextPreferences);
+  state.selectedView = getViewFromPreferences(state.preferences);
+  await window.api.settings.set({ dashboard: state.preferences });
+  if (options.reload) await reloadDashboardStats(state);
+  renderLoadedDashboard(container, state);
 }
 
 /**
@@ -811,8 +1989,85 @@ function wireDashboard(container, state) {
 
   container.querySelectorAll('[data-dashboard-view]').forEach(button => {
     button.addEventListener('click', () => {
-      state.selectedView = button.dataset.dashboardView;
-      renderLoadedDashboard(container, state);
+      const view = button.dataset.dashboardView || 'bigua';
+      updateDashboardPreferences(container, state, {
+        ...state.preferences,
+        filters: {
+          ...state.preferences.filters,
+          team: view,
+        },
+      }, { reload: true });
+    });
+  });
+
+  container.querySelector('[data-dashboard-template]')?.addEventListener('change', (event) => {
+    const select = /** @type {HTMLSelectElement} */ (event.currentTarget);
+    updateDashboardPreferences(container, state, applyDashboardTemplate(state.preferences, select.value));
+  });
+
+  container.querySelector('[data-filter-time]')?.addEventListener('change', (event) => {
+    const select = /** @type {HTMLSelectElement} */ (event.currentTarget);
+    updateDashboardPreferences(container, state, {
+      ...state.preferences,
+      filters: { ...state.preferences.filters, timeBand: select.value },
+    }, { reload: true });
+  });
+
+  container.querySelector('[data-filter-zone]')?.addEventListener('change', (event) => {
+    const select = /** @type {HTMLSelectElement} */ (event.currentTarget);
+    updateDashboardPreferences(container, state, {
+      ...state.preferences,
+      filters: { ...state.preferences.filters, zone: select.value },
+    }, { reload: true });
+  });
+
+  container.querySelector('[data-pdf-template]')?.addEventListener('change', (event) => {
+    const select = /** @type {HTMLSelectElement} */ (event.currentTarget);
+    updateDashboardPreferences(container, state, {
+      ...state.preferences,
+      pdfTemplate: select.value,
+    });
+  });
+
+  container.querySelector('[data-customizer-toggle]')?.addEventListener('click', () => {
+    state.customizerOpen = !state.customizerOpen;
+    renderLoadedDashboard(container, state);
+  });
+
+  container.querySelectorAll('[data-kpi-slot]').forEach(select => {
+    select.addEventListener('change', () => {
+      const slot = Number(select.dataset.kpiSlot);
+      const selectedKpis = [...state.preferences.selectedKpis];
+      selectedKpis[slot] = /** @type {HTMLSelectElement} */ (select).value;
+      updateDashboardPreferences(container, state, { ...state.preferences, selectedKpis });
+    });
+  });
+
+  container.querySelectorAll('[data-section-visible]').forEach(input => {
+    input.addEventListener('change', () => {
+      const sectionId = input.dataset.sectionVisible;
+      const visible = new Set(state.preferences.visibleSections);
+      if (/** @type {HTMLInputElement} */ (input).checked) visible.add(sectionId);
+      else visible.delete(sectionId);
+      updateDashboardPreferences(container, state, { ...state.preferences, visibleSections: Array.from(visible) });
+    });
+  });
+
+  container.querySelectorAll('[data-section-up]').forEach(button => {
+    button.addEventListener('click', () => {
+      updateDashboardPreferences(container, state, {
+        ...state.preferences,
+        sectionOrder: moveItem(state.preferences.sectionOrder, button.dataset.sectionUp, -1),
+      });
+    });
+  });
+
+  container.querySelectorAll('[data-section-down]').forEach(button => {
+    button.addEventListener('click', () => {
+      updateDashboardPreferences(container, state, {
+        ...state.preferences,
+        sectionOrder: moveItem(state.preferences.sectionOrder, button.dataset.sectionDown, 1),
+      });
     });
   });
 
@@ -823,25 +2078,93 @@ function wireDashboard(container, state) {
     });
   });
 
+  container.querySelector('[data-ai-generate]')?.addEventListener('click', () => {
+    runAIAnalysisAction(container, state, 'generate');
+  });
+
+  container.querySelector('[data-ai-regenerate]')?.addEventListener('click', () => {
+    runAIAnalysisAction(container, state, 'regenerate');
+  });
+
   const drawer = container.querySelector('#dashboard-notes-drawer');
-  const textarea = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('#coach-notes'));
+  const editor = /** @type {HTMLElement|null} */ (container.querySelector('[data-coach-notes-editor]'));
+  state.noteFormats = normalizeNoteFormats(state.noteFormats);
+  let lastNoteRange = null;
+  const scheduleToolbarState = () => {
+    window.requestAnimationFrame(() => updateNoteToolbarState(container, state.noteFormats));
+  };
+  const captureToolbarSelection = () => {
+    if (!editor) return;
+    const range = getCurrentNoteSelection(editor);
+    if (range) lastNoteRange = range;
+    if (canSyncNoteFormatsFromSelection(editor)) {
+      Object.assign(state.noteFormats, getNoteFormatsAtSelection(editor));
+    }
+    updateNoteToolbarState(container, state.noteFormats);
+  };
+  state.noteToolbarCleanup?.();
+  document.addEventListener('selectionchange', captureToolbarSelection);
+  state.noteToolbarCleanup = () => document.removeEventListener('selectionchange', captureToolbarSelection);
+
   container.querySelector('[data-notes-open]')?.addEventListener('click', () => {
     drawer?.setAttribute('aria-hidden', 'false');
-    textarea?.focus();
+    editor?.focus();
+    if (editor) placeCaretAtEnd(editor);
+    lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
+    scheduleToolbarState();
   });
   container.querySelector('[data-notes-close]')?.addEventListener('click', () => {
     drawer?.setAttribute('aria-hidden', 'true');
   });
-  textarea?.addEventListener('keydown', (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'b') {
+  container.querySelectorAll('[data-note-command]').forEach(button => {
+    button.addEventListener('mousedown', event => event.preventDefault());
+    button.addEventListener('click', () => {
+      const command = button.dataset.noteCommand;
+      if (!command) return;
+      toggleNoteCommand(command, editor, lastNoteRange, state.noteFormats);
+      lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
+      scheduleToolbarState();
+    });
+  });
+  editor?.addEventListener('keydown', (event) => {
+    if (handleMarkdownListShortcut(editor, event)) {
+      lastNoteRange = getCurrentNoteSelection(editor);
+      scheduleToolbarState();
+      return;
+    }
+    const key = event.key.toLowerCase();
+    const command = { b: 'bold', i: 'italic', u: 'underline' }[key];
+    if ((event.ctrlKey || event.metaKey) && command) {
       event.preventDefault();
-      applyBoldShortcut(textarea);
+      toggleNoteCommand(command, editor, lastNoteRange, state.noteFormats);
+      lastNoteRange = getCurrentNoteSelection(editor);
+      scheduleToolbarState();
     }
   });
-  textarea?.addEventListener('blur', async () => {
-    state.match = await window.api.matches.update(state.match.id, { coachNotes: textarea.value });
+  editor?.addEventListener('beforeinput', (event) => {
+    if (handleFormattedTextInput(editor, /** @type {InputEvent} */ (event), state.noteFormats)) {
+      lastNoteRange = getCurrentNoteSelection(editor);
+      scheduleToolbarState();
+    }
+  });
+  editor?.addEventListener('keyup', scheduleToolbarState);
+  editor?.addEventListener('mouseup', captureToolbarSelection);
+  editor?.addEventListener('focus', captureToolbarSelection);
+  editor?.addEventListener('input', () => {
+    maybeConvertMarkdownList(editor);
+    lastNoteRange = getCurrentNoteSelection(editor);
+    scheduleToolbarState();
+  });
+  editor?.addEventListener('blur', async () => {
+    const coachNotes = serializeCoachNotes(editor);
+    const notesChanged = coachNotes !== (state.match.coachNotes || '');
+    state.match = await window.api.matches.update(state.match.id, { coachNotes });
     const noteButton = container.querySelector('[data-notes-open]');
-    noteButton?.classList.toggle('has-notes', Boolean(textarea.value.trim()));
+    noteButton?.classList.toggle('has-notes', Boolean(coachNotes.trim()));
+    if (notesChanged) {
+      await refreshAIAnalysis(state);
+      renderLoadedDashboard(container, state);
+    }
   });
 }
 
@@ -870,19 +2193,30 @@ function showToast(container, message, filePath = null) {
  * @param {object} state
  * @returns {object}
  */
-function collectPrintPayload(state) {
+function collectPrintPayload(state, access = null) {
   const chartImages = {};
   Object.entries(state.charts).forEach(([key, chart]) => {
     if (typeof chart.toBase64Image === 'function') {
       chartImages[key] = chart.toBase64Image();
     }
   });
-  const heatmapCanvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('dashboard-heatmap'));
+  const heatmapSvg = /** @type {SVGSVGElement|null} */ (document.getElementById('dashboard-heatmap'));
+  const heatmapClone = heatmapSvg ? /** @type {SVGSVGElement} */ (heatmapSvg.cloneNode(true)) : null;
+  heatmapClone?.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+  const serializedHeatmap = heatmapClone
+    ? new XMLSerializer().serializeToString(heatmapClone)
+    : '';
   return {
     chartImages,
-    heatmapImage: heatmapCanvas ? heatmapCanvas.toDataURL('image/png') : '',
+    heatmapImage: serializedHeatmap ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(serializedHeatmap)}` : '',
     notesHtml: markdownToPrintHtml(state.match.coachNotes || ''),
+    aiAnalysis: state.ai?.status === 'valid' ? state.ai.analysis : null,
     selectedView: state.selectedView,
+    pdfTemplate: state.preferences.pdfTemplate,
+    selectedKpis: state.preferences.selectedKpis,
+    visibleSections: getVisibleSections(state.preferences),
+    filters: state.preferences.filters,
+    license: getPrintLicensePayload(access),
   };
 }
 
@@ -896,7 +2230,14 @@ async function exportPdf(container, state) {
   if (exportButton) exportButton.textContent = 'Generando...';
 
   try {
-    const result = await window.api.analytics.exportPdf(state.match.id, collectPrintPayload(state));
+    const access = await refreshAccessState();
+    if (access.state !== 'active') {
+      window.dispatchEvent(new CustomEvent('bigu:access-denied', { detail: access }));
+      showToast(container, 'No se pudo verificar la licencia para exportar.');
+      return;
+    }
+    renderAllDashboardCharts(state.stats, state.selectedView, state.charts);
+    const result = await window.api.analytics.exportPdf(state.match.id, collectPrintPayload(state, access));
     if (!result?.canceled) {
       showToast(container, 'PDF generado correctamente.', result.filePath);
     }
@@ -922,16 +2263,17 @@ function renderLoadedDashboard(container, state) {
     if (id === 'export') exportPdf(container, state);
   });
 
-  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter);
+  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading);
   wireDashboard(container, state);
   renderCharts(state.stats, state.selectedView, state.charts);
   renderHeatmap(
-    /** @type {HTMLCanvasElement|null} */ (container.querySelector('#dashboard-heatmap')),
+    /** @type {SVGSVGElement|null} */ (container.querySelector('#dashboard-heatmap')),
     container.querySelector('#dashboard-heatmap-empty'),
     state.match,
     state.stats,
     state.selectedView,
-    state.heatmapFilter
+    state.heatmapFilter,
+    state.preferences.filters
   );
 }
 
@@ -942,6 +2284,7 @@ function renderLoadedDashboard(container, state) {
  */
 export function renderDashboard(container, params = {}) {
   if (cleanupDashboard) cleanupDashboard();
+  container.classList.add('dashboard-content-body');
 
   let disposed = false;
   const state = {
@@ -949,15 +2292,24 @@ export function renderDashboard(container, params = {}) {
     stats: null,
     selectedView: 'bigua',
     heatmapFilter: 'all',
+    preferences: normalizeDashboardPreferences(DEFAULT_DASHBOARD_PREFERENCES),
+    customizerOpen: false,
     charts: {},
+    ai: { status: 'missing', hasAnalysis: false },
+    aiLoading: false,
+    noteFormats: createEmptyNoteFormats(),
     settingsCleanup: null,
+    noteToolbarCleanup: null,
   };
 
   cleanupDashboard = () => {
     disposed = true;
+    container.classList.remove('dashboard-content-body');
     destroyCharts(state.charts);
     state.settingsCleanup?.();
     state.settingsCleanup = null;
+    state.noteToolbarCleanup?.();
+    state.noteToolbarCleanup = null;
   };
 
   setSidebarExpanded(false);
@@ -980,25 +2332,32 @@ export function renderDashboard(container, params = {}) {
         return;
       }
 
-      const [match, stats] = await Promise.all([
+      const [match, settings] = await Promise.all([
         window.api.matches.getById(params.matchId),
-        window.api.analytics.getMatchStats(params.matchId),
+        window.api.settings.get(),
       ]);
       if (disposed) return;
       state.match = match;
-      state.stats = stats;
-      state.settingsCleanup = window.api.settings.onChanged?.(async () => {
+      state.preferences = normalizeDashboardPreferences(settings.dashboard);
+      state.selectedView = getViewFromPreferences(state.preferences);
+      await reloadDashboardStats(state);
+      await refreshAIAnalysis(state);
+      state.settingsCleanup = window.api.settings.onChanged?.(async (nextSettings) => {
         if (disposed || !state.match?.id) return;
-        state.stats = await window.api.analytics.getMatchStats(state.match.id);
+        state.preferences = normalizeDashboardPreferences(nextSettings.dashboard);
+        state.selectedView = getViewFromPreferences(state.preferences);
+        await reloadDashboardStats(state);
+        await refreshAIAnalysis(state);
         renderLoadedDashboard(container, state);
       });
       renderLoadedDashboard(container, state);
     } catch (error) {
       if (disposed) return;
+      const detail = error instanceof Error ? error.message : 'Error desconocido';
       container.innerHTML = `
         <div class="error-state">
           <h3 class="error-state-title">Error al cargar dashboard</h3>
-          <p class="error-state-text">${escapeHtml(error.message || 'No se pudo abrir el dashboard')}</p>
+          <p class="error-state-text">No se pudo abrir el dashboard. Detalle tecnico: ${escapeHtml(detail)}</p>
           <button class="btn btn-primary" id="dashboard-home-btn">Volver al inicio</button>
         </div>
       `;

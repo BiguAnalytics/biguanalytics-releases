@@ -55,6 +55,31 @@ describe('tagging video controls', () => {
   });
 });
 
+describe('tagging phase 5 polish', () => {
+  const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+
+  it('shows a non-blocking missing-video notice with a change route action for stale MP4 paths', () => {
+    expect(taggingSource).toContain('showMissingLocalVideoNotice');
+    expect(taggingSource).toContain('video-missing-notice');
+    expect(taggingSource).toContain('Cambiar ruta');
+    expect(taggingSource).toContain('window.api.media.localVideoExists');
+  });
+
+  it('shows the first-launch hotkeys overlay and dismisses the firstLaunch flag', () => {
+    expect(taggingSource).toContain('renderFirstLaunchHotkeysOverlay');
+    expect(taggingSource).toContain('tagging-hotkeys-overlay');
+    expect(taggingSource).toContain('Tabla de hotkeys');
+    expect(taggingSource).toContain('firstLaunch: false');
+  });
+
+  it('ignores tag hotkeys when focus is in editable fields or system modifiers are pressed', () => {
+    expect(taggingSource).toContain('document.activeElement');
+    expect(taggingSource).toContain('hasSystemModifier');
+    expect(taggingSource).toContain('if (isEditableTarget(document.activeElement)) return;');
+    expect(taggingSource).toContain('if (hasSystemModifier(event)) return;');
+  });
+});
+
 describe('tagging YouTube iframe player', () => {
   const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
 

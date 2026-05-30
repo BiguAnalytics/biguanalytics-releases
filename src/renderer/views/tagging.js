@@ -174,6 +174,14 @@ function isEditableTarget(target) {
 }
 
 /**
+ * @param {KeyboardEvent} event
+ * @returns {boolean}
+ */
+function hasSystemModifier(event) {
+  return event.ctrlKey || event.metaKey || event.altKey;
+}
+
+/**
  * @param {object} match
  * @returns {string}
  */
@@ -667,6 +675,7 @@ export function renderTagging(container, params = {}) {
     ticker = window.setInterval(tick, 250);
     autoCloseTicker = window.setInterval(checkAutoClose, 300);
     renderAll();
+    renderFirstLaunchHotkeysOverlay();
   }
 
   /**
@@ -854,13 +863,47 @@ export function renderTagging(container, params = {}) {
     });
   }
 
-  function wireMedia() {
+  function renderFirstLaunchHotkeysOverlay() {
+    if (!settings?.firstLaunch || container.querySelector('.tagging-hotkeys-overlay')) return;
+    const overlay = document.createElement('div');
+    overlay.className = 'tagging-hotkeys-overlay';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Tabla de hotkeys');
+    overlay.innerHTML = `
+      <section class="tagging-hotkeys-panel">
+        <header>
+          <span>Primer uso</span>
+          <h2>Tabla de hotkeys</h2>
+        </header>
+        <div class="tagging-hotkeys-grid">
+          ${Object.values(EVENT_DEFINITIONS).map(def => `
+            <div><kbd>${def.hotkey}</kbd><span>${escapeHtml(def.label)}</span></div>
+          `).join('')}
+          <div><kbd>1</kbd><span>Posesion local</span></div>
+          <div><kbd>2</kbd><span>Posesion rival</span></div>
+          <div><kbd>Q</kbd><span>Inicio secuencia</span></div>
+          <div><kbd>E</kbd><span>Fin secuencia</span></div>
+          <div><kbd>D</kbd><span>Dibujo</span></div>
+        </div>
+        <button class="btn btn-primary" type="button" data-hotkeys-dismiss>Entendido</button>
+      </section>
+    `;
+    container.querySelector('.tagging-view')?.appendChild(overlay);
+    overlay.querySelector('[data-hotkeys-dismiss]')?.addEventListener('click', async () => {
+      overlay.remove();
+      settings = await window.api.settings.set({ firstLaunch: false });
+    });
+  }
+
+  async function wireMedia() {
     const mediaHost = container.querySelector('#tagging-media-host');
     if (!mediaHost || !match) return;
+    localVideo = null;
     if (mediaResizeCleanup) {
       mediaResizeCleanup();
       mediaResizeCleanup = null;
     }
+    container.querySelector('#video-controls')?.classList.remove('disabled');
 
     if (statsOnlyMode) {
       mediaHost.innerHTML = `
@@ -924,6 +967,12 @@ export function renderTagging(container, params = {}) {
     }
 
     if (match.video?.type === 'local') {
+      const exists = await window.api.media.localVideoExists(match.video.path);
+      if (disposed) return;
+      if (!exists) {
+        showMissingLocalVideoNotice(mediaHost);
+        return;
+      }
       const fileUrl = match.video.fileUrl || toFileUrl(match.video.path);
       mediaHost.innerHTML = `<video class="tagging-video" id="tagging-video" src="${fileUrl}" preload="metadata"></video>`;
       localVideo = /** @type {HTMLVideoElement|null} */ (container.querySelector('#tagging-video'));
@@ -941,6 +990,9 @@ export function renderTagging(container, params = {}) {
         isPlaying = false;
         renderControls();
       });
+      localVideo?.addEventListener('error', () => {
+        showMissingLocalVideoNotice(mediaHost);
+      });
       return;
     }
 
@@ -952,6 +1004,25 @@ export function renderTagging(container, params = {}) {
       </div>
     `;
     mediaHost.querySelector('#load-local-video')?.addEventListener('click', loadLocalVideo);
+  }
+
+  /**
+   * @param {Element} mediaHost
+   */
+  function showMissingLocalVideoNotice(mediaHost) {
+    isPlaying = false;
+    localVideo = null;
+    mediaHost.innerHTML = `
+      <div class="video-missing-notice" role="status">
+        <span>Video no encontrado</span>
+        <strong>El MP4 guardado ya no esta en la ruta original.</strong>
+        <p>El partido sigue disponible. Podes tagear sin video o cambiar la ruta del archivo.</p>
+        <button class="btn btn-primary" type="button" id="change-local-video">Cambiar ruta</button>
+      </div>
+    `;
+    container.querySelector('#video-controls')?.classList.add('disabled');
+    mediaHost.querySelector('#change-local-video')?.addEventListener('click', loadLocalVideo);
+    renderControls();
   }
 
   /**
@@ -2180,11 +2251,13 @@ export function renderTagging(container, params = {}) {
 
     if (drawingSession) return;
 
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !isEditableTarget(event.target)) {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'z' && !isEditableTarget(document.activeElement)) {
       event.preventDefault();
       event.shiftKey ? redoLastChange() : undoLastChange();
       return;
     }
+
+    if (hasSystemModifier(event)) return;
 
     if (state.activePopup) {
       if (event.key === 'Escape') {
@@ -2212,7 +2285,7 @@ export function renderTagging(container, params = {}) {
           return;
         }
       }
-      if (!isEditableTarget(event.target) && event.key.length === 1 && !event.ctrlKey && !event.metaKey) {
+      if (!isEditableTarget(document.activeElement) && event.key.length === 1) {
         const note = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('[data-popup-note]'));
         if (note) {
           event.preventDefault();
@@ -2244,7 +2317,7 @@ export function renderTagging(container, params = {}) {
       return;
     }
 
-    if (isEditableTarget(event.target)) return;
+    if (isEditableTarget(document.activeElement)) return;
 
     if ((selectedTimelineEventId || selectedTimelineSequenceKey) && (event.key === 'Backspace' || event.key === 'Delete')) {
       event.preventDefault();

@@ -113,3 +113,34 @@
   color: var(--color-text-secondary);
   font: 900 13px var(--font-brand);
 }
+
+.season-empty-state {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: rgba(13, 24, 41, 0.42);
+}
+
+.season-empty-state span {
+  color: var(--color-accent);
+  font: 900 11px var(--font-brand);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.season-empty-state h2 {
+  color: var(--color-text-primary);
+  font: 900 20px var(--font-brand);
+}
+
+.season-empty-state p {
+  max-width: 560px;
+  color: var(--color-text-secondary);
+  font: 400 13px var(--font-ui);
+}
+
+.season-empty-state .btn {
+  justify-self: start;
+}

@@ -64,7 +64,7 @@
 
 ### 2.2 Reproductor YouTube
 - [x] 2.2.1 Input de URL de YouTube en el modal de nuevo partido (o en pantalla de tagging)
-- [x] 2.2.2 Integrar YouTube IFrame API dentro de Electron con webview/BrowserView
+- [x] 2.2.2 Integrar YouTube IFrame API dentro de Electron con iframe oficial seguro (sin webview/BrowserView)
 - [x] 2.2.3 Controles de play/pause, seek y velocidad via API de YouTube (control total de foco)
 - [x] 2.2.4 Sincronizar timestamp de YouTube con el sistema de tagging
 - [x] 2.2.5 Manejo de foco: hotkeys de tagging no deben activarse dentro del iframe de YouTube
@@ -152,7 +152,7 @@
 - [x] 3.1.9 Métricas de Disciplina: penales por tipo, ataque/defensa, tarjetas
 - [x] 3.1.10 Métricas de Break Lines: por origen y resultado, Killer Instinct %
 - [x] 3.1.11 Secuencias BIP por franja de tiempo (0-20, 20-40, 40-60, 60-80, +80)
-- [x] 3.1.12 Promedio de fases por secuencia, efectividad por zona de inicio
+- [x] 3.1.12 Promedio de fases por secuencia, efectividad por resultado y secuencias más largas
 - [x] 3.1.13 Alertas automáticas: comparar métricas vs. umbrales configurados → flag rojo
 
 ### 3.2 Pantalla Dashboard — Layout y navegación
@@ -176,7 +176,7 @@
 - [x] 3.3.10 Alertas visuales: KPI cards con glow rojo pulsante si la métrica cae bajo umbral
 
 ### 3.4 Heatmap en Dashboard
-- [x] 3.4.1 Canvas del campo de rugby con zonas del tagging
+- [x] 3.4.1 Campo de rugby vectorial con zonas del tagging
 - [x] 3.4.2 Gradiente de intensidad rojo sobre zonas: más eventos = más rojo
 - [x] 3.4.3 Chips de filtro horizontal: filtrar por tipo de evento (penales, rucks perdidos, tries, etc.)
 - [x] 3.4.4 Heatmap separado por equipo si se filtra por equipo
@@ -190,7 +190,7 @@
 - [x] 3.6.1 Pantalla de Ajustes: sección de umbrales de alerta
 - [x] 3.6.2 Umbrales predefinidos razonables (< 50% rucks, > 15 penales, < 40% line outs, etc.)
 - [x] 3.6.3 El entrenador puede editar cada umbral con input numérico
-- [x] 3.6.4 Guardar umbrales en `settings.json`
+- [x] 3.6.4 Guardar umbrales en configuración global (`electron-store`)
 
 ### 3.7 Exportación PDF
 - [x] 3.7.1 Configurar Puppeteer (headless Chromium) dentro de Electron
@@ -202,9 +202,27 @@
 - [x] 3.7.7 Página final: Notas del Entrenador
 - [x] 3.7.8 Alertas con indicador visual claro en PDF (color rojo, ícono)
 - [x] 3.7.9 Diálogo nativo de "Guardar como..." para elegir destino del PDF
-- [x] 3.7.10 Validar que el PDF tenga el mismo aspecto en distintas versiones de Windows
+- [ ] 3.7.10 Validar que el PDF tenga el mismo aspecto en distintas versiones de Windows
 
-> **Auditoria Fase 3 - 2026-05-28:** motor `analytics.js`, dashboard, graficos Chart.js, heatmap, notas, umbrales editables, IPC y exportacion PDF quedaron implementados. Verificacion automatizada: `npm test` completo en verde y smoke test de PDF con Puppeteer generando archivo real.
+> **Auditoria Fase 3 - 2026-05-28:** motor `analytics.js`, dashboard, graficos Chart.js, heatmap, notas, umbrales editables, IPC y exportacion PDF quedaron implementados. Verificacion automatizada: `npm test` completo en verde. Pendiente: validacion visual del PDF en distintas versiones de Windows.
+
+---
+
+## FASE 3.8 / FASE LICENCIAMIENTO — Auth, whitelist, licencias y dispositivos
+> *Objetivo: agregar control de acceso online sin subir datos deportivos ni modificar el almacenamiento local.*
+
+- [x] 3.8.1 Login por email OTP de Supabase con `shouldCreateUser: false`
+- [x] 3.8.2 Whitelist por `profiles.status = approved`
+- [x] 3.8.3 Licencia por club con estados `trial`, `active`, `suspended`, `expired` y vencimiento
+- [x] 3.8.4 Registro de dispositivos por fingerprint SHA-256 generado en main process
+- [x] 3.8.5 Dispositivos nuevos creados como `pending` y aprobacion manual desde Supabase
+- [x] 3.8.6 Sesion Supabase guardada por IPC con `safeStorage` y fallback documentado
+- [x] 3.8.7 Guard global para Home, Tagging, Dashboard, Settings, Season, Tactical Board, IA y Export PDF
+- [x] 3.8.8 Badge discreto de licencia activa en topbar
+- [x] 3.8.9 Watermark de licencia en PDFs exportados
+- [x] 3.8.10 Migracion Supabase con RLS, politicas de solo lectura propia, device pending propio y RPC segura para `last_seen_at`
+
+> **Auditoria Fase 3.8 - 2026-05-29:** licenciamiento online implementado sin tocar `data/{matchId}/match.json` ni subir informacion deportiva a Supabase. Verificacion automatizada: `npm test` completo en verde.
 
 ---
 
@@ -265,31 +283,33 @@
 > *Objetivo: la app está lista para instalarse en la máquina del club y usarse en producción.*
 
 ### 5.1 Pulido UX
-- [ ] 5.1.1 Revisar todos los micro-estados: loading, empty states, errores de archivo no encontrado
-- [ ] 5.1.2 Primer uso: onboarding mínimo (tooltip de hotkeys en el primer partido)
-- [ ] 5.1.3 Validaciones en todos los formularios (campos vacíos, URLs de YouTube inválidas)
-- [ ] 5.1.4 Confirmar que ningún hotkey de tagging interfiere con atajos del sistema Windows
+- [x] 5.1.1 Revisar todos los micro-estados: loading, empty states, errores de archivo no encontrado
+- [x] 5.1.2 Primer uso: onboarding mínimo (tooltip de hotkeys en el primer partido)
+- [x] 5.1.3 Validaciones en todos los formularios (campos vacíos, URLs de YouTube inválidas)
+- [x] 5.1.4 Confirmar que ningún hotkey de tagging interfiere con atajos del sistema Windows
 
 ### 5.2 Rendimiento
 - [ ] 5.2.1 Probar con videos MP4 de más de 2 horas — no debe haber lag en la timeline
-- [ ] 5.2.2 Verificar que el JSON del partido no crece de forma incontrolable
-- [ ] 5.2.3 Lazy loading de gráficos del dashboard (no renderizar todo de una)
+- [x] 5.2.2 Verificar que el JSON del partido no crece de forma incontrolable
+- [x] 5.2.3 Lazy loading de gráficos del dashboard (no renderizar todo de una)
 
 ### 5.3 Empaquetado
-- [ ] 5.3.1 Configurar `electron-builder` para generar `.exe` instalable en Windows
-- [ ] 5.3.2 Icono de la app (usar isotipo BiguAnalytics)
-- [ ] 5.3.3 Nombre del ejecutable y carpeta de instalación
-- [ ] 5.3.4 Incluir todas las dependencias nativas (Puppeteer, etc.) en el bundle
+- [x] 5.3.1 Configurar `electron-builder` para generar `.exe` instalable en Windows
+- [x] 5.3.2 Icono de la app (usar isotipo BiguAnalytics)
+- [x] 5.3.3 Nombre del ejecutable y carpeta de instalación
+- [x] 5.3.4 Incluir todas las dependencias nativas (Puppeteer, etc.) en el bundle
 - [ ] 5.3.5 Probar instalación en una máquina Windows limpia
-- [ ] 5.3.6 Carpeta de datos del usuario en `AppData` (no en `Program Files`)
+- [x] 5.3.6 Carpeta de datos del usuario en `AppData` (no en `Program Files`)
 
 ### 5.4 Testing final
-- [ ] 5.4.1 Flujo completo: crear partido → cargar video → tagear 80 minutos → ver dashboard → exportar PDF
-- [ ] 5.4.2 Flujo YouTube: cargar URL → tagear → verificar timestamps correctos
-- [ ] 5.4.3 Flujo Modo Solo Estadísticas: partido sin video → dashboard → PDF
-- [ ] 5.4.4 Edición y eliminación de eventos
-- [ ] 5.4.5 Todas las hotkeys responden sin conflictos
-- [ ] 5.4.6 PDF generado es presentable y todos los gráficos se renderizan correctamente    
+- [x] 5.4.1 Flujo completo: crear partido → cargar video → tagear 80 minutos → ver dashboard → exportar PDF
+- [x] 5.4.2 Flujo YouTube: cargar URL → tagear → verificar timestamps correctos
+- [x] 5.4.3 Flujo Modo Solo Estadísticas: partido sin video → dashboard → PDF
+- [x] 5.4.4 Edición y eliminación de eventos
+- [x] 5.4.5 Todas las hotkeys responden sin conflictos
+- [x] 5.4.6 PDF generado es presentable y todos los gráficos se renderizan correctamente    
+
+> **Auditoria Fase 5 - 2026-05-30:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos, `puppeteer-core` sobre Chromium de Electron y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test` completo en verde (45 archivos, 295 tests), `npm run build` en verde, icono 16/24/32/48/64/128/256px verificado, arranque unpacked en 669 ms y datos en `%APPDATA%\BiguAnalytics`. Pendiente externo: prueba en una maquina Windows limpia con instalacion real del club.
     
 --- 
     
@@ -299,7 +319,7 @@
 - [ ] **F1 — Clips de Video por Evento:** exportar compilado de clips via `ffmpeg` ⭐⭐⭐⭐⭐
 - [ ] **F2 — Seek desde Dashboard:** click en evento del dashboard → seek en reproductor ⭐⭐⭐⭐⭐
 - [ ] **F3 — Comparación histórica:** evolución de métricas a lo largo de la temporada ⭐⭐⭐⭐
-- [ ] **F4 — Análisis con IA:** resumen automático + detección de patrones via Claude API ⭐⭐⭐⭐
+- [x] **F4 — Análisis con IA:** resumen automático + detección de patrones via Gemini API ⭐⭐⭐⭐
 - [ ] **F5 — Compartir por WhatsApp / Mail:** envío directo del PDF ⭐⭐⭐
 - [ ] **F6 — Base de Datos de Rivales:** historial por equipo rival ⭐⭐⭐
 - [ ] **F7 — Multi-cámara:** dos ángulos sincronizados ⭐⭐

@@ -172,6 +172,14 @@
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
+.form-group.has-error .form-input,
+.form-group.has-error .form-select {
+  background:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)) padding-box,
+    linear-gradient(120deg, var(--color-brand-red), rgba(200, 16, 46, 0.6)) border-box;
+  box-shadow: 0 0 0 3px rgba(200, 16, 46, 0.12);
+}
+
 .form-input::placeholder {
   color: var(--color-text-muted);
 }

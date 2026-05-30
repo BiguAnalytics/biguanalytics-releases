@@ -198,6 +198,32 @@ input::placeholder, textarea::placeholder {
   height: 16px;
 }
 
+.app-toast {
+  position: fixed;
+  right: var(--space-6);
+  bottom: var(--space-6);
+  z-index: 1200;
+  max-width: min(420px, calc(100vw - var(--space-8)));
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
+  font: 400 13px var(--font-ui);
+}
+
+.app-toast[data-tone="error"] {
+  border-color: rgba(200, 16, 46, 0.38);
+}
+
+.app-toast[hidden] {
+  display: none;
+}
+
 /* Screen transitions */
 .view-enter {
   animation: view-fade-in 150ms ease-out;

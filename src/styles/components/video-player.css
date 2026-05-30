@@ -2,6 +2,7 @@
 /* See DESIGN.md §4.3 for full specification */
 .tagging-view {
   --tagging-timeline-height: clamp(220px, 24vh, 280px);
+  position: relative;
   height: 100%;
   min-width: 0;
   display: grid;
@@ -863,7 +864,8 @@
 }
 
 .video-empty-state,
-.stats-only-panel {
+.stats-only-panel,
+.video-missing-notice {
   height: 100%;
   display: grid;
   place-items: center;
@@ -874,22 +876,95 @@
 }
 
 .video-empty-state strong,
-.stats-only-panel strong {
+.stats-only-panel strong,
+.video-missing-notice strong {
   color: var(--color-text-primary);
   font: 900 28px var(--font-brand);
 }
 
 .video-empty-state p,
-.stats-only-panel p {
+.stats-only-panel p,
+.video-missing-notice p {
   color: var(--color-text-secondary);
   font: 400 13px var(--font-ui);
+  max-width: 420px;
 }
 
-.stats-only-panel span {
+.stats-only-panel span,
+.video-missing-notice span {
   color: var(--color-accent);
   font: 800 11px var(--font-brand);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.video-missing-notice {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(200, 16, 46, 0.18), transparent 34%),
+    rgba(5, 9, 17, 0.92);
+}
+
+.tagging-hotkeys-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 95;
+  display: grid;
+  place-items: center;
+  padding: var(--space-6);
+  background: rgba(5, 9, 17, 0.62);
+  backdrop-filter: blur(10px);
+}
+
+.tagging-hotkeys-panel {
+  width: min(720px, 100%);
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background: rgba(18, 32, 53, 0.98);
+  box-shadow: 0 28px 72px rgba(0, 0, 0, 0.46);
+}
+
+.tagging-hotkeys-panel header span {
+  color: var(--color-accent);
+  font: 900 11px var(--font-brand);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.tagging-hotkeys-panel header h2 {
+  margin-top: var(--space-1);
+  color: var(--color-text-primary);
+  font: 900 24px var(--font-brand);
+}
+
+.tagging-hotkeys-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.tagging-hotkeys-grid div {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(8, 14, 26, 0.34);
+}
+
+.tagging-hotkeys-grid kbd {
+  min-width: 24px;
+  color: var(--color-accent);
+  font: 900 11px var(--font-brand);
+}
+
+.tagging-hotkeys-grid span {
+  color: var(--color-text-primary);
+  font: 700 12px var(--font-ui);
 }
 
 .video-controls {

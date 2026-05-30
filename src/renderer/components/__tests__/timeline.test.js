@@ -69,6 +69,12 @@ describe('timeline track labels', () => {
 });
 
 describe('timeline event selection', () => {
+  it('renders a contextual empty state when there are no events, sequences or drawings', () => {
+    expect(timelineSource).toContain('timeline-empty-state');
+    expect(timelineSource).toContain('Todavia no hay eventos taggeados');
+    expect(timelineSource).toContain('Usa las hotkeys de Tagging para cargar el primer evento.');
+  });
+
   it('uses pointer down to seek and open the event inspector on the first interaction', () => {
     expect(timelineSource).toContain('options.onEventSelect?.(event)');
     expect(timelineSource).toContain("block.addEventListener('pointerdown'");

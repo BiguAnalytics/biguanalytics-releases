@@ -1,7 +1,20 @@
 // @ts-check
+const DEFAULT_DASHBOARD_SECTIONS = [
+  'set-pieces',
+  'rucks',
+  'discipline',
+  'kicks',
+  'break-lines',
+  'possession',
+  'bip',
+  'sequences',
+  'heatmap'
+];
+
 const DEFAULT_SETTINGS = {
   theme: 'dark',
   autoSave: true,
+  firstLaunch: true,
   alerts: {
     penaltiesThreshold: 10,
     turnoversThreshold: 15,
@@ -16,13 +29,34 @@ const DEFAULT_SETTINGS = {
     autoCloseMs: 8000,
     hotkeyHintsCollapsed: false
   },
+  dashboard: {
+    template: 'general',
+    pdfTemplate: 'complete',
+    selectedKpis: ['ruckWinPct', 'penalties', 'lineoutWinPct', 'breakLines'],
+    sectionOrder: DEFAULT_DASHBOARD_SECTIONS,
+    visibleSections: DEFAULT_DASHBOARD_SECTIONS,
+    filters: {
+      team: 'bigua',
+      timeBand: 'all',
+      zone: 'all'
+    }
+  },
   user: {
-    name: 'Jorge G.',
-    role: 'ENTRENADOR'
+    name: 'Usuario',
+    role: 'ANALISTA'
   }
 };
 
 let settingsRepository;
+
+/**
+ * Parses electron-store JSON while tolerating BOM bytes saved by external editors.
+ * @param {string} text
+ * @returns {object}
+ */
+function parseSettingsStoreJson(text) {
+  return JSON.parse(String(text).replace(/^\uFEFF|^ï»¿|^∩╗┐/, ''));
+}
 
 /**
  * Merges persisted settings with defaults.
@@ -33,6 +67,7 @@ function mergeSettings(settings = {}) {
   return {
     ...DEFAULT_SETTINGS,
     ...settings,
+    firstLaunch: typeof settings.firstLaunch === 'boolean' ? settings.firstLaunch : DEFAULT_SETTINGS.firstLaunch,
     alerts: {
       ...DEFAULT_SETTINGS.alerts,
       ...(settings.alerts || {})
@@ -40,6 +75,23 @@ function mergeSettings(settings = {}) {
     tagging: {
       ...DEFAULT_SETTINGS.tagging,
       ...(settings.tagging || {})
+    },
+    dashboard: {
+      ...DEFAULT_SETTINGS.dashboard,
+      ...(settings.dashboard || {}),
+      selectedKpis: Array.isArray(settings.dashboard?.selectedKpis)
+        ? settings.dashboard.selectedKpis
+        : DEFAULT_SETTINGS.dashboard.selectedKpis,
+      sectionOrder: Array.isArray(settings.dashboard?.sectionOrder)
+        ? settings.dashboard.sectionOrder
+        : DEFAULT_SETTINGS.dashboard.sectionOrder,
+      visibleSections: Array.isArray(settings.dashboard?.visibleSections)
+        ? settings.dashboard.visibleSections
+        : DEFAULT_SETTINGS.dashboard.visibleSections,
+      filters: {
+        ...DEFAULT_SETTINGS.dashboard.filters,
+        ...(settings.dashboard?.filters || {})
+      }
     },
     user: {
       ...DEFAULT_SETTINGS.user,
@@ -71,6 +123,23 @@ function createSettingsRepository(store) {
           ...current.tagging,
           ...(partial.tagging || {})
         },
+        dashboard: {
+          ...current.dashboard,
+          ...(partial.dashboard || {}),
+          selectedKpis: Array.isArray(partial.dashboard?.selectedKpis)
+            ? partial.dashboard.selectedKpis
+            : current.dashboard.selectedKpis,
+          sectionOrder: Array.isArray(partial.dashboard?.sectionOrder)
+            ? partial.dashboard.sectionOrder
+            : current.dashboard.sectionOrder,
+          visibleSections: Array.isArray(partial.dashboard?.visibleSections)
+            ? partial.dashboard.visibleSections
+            : current.dashboard.visibleSections,
+          filters: {
+            ...current.dashboard.filters,
+            ...(partial.dashboard?.filters || {})
+          }
+        },
         user: {
           ...current.user,
           ...(partial.user || {})
@@ -91,6 +160,7 @@ function getSettingsRepository() {
     const Store = require('electron-store');
     const store = new Store({
       name: 'settings',
+      deserialize: parseSettingsStoreJson,
       defaults: {
         settings: DEFAULT_SETTINGS
       }
@@ -118,8 +188,10 @@ async function updateSettings(partial) {
 }
 
 module.exports = {
+  DEFAULT_DASHBOARD_SECTIONS,
   createSettingsRepository,
   mergeSettings,
+  parseSettingsStoreJson,
   getSettings,
   updateSettings
 };

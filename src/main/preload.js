@@ -23,7 +23,7 @@ contextBridge.exposeInMainWorld('api', {
     }
   },
   analytics: {
-    getMatchStats: (matchId) => ipcRenderer.invoke('analytics:getMatchStats', matchId),
+    getMatchStats: (matchId, filters) => ipcRenderer.invoke('analytics:getMatchStats', matchId, filters),
     getSeasonStats: (year) => ipcRenderer.invoke('analytics:getSeasonStats', year),
     exportPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:exportPdf', matchId, printPayload)
   },
@@ -42,9 +42,22 @@ contextBridge.exposeInMainWorld('api', {
     delete: (id) => ipcRenderer.invoke('tacticalBoards:delete', id),
     exportPng: (dataUrl, suggestedName) => ipcRenderer.invoke('tacticalBoards:exportPng', dataUrl, suggestedName)
   },
+  licenseSession: {
+    get: (key) => ipcRenderer.invoke('licenseSession:get', key),
+    set: (key, value) => ipcRenderer.invoke('licenseSession:set', key, value),
+    remove: (key) => ipcRenderer.invoke('licenseSession:remove', key),
+    clear: () => ipcRenderer.invoke('licenseSession:clear')
+  },
+  licenseConfig: {
+    get: () => ipcRenderer.invoke('licenseConfig:get')
+  },
+  device: {
+    getFingerprint: () => ipcRenderer.invoke('device:getFingerprint')
+  },
   media: {
     selectLocalVideo: () => ipcRenderer.invoke('media:selectLocalVideo'),
-    normalizeYouTube: (url) => ipcRenderer.invoke('media:normalizeYouTube', url)
+    normalizeYouTube: (url) => ipcRenderer.invoke('media:normalizeYouTube', url),
+    localVideoExists: (filePath) => ipcRenderer.invoke('media:localVideoExists', filePath)
   },
   files: {
     open: (filePath) => ipcRenderer.invoke('files:open', filePath)
@@ -54,4 +67,23 @@ contextBridge.exposeInMainWorld('api', {
     maximize: () => ipcRenderer.send('window:maximize'),
     close: () => ipcRenderer.send('window:close')
   }
+});
+
+contextBridge.exposeInMainWorld('biguAI', {
+  getMatchAnalysisStatus: (matchId) => ipcRenderer.invoke('ai:getMatchAnalysisStatus', { matchId }),
+  getMatchAnalysis: (matchId) => ipcRenderer.invoke('ai:getMatchAnalysis', { matchId }),
+  generateMatchAnalysis: (matchId) => ipcRenderer.invoke('ai:generateMatchAnalysis', { matchId }),
+  regenerateMatchAnalysis: (matchId) => ipcRenderer.invoke('ai:regenerateMatchAnalysis', { matchId, confirm: true })
+});
+
+contextBridge.exposeInMainWorld('biguAIChat', {
+  ask: (question, options = {}) => ipcRenderer.invoke('ai:chatAsk', {
+    matchId: options.matchId,
+    question,
+    scope: options.scope,
+    history: options.history
+  }),
+  status: (options = {}) => ipcRenderer.invoke('ai:chatStatus', {
+    matchId: options.matchId
+  })
 });

@@ -1,7 +1,7 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs/promises');
-const puppeteer = require('puppeteer');
+const puppeteer = require('puppeteer-core');
 const { calculateMatchStats } = require('./analytics');
 const { getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
@@ -29,6 +29,14 @@ function buildSuggestedFileName(stats) {
   const rival = sanitizeFileName(stats.teams.rivalName || 'Rival');
   const date = sanitizeFileName(stats.match.date || new Date().toISOString().slice(0, 10));
   return `Bigua-vs-${rival}-${date}.pdf`;
+}
+
+/**
+ * Uses Electron's bundled Chromium instead of a Puppeteer-downloaded browser.
+ * @returns {string}
+ */
+function getElectronChromiumExecutablePath() {
+  return process.execPath;
 }
 
 /**
@@ -65,6 +73,7 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
   const printFile = path.join(__dirname, '../../renderer/dashboard-print.html');
   const browser = await puppeteer.launch({
     headless: 'new',
+    executablePath: getElectronChromiumExecutablePath(),
     args: ['--no-sandbox', '--disable-setuid-sandbox'],
   });
 
@@ -105,5 +114,6 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
 
 module.exports = {
   buildSuggestedFileName,
+  getElectronChromiumExecutablePath,
   exportDashboardPdf,
 };
