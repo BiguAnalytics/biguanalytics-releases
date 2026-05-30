@@ -19,6 +19,9 @@ const routes = {
 let currentRoute = null;
 let currentHash = null;
 let currentCleanup = null;
+let transitionToken = 0;
+
+const ROUTE_TRANSITION_MS = 200;
 
 /**
  * @param {string} route
@@ -46,6 +49,41 @@ function parseHash(hash) {
   };
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {string} route
+ * @param {object} params
+ * @param {function} renderFn
+ */
+function renderRoute(container, route, params, renderFn) {
+  if (currentCleanup) {
+    currentCleanup();
+    currentCleanup = null;
+  }
+
+  currentRoute = route;
+  setSidebarActive(route);
+  document.body.dataset.route = route;
+  currentHash = buildHash(route, params);
+  if (window.location.hash !== currentHash) window.location.hash = currentHash;
+
+  container.classList.remove('route-transition-exit', 'route-transition-enter');
+  const cleanup = renderFn(container, params);
+  if (typeof cleanup === 'function') currentCleanup = cleanup;
+  container.classList.add('route-transition-enter');
+  window.setTimeout(() => {
+    container.classList.remove('route-transition-enter');
+  }, ROUTE_TRANSITION_MS);
+
+  window.dispatchEvent(new CustomEvent('bigu:route-changed', {
+    detail: { route, params: { ...params } },
+  }));
+}
+
 /**
  * Navigates to a route.
  * @param {string} route - Route name
@@ -57,17 +95,25 @@ export function navigate(route, params = {}) {
 
   const renderFn = routes[route];
   if (renderFn) {
-    if (currentCleanup) {
-      currentCleanup();
-      currentCleanup = null;
+    const token = ++transitionToken;
+    const hasMountedRoute = Boolean(currentRoute);
+
+    setSidebarActive(route);
+    document.body.dataset.route = route;
+    currentHash = buildHash(route, params);
+    if (window.location.hash !== currentHash) window.location.hash = currentHash;
+
+    if (hasMountedRoute && !prefersReducedMotion()) {
+      container.classList.remove('route-transition-enter');
+      container.classList.add('route-transition-exit');
+      window.setTimeout(() => {
+        if (token !== transitionToken) return;
+        renderRoute(container, route, params, renderFn);
+      }, ROUTE_TRANSITION_MS);
+      return;
     }
 
-    currentRoute = route;
-    setSidebarActive(route);
-    currentHash = buildHash(route, params);
-    window.location.hash = currentHash;
-    const cleanup = renderFn(container, params);
-    if (typeof cleanup === 'function') currentCleanup = cleanup;
+    renderRoute(container, route, params, renderFn);
   }
 }
 

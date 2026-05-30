@@ -585,6 +585,8 @@ export function renderTagging(container, params = {}) {
   let redoStack = [];
   let drawingSession = null;
   let timelineContextMenu = null;
+  let newTimelineEventIds = new Set();
+  let newTimelineSequenceIds = new Set();
 
   const cleanup = () => {
     disposed = true;
@@ -600,6 +602,7 @@ export function renderTagging(container, params = {}) {
     closeTimelineContextMenu();
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
+    delete document.body.dataset.playback;
   };
   activeCleanup = cleanup;
 
@@ -1161,6 +1164,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderControls() {
+    document.body.dataset.playback = isPlaying ? 'playing' : 'paused';
     const timecode = container.querySelector('#tagging-timecode');
     const readout = container.querySelector('#video-time-readout');
     const playButton = container.querySelector('[data-action="play"]');
@@ -1226,7 +1230,7 @@ export function renderTagging(container, params = {}) {
         </header>
         <div class="tag-popup-options">
           ${SEQUENCE_RESULT_OPTIONS.map((option, index) => `
-            <button class="tag-popup-option" type="button" data-sequence-result="${option.value}">
+            <button class="tag-popup-option" type="button" style="--popup-option-index:${index}" data-sequence-result="${option.value}">
               <kbd>${index + 1}</kbd>
               <span>${option.label}</span>
             </button>
@@ -1551,6 +1555,8 @@ export function renderTagging(container, params = {}) {
       currentTime: getVisualCurrentTime(),
       duration,
       selectedSequenceKey: selectedTimelineSequenceKey,
+      newEventIds: Array.from(newTimelineEventIds),
+      newSequenceIds: Array.from(newTimelineSequenceIds),
       onSeek: seekTo,
       onEventSelect: selectTimelineEvent,
       onSequenceSelect: selectTimelineSequence,
@@ -2140,8 +2146,12 @@ export function renderTagging(container, params = {}) {
   async function saveEvent(event) {
     if (!match) return;
     const eventPayload = buildEventPayload(event);
+    const previousEventIds = new Set((match.events || []).map(item => String(item.id || item.timestamp)));
     pushUndoSnapshot();
     await window.api.events.add(match.id, eventPayload);
+    match = await window.api.matches.getById(match.id);
+    const createdEvent = (match.events || []).find(item => !previousEventIds.has(String(item.id || item.timestamp)));
+    markNewTimelineEntry(newTimelineEventIds, createdEvent?.id || createdEvent?.timestamp);
     const pointsDelta = getScoreDeltaForEvent(eventPayload);
     if (pointsDelta > 0) {
       match = await window.api.matches.update(match.id, {
@@ -2150,7 +2160,6 @@ export function renderTagging(container, params = {}) {
       });
       return;
     }
-    match = await window.api.matches.getById(match.id);
   }
 
   async function savePossession() {
@@ -2194,12 +2203,27 @@ export function renderTagging(container, params = {}) {
     sequencePrompt = null;
     if (finished.sequence) {
       const enrichedSequence = enrichSequenceFromEvents(finished.sequence, match.events || []);
+      const nextSequence = { ...enrichedSequence, color: enrichedSequence.color || 'red' };
+      markNewTimelineEntry(newTimelineSequenceIds, getSequenceKey(nextSequence));
       match = await window.api.matches.update(match.id, {
-        sequences: [...(match.sequences || []), { ...enrichedSequence, color: enrichedSequence.color || 'red' }],
+        sequences: [...(match.sequences || []), nextSequence],
         status: match.status === 'created' ? 'tagging' : match.status,
       });
     }
     renderAll();
+  }
+
+  /**
+   * @param {Set<string>} collection
+   * @param {string|number|null|undefined} id
+   */
+  function markNewTimelineEntry(collection, id) {
+    if (id === null || id === undefined) return;
+    const key = String(id);
+    collection.add(key);
+    window.setTimeout(() => {
+      collection.delete(key);
+    }, 260);
   }
 
   function startSpeechNote() {

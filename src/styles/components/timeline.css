@@ -135,6 +135,7 @@
   box-shadow: 0 0 18px rgba(200, 16, 46, 0.42);
   z-index: 6;
   pointer-events: none;
+  transition: left 100ms linear;
 }
 
 .timeline-preview {
@@ -246,16 +247,34 @@
   border: 1px solid rgba(255, 255, 255, 0.14);
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  transform-origin: center;
 }
 
 .timeline-block.removing {
   animation: timeline-block-fade-out 150ms ease-out forwards;
 }
 
+.timeline-block.is-new,
+.timeline-sequence-block.is-new {
+  transform-origin: left center;
+  animation: timeline-block-scale-in 200ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 @keyframes timeline-block-fade-out {
   to {
     opacity: 0;
     transform: translate(-50%, -50%) scale(0.86);
+  }
+}
+
+@keyframes timeline-block-scale-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scaleX(1);
   }
 }
 
@@ -358,6 +377,7 @@
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
   transition: border-color 140ms ease, filter 140ms ease, box-shadow 140ms ease;
   touch-action: manipulation;
+  transform-origin: left center;
 }
 
 .timeline-sequence-block::before {
@@ -375,4 +395,35 @@
   border-color: rgba(255, 255, 255, 0.34);
   filter: brightness(1.12);
   box-shadow: 0 12px 28px rgba(200, 16, 46, 0.24);
+}
+
+.timeline-sequence-block.is-new {
+  animation-name: timeline-sequence-scale-in;
+}
+
+@keyframes timeline-sequence-scale-in {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) scaleX(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .timeline-playhead {
+    transition: opacity 100ms ease;
+  }
+
+  .timeline-block.is-new,
+  .timeline-sequence-block.is-new {
+    animation: timeline-block-fade-in 120ms ease-out;
+  }
+}
+
+@keyframes timeline-block-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

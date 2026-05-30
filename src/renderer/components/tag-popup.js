@@ -81,7 +81,7 @@ export function renderTagPopup(host, state, context, handlers) {
         </div>
         <div class="tag-popup-options">
           ${options.map((option, index) => `
-            <button class="tag-popup-option" type="button" data-option-value="${escapeHtml(option.value)}">
+            <button class="tag-popup-option" type="button" style="--popup-option-index:${index}" data-option-value="${escapeHtml(option.value)}">
               <kbd>${index + 1}</kbd>
               <span>${escapeHtml(option.label)}</span>
             </button>

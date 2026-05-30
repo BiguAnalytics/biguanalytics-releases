@@ -26,6 +26,10 @@ const BOTTOM_ITEMS = [
 
 let isExpanded = true; // Start expanded on Home
 
+export function getBiguLogoSvg() {
+  return ICONS.logo;
+}
+
 /**
  * Gets initials from a display name.
  * @param {string} name

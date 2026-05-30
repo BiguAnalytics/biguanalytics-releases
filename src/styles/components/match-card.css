@@ -52,9 +52,17 @@
 }
 
 .match-card:hover {
-  border-color: var(--color-border-strong, rgba(138, 155, 176, 0.28));
-  transform: translateY(-2px);
-  box-shadow: 0 26px 72px rgba(0, 0, 0, 0.32), 0 0 0 1px var(--match-tone);
+  border-color: var(--match-tone-strong, rgba(200, 16, 46, 0.42));
+  transform: translateY(-4px);
+  box-shadow:
+    0 30px 86px rgba(0, 0, 0, 0.42),
+    0 0 0 1px var(--match-tone-strong, rgba(200, 16, 46, 0.36)),
+    0 0 28px var(--match-tone-soft, rgba(200, 16, 46, 0.16));
+}
+
+.match-card.is-pressing {
+  transform: scale(0.98);
+  transition-duration: 100ms;
 }
 
 .match-card-thumbnail {
@@ -368,7 +376,7 @@
   color: var(--color-accent);
   border-color: var(--color-border-accent);
   background: rgba(200, 16, 46, 0.07);
-  transform: translateY(-2px);
+  transform: translateY(-4px);
 }
 
 .match-card-new-icon {
@@ -388,4 +396,17 @@
   font: 700 12px var(--font-brand);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .match-card,
+  .match-card-new {
+    transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  }
+
+  .match-card:hover,
+  .match-card-new:hover,
+  .match-card.is-pressing {
+    transform: none;
+  }
 }

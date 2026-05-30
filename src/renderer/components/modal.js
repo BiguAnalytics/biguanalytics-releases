@@ -63,7 +63,7 @@ export function openModal({ title, body, buttons = [], onClose, className = '' }
     setTimeout(() => {
       overlay.remove();
       if (onClose) onClose();
-    }, 100);
+    }, 150);
   }
 
   // Close on X button

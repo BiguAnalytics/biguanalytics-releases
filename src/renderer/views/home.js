@@ -48,6 +48,27 @@ export function getMatchDestination(match) {
   };
 }
 
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/**
+ * @param {HTMLElement|null} card
+ * @param {function} callback
+ */
+export function pressMatchCardBeforeNavigate(card, callback) {
+  if (!card || prefersReducedMotion()) {
+    callback();
+    return;
+  }
+
+  card.classList.add('is-pressing');
+  window.setTimeout(() => {
+    card.classList.remove('is-pressing');
+    callback();
+  }, 150);
+}
+
 /**
  * Gets the configured home settings.
  * @returns {Promise<object>}
@@ -188,10 +209,10 @@ export async function renderHome(container) {
       // Existing matches (newest first)
       const sorted = [...matches].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
       sorted.forEach(match => {
-        grid.appendChild(createMatchCard(match, {
+        const card = createMatchCard(match, {
           onClick: (m) => {
             const destination = getMatchDestination(m);
-            navigate(destination.route, destination.params);
+            pressMatchCardBeforeNavigate(card, () => navigate(destination.route, destination.params));
           },
           onDelete: (m) => {
             openConfirmDialog({
@@ -216,7 +237,8 @@ export async function renderHome(container) {
               },
             });
           },
-        }));
+        });
+        grid.appendChild(card);
       });
 
       matchSection.appendChild(grid);

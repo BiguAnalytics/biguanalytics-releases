@@ -20,7 +20,7 @@
     0 26px 76px rgba(0, 0, 0, 0.42),
     0 0 0 1px rgba(200, 16, 46, 0.08);
   overflow: hidden;
-  animation: tag-popup-in 120ms ease-out;
+  animation: tag-popup-in 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .tag-popup.closing {
@@ -109,6 +109,9 @@
   text-align: left;
   cursor: pointer;
   transition: border-color 120ms, background 120ms, transform 120ms;
+  opacity: 0;
+  animation: tag-popup-option-in 120ms ease-out forwards;
+  animation-delay: calc(var(--popup-option-index, 0) * 30ms);
 }
 
 .tag-popup-option:hover {
@@ -240,11 +243,22 @@
 @keyframes tag-popup-in {
   from {
     opacity: 0;
-    transform: scale(0.96);
+    transform: scale(0.94);
   }
   to {
     opacity: 1;
     transform: scale(1);
+  }
+}
+
+@keyframes tag-popup-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -257,4 +271,25 @@
     opacity: 0;
     transform: scale(0.96);
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tag-popup,
+  .tag-popup.closing,
+  .tag-popup-option {
+    animation: tag-popup-fade-in 80ms ease-out forwards;
+  }
+
+  .tag-popup.closing {
+    animation-direction: reverse;
+  }
+
+  .tag-popup-option {
+    animation-delay: 0ms;
+  }
+}
+
+@keyframes tag-popup-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

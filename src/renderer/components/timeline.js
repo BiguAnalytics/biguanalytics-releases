@@ -220,6 +220,8 @@ export function renderTimeline(host, options) {
   const hasTimelineEntries = events.length > 0 || sequences.length > 0 || drawings.length > 0;
   const { duration, durationKnown, tickCount, timelineWidth } = getTimelineScale(options.duration, scaleEvents);
   const selectedSequenceKey = String(options.selectedSequenceKey || '');
+  const newEventIds = new Set((options.newEventIds || []).map(id => String(id)));
+  const newSequenceIds = new Set((options.newSequenceIds || []).map(id => String(id)));
 
   host.innerHTML = `
     <section class="tagging-timeline" aria-label="Timeline de eventos">
@@ -262,7 +264,11 @@ export function renderTimeline(host, options) {
                 const sequenceId = sequence.id || `${sequence.start}-${sequence.end}-${sequence.result || 'sequence'}`;
                 const sequenceName = sequence.name?.trim() || formatEventValue(sequence.result);
                 const sequenceColor = getSequenceColor(sequence.color);
-                const sequenceClass = sequenceId === selectedSequenceKey ? 'timeline-sequence-block selected' : 'timeline-sequence-block';
+                const sequenceClass = [
+                  'timeline-sequence-block',
+                  sequenceId === selectedSequenceKey ? 'selected' : '',
+                  newSequenceIds.has(String(sequenceId)) ? 'is-new' : '',
+                ].filter(Boolean).join(' ');
                 const title = `${sequenceName} · ${formatEventValue(sequence.result)} · ${formatClock(sequence.start)}-${formatClock(sequence.end)} · ${formatClock(sequence.duration)}`;
                 return `
                   <button
@@ -302,13 +308,21 @@ export function renderTimeline(host, options) {
                 const eventResult = formatEventValue(event.result || event.subtype);
                 const hasNote = Boolean(String(event.note || '').trim());
                 const hasDrawing = Boolean(event.drawingId);
+                const eventId = event.id || event.timestamp;
+                const blockClass = [
+                  'timeline-block',
+                  getTone(event),
+                  hasNote ? 'has-note' : '',
+                  hasDrawing ? 'has-drawing' : '',
+                  newEventIds.has(String(eventId)) ? 'is-new' : '',
+                ].filter(Boolean).join(' ');
                 const title = `${event.type} · ${event.result || event.subtype || 'sin resultado'} · ${event.note || formatClock(event.timestamp)}`;
                 return `
                   <button
-                    class="timeline-block ${getTone(event)}${hasNote ? ' has-note' : ''}${hasDrawing ? ' has-drawing' : ''}"
+                    class="${blockClass}"
                     type="button"
                     style="left:${left}%"
-                    data-event-id="${event.id || event.timestamp}"
+                    data-event-id="${eventId}"
                     data-event-timestamp="${event.timestamp}"
                     data-event-type="${event.type}"
                     data-event-result="${eventResult}"

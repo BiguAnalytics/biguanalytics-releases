@@ -323,7 +323,8 @@ function configureChartDefaults(colors) {
   window.Chart.defaults.borderColor = colors.border;
   window.Chart.defaults.font.family = 'Arial, sans-serif';
   window.Chart.defaults.font.size = 11;
-  window.Chart.defaults.animation = false;
+  window.Chart.defaults.animation = { duration: 600, easing: 'easeOutQuart' };
+  if (prefersReducedMotion()) window.Chart.defaults.animation = { duration: 120, easing: 'linear' };
   window.Chart.defaults.plugins.legend.labels.color = colors.text;
   window.Chart.defaults.plugins.tooltip.backgroundColor = colors.tooltipBg;
   window.Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.12)';
@@ -332,6 +333,44 @@ function configureChartDefaults(colors) {
   window.Chart.defaults.plugins.tooltip.bodyColor = '#8A9BB0';
   window.Chart.defaults.plugins.tooltip.padding = 12;
   window.Chart.defaults.plugins.tooltip.cornerRadius = 8;
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+/**
+ * @param {number} progress
+ * @returns {number}
+ */
+function easeOutQuart(progress) {
+  return 1 - Math.pow(1 - progress, 4);
+}
+
+/**
+ * @param {HTMLElement} container
+ */
+function animateDashboardKpis(container) {
+  if (prefersReducedMotion()) return;
+  const values = Array.from(container.querySelectorAll('[data-count-up-value]'));
+  values.forEach((valueEl) => {
+    const target = Number(valueEl.dataset.countUpValue);
+    if (!Number.isFinite(target)) return;
+    const suffix = valueEl.dataset.countUpSuffix || '';
+    const decimals = Number(valueEl.dataset.countUpDecimals || 0);
+    const start = performance.now();
+    const duration = 600;
+
+    const tick = (now) => {
+      const progress = Math.min(1, (now - start) / duration);
+      const nextValue = target * easeOutQuart(progress);
+      valueEl.textContent = `${nextValue.toFixed(decimals)}${suffix}`;
+      if (progress < 1) window.requestAnimationFrame(tick);
+    };
+
+    valueEl.textContent = `${(0).toFixed(decimals)}${suffix}`;
+    window.requestAnimationFrame(tick);
+  });
 }
 
 /**
@@ -1236,7 +1275,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
       </header>
 
       <div class="dashboard-kpi-row">
-        ${kpis.map(kpi => `<div data-kpi>${createKpiCard(kpi).outerHTML}</div>`).join('')}
+        ${kpis.map((kpi, index) => `<div data-kpi style="--kpi-index:${index}">${createKpiCard(kpi).outerHTML}</div>`).join('')}
       </div>
 
       ${buildDashboardControls(stats, match, normalized, customizerOpen)}
@@ -1430,7 +1469,9 @@ function destroyCharts(charts) {
 function createChart(canvas, config, charts, key) {
   if (!canvas || !window.Chart) return;
   charts[key]?.destroy?.();
-  charts[key] = new window.Chart(canvas, config);
+  const chart = new window.Chart(canvas, config);
+  charts[key] = chart;
+  chart.update('active');
 }
 
 /**
@@ -2176,17 +2217,25 @@ function wireDashboard(container, state) {
 function showToast(container, message, filePath = null) {
   const toast = container.querySelector('#dashboard-toast');
   if (!toast) return;
+  window.clearTimeout(Number(toast.dataset.timer || 0));
+  window.clearTimeout(Number(toast.dataset.closeTimer || 0));
   toast.hidden = false;
+  toast.classList.remove('closing');
   toast.innerHTML = `
     <span>${escapeHtml(message)}</span>
     ${filePath ? '<button type="button" data-open-export>Abrir archivo</button>' : ''}
+    <span class="dashboard-toast-progress" aria-hidden="true"></span>
   `;
   toast.querySelector('[data-open-export]')?.addEventListener('click', () => {
     window.api.files.open(filePath);
   });
-  window.setTimeout(() => {
-    toast.hidden = true;
-  }, 5000);
+  toast.dataset.timer = String(window.setTimeout(() => {
+    toast.classList.add('closing');
+    toast.dataset.closeTimer = String(window.setTimeout(() => {
+      toast.hidden = true;
+      toast.classList.remove('closing');
+    }, 200));
+  }, 5000));
 }
 
 /**
@@ -2275,6 +2324,7 @@ function renderLoadedDashboard(container, state) {
     state.heatmapFilter,
     state.preferences.filters
   );
+  animateDashboardKpis(container);
 }
 
 /**

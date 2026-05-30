@@ -1,11 +1,15 @@
 // @ts-check
 import { renderAccessGate } from './auth/access-guard.js';
 import { getDisplayUserFromProfile } from './auth/license-service.js';
-import { createSidebar } from './components/sidebar.js';
+import { createSidebar, getBiguLogoSvg } from './components/sidebar.js';
 import { createAIChatbot } from './components/ai-chatbot.js';
 import { createTopbar, setTopbarActions } from './components/topbar.js';
 import { initRouter, navigate } from './router.js';
 import { loadAndApplyTheme } from './theme.js';
+
+const SPLASH_SESSION_KEY = 'bigu:splash-played';
+const SPLASH_DURATION_MS = 2500;
+const SPLASH_REDUCED_MOTION_MS = 320;
 
 /**
  * Initializes the application.
@@ -50,18 +54,34 @@ function ensureAppToast() {
   return toast;
 }
 
+function hideAppToast(toast) {
+  toast.classList.add('closing');
+  window.setTimeout(() => {
+    toast.hidden = true;
+    toast.classList.remove('closing');
+  }, 200);
+}
+
 /**
  * @param {string} message
  * @param {'error'|'info'} [tone]
  */
 function showAppToast(message, tone = 'error') {
   const toast = ensureAppToast();
-  toast.hidden = false;
-  toast.dataset.tone = tone;
-  toast.textContent = message;
   window.clearTimeout(Number(toast.dataset.timer || 0));
+  window.clearTimeout(Number(toast.dataset.closeTimer || 0));
+  toast.hidden = false;
+  toast.classList.remove('closing');
+  toast.dataset.tone = tone;
+  toast.innerHTML = '';
+  const label = document.createElement('span');
+  label.textContent = message;
+  const progress = document.createElement('span');
+  progress.className = 'app-toast-progress';
+  progress.setAttribute('aria-hidden', 'true');
+  toast.append(label, progress);
   toast.dataset.timer = String(window.setTimeout(() => {
-    toast.hidden = true;
+    hideAppToast(toast);
   }, 5000));
 }
 
@@ -129,6 +149,7 @@ async function mountAppShell(app, accessState) {
     });
   }, { once: true });
 
+  await playLaunchSplash();
   initRouter();
 }
 
@@ -153,6 +174,42 @@ function ensureAmbientGlows() {
     glowRed.className = 'ambient-glow-red';
     document.body.appendChild(glowRed);
   }
+  if (!document.querySelector('.ambient-glow-blue')) {
+    const glowBlue = document.createElement('div');
+    glowBlue.className = 'ambient-glow-blue';
+    document.body.appendChild(glowBlue);
+  }
+}
+
+function prefersReducedMotion() {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+}
+
+function wait(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+async function playLaunchSplash() {
+  if (window.sessionStorage?.getItem(SPLASH_SESSION_KEY) === 'true') return;
+  window.sessionStorage?.setItem(SPLASH_SESSION_KEY, 'true');
+
+  const splash = document.createElement('div');
+  splash.className = 'bigu-splash';
+  splash.setAttribute('role', 'presentation');
+  splash.setAttribute('aria-hidden', 'true');
+  splash.innerHTML = `
+    <div class="bigu-splash-mark">
+      <div class="bigu-splash-icon">${getBiguLogoSvg()}</div>
+      <svg class="bigu-splash-line" viewBox="0 0 220 12" aria-hidden="true" focusable="false">
+        <line x1="2" y1="6" x2="218" y2="6"></line>
+      </svg>
+      <div class="bigu-splash-wordmark">Bigu<span>Analytics</span></div>
+    </div>
+  `;
+
+  document.body.appendChild(splash);
+  await wait(prefersReducedMotion() ? SPLASH_REDUCED_MOTION_MS : SPLASH_DURATION_MS);
+  splash.remove();
 }
 
 /**
