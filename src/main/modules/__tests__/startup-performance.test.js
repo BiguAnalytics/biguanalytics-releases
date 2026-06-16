@@ -63,10 +63,12 @@ describe('startup performance contract', () => {
     expect(ipcSource).toContain("lazyRequire('./modules/ai/aiBackendClient')");
   });
 
-  it('does not import Puppeteer until a PDF browser is launched', () => {
-    expect(pdfExportSource).toContain('function loadPuppeteerCore');
+  it('uses Electron printToPDF without loading Puppeteer for PDF export', () => {
+    expect(pdfExportSource).toContain('printToPDF');
     expect(getTopLevelRequires(pdfExportSource)).not.toContain("require('puppeteer-core')");
+    expect(pdfExportSource).not.toContain("require('puppeteer-core')");
     expect(pdfExportSource).not.toContain("require('puppeteer')");
+    expect(pdfExportSource).not.toContain('Target.createTarget');
   });
 
   it('loads Chart.js and Supabase lazily instead of blocking index.html startup scripts', () => {

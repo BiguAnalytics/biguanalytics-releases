@@ -3,7 +3,6 @@ import { canAccessRoute, getAccessState } from './auth/access-guard.js';
 import { setSidebarActive } from './components/sidebar.js';
 import { renderClipPlayer } from './views/clip-player.js';
 import { renderDashboard } from './views/dashboard.js';
-import { renderHeatmap } from './views/heatmap.js';
 import { renderHome } from './views/home.js';
 import { renderSeason } from './views/season.js';
 import { renderSettings } from './views/settings.js';
@@ -15,7 +14,6 @@ const routes = {
   home: renderHome,
   tagging: renderTagging,
   dashboard: renderDashboard,
-  heatmap: renderHeatmap,
   clips: renderClipPlayer,
   tactical: renderTacticalBoard,
   season: renderSeason,

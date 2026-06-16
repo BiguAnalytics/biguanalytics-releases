@@ -1,6 +1,9 @@
 // @ts-check
 import { getSupabaseClient } from '../auth/supabase-client.js';
-import { assertSupabaseOk, resolveClient } from './cloud-context.js';
+import { markStartup } from '../startup-timing.js';
+import { assertSupabaseOk, resolveClient, resolveCloudContext } from './cloud-context.js';
+
+const CREATED_BY_ENTITIES = new Set(['matches', 'match_events', 'match_possessions', 'match_sequences']);
 
 /**
  * @param {object} client
@@ -65,11 +68,54 @@ export async function applyCloudOperation(client, operation) {
 }
 
 /**
+ * @param {object} payload
+ * @param {string} entity
+ * @param {{clubId: string, userId: string}} context
+ * @returns {object}
+ */
+function hydratePayloadContext(payload, entity, context) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return payload;
+  const next = { ...payload };
+  if (['matches', 'match_events', 'match_possessions', 'match_sequences', 'match_notes'].includes(entity) && !next.club_id) {
+    next.club_id = context.clubId;
+  }
+  if (CREATED_BY_ENTITIES.has(entity) && !next.created_by) {
+    next.created_by = context.userId;
+  }
+  if (entity === 'match_notes' && !next.author_id) {
+    next.author_id = context.userId;
+  }
+  return next;
+}
+
+/**
+ * @param {object} operation
+ * @param {{clubId: string, userId: string}} context
+ * @returns {object}
+ */
+export function hydrateOperationContext(operation, context) {
+  if (!context?.clubId || !context?.userId) return operation;
+  const payload = Array.isArray(operation.payload)
+    ? operation.payload.map(item => hydratePayloadContext(item, operation.entity, context))
+    : hydratePayloadContext(operation.payload, operation.entity, context);
+  return { ...operation, payload };
+}
+
+/**
  * @param {{clientSource?: Promise<object>|object|function(): Promise<object>, localApi?: object}} [deps]
  */
 export function createSyncService(deps = {}) {
-  const clientSource = deps.clientSource || getSupabaseClient;
+  const clientSource = deps.client || deps.clientSource || getSupabaseClient;
   const localApi = deps.localApi || globalThis.window?.api;
+
+  async function resolveFlushTarget() {
+    try {
+      const context = await resolveCloudContext(deps);
+      return { client: context.client, context };
+    } catch {
+      return { client: await resolveClient(clientSource), context: null };
+    }
+  }
 
   return {
     /**
@@ -89,8 +135,11 @@ export function createSyncService(deps = {}) {
      * @param {object} operation
      */
     async applyOperation(operation) {
-      const client = await resolveClient(clientSource);
-      await applyCloudOperation(client, operation);
+      const target = await resolveFlushTarget();
+      await applyCloudOperation(
+        target.client,
+        target.context ? hydrateOperationContext(operation, target.context) : operation
+      );
     },
 
     /**
@@ -98,14 +147,19 @@ export function createSyncService(deps = {}) {
      */
     async flushPendingSync() {
       const pending = await localApi.matches.getPendingSync();
-      if (!pending.length) return { applied: 0, failed: 0 };
-      const client = await resolveClient(clientSource);
+      markStartup('sync:pending-count', { count: pending.length });
+      if (!pending.length) {
+        markStartup('sync:flush-result', { applied: 0, failed: 0 });
+        return { applied: 0, failed: 0 };
+      }
+      const target = await resolveFlushTarget();
       const appliedIds = [];
       let failed = 0;
 
       for (const operation of pending) {
         try {
-          await applyCloudOperation(client, operation);
+          const hydrated = target.context ? hydrateOperationContext(operation, target.context) : operation;
+          await applyCloudOperation(target.client, hydrated);
           appliedIds.push(operation.id);
         } catch {
           failed += 1;
@@ -115,7 +169,9 @@ export function createSyncService(deps = {}) {
       if (appliedIds.length > 0) {
         await localApi.matches.markPendingSyncApplied(appliedIds);
       }
-      return { applied: appliedIds.length, failed };
+      const result = { applied: appliedIds.length, failed };
+      markStartup('sync:flush-result', result);
+      return result;
     },
 
     startAutoSync() {

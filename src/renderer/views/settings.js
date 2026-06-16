@@ -7,8 +7,8 @@ import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
 
 const DEFAULT_AUTO_CLOSE_MS = 8000;
-const DEFAULT_CLIP_PRE_ROLL_SECONDS = 3;
-const DEFAULT_CLIP_POST_ROLL_SECONDS = 10;
+const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
+const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
 const DEFAULT_MICROPHONE_SETTINGS = {
   deviceId: '',
   label: 'Microfono predeterminado',

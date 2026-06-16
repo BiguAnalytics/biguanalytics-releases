@@ -45,7 +45,9 @@ describe('events.js', () => {
         result: 'ganado-sucio',
         subtype: '',
         note: 'limpieza tardia',
-        zone: 'C3',
+        zone: 'own_half',
+        zoneId: 'own_half',
+        zoneLabel: 'Campo propio',
       });
       const saved = await getMatchById(match.id);
 
@@ -59,7 +61,9 @@ describe('events.js', () => {
           result: 'ganado-sucio',
           subtype: '',
           note: 'limpieza tardia',
-          zone: 'C3',
+          zone: 'own_half',
+          zoneId: 'own_half',
+          zoneLabel: 'Campo propio',
         }),
       ]);
     });

@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { createTaggerState, openTagPopup } from '../../tagging/tagger.js';
 import * as tagPopup from '../tag-popup.js';
 
-const { getZones, renderTagPopup } = tagPopup;
+const { getPopupZoneByNumber, getZones, renderTagPopup } = tagPopup;
 
 const tagPopupCss = readFileSync(new URL('../../../styles/components/tag-popup.css', import.meta.url), 'utf8');
 
@@ -23,18 +23,33 @@ function createHost() {
 }
 
 describe('tag popup field zones', () => {
-  it('orders the 15 field zones vertically by column', () => {
-    expect(getZones().map(zone => zone.label)).toEqual([
-      '1', '4', '7', '10', '13',
-      '2', '5', '8', '11', '14',
-      '3', '6', '9', '12', '15',
+  it('shows the four fast rugby field sectors', () => {
+    expect(getZones().map(zone => [zone.value, zone.label, zone.key])).toEqual([
+      ['own_22', '22 propia', '1'],
+      ['own_half', 'Campo propio', '2'],
+      ['opp_half', 'Campo rival', '3'],
+      ['opp_22', '22 rival', '4'],
     ]);
   });
 
-  it('renders the zone selector as a rugby field graphic', () => {
-    expect(tagPopupCss).toMatch(/\.tag-popup-field-grid\s*{[^}]*grid-template-columns:\s*repeat\(5,\s*1fr\);/s);
+  it('renders the zone selector as four large horizontal field sectors', () => {
+    expect(tagPopupCss).toMatch(/\.tag-popup-field-grid\s*{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\);/s);
     expect(tagPopupCss).toMatch(/\.tag-popup-field-grid::before\s*{[^}]*linear-gradient\(90deg,/s);
     expect(tagPopupCss).toMatch(/\.tag-popup-zone-cell\s*{[^}]*z-index:\s*1;/s);
+  });
+
+  it('keeps keyboard selection on number keys 1 through 4 when the field is open', () => {
+    const host = {
+      querySelector: () => ({
+        querySelector: selector => ({
+          dataset: {
+            zoneValue: selector.includes('"4"') ? 'opp_22' : 'own_22',
+          },
+        }),
+      }),
+    };
+
+    expect(getPopupZoneByNumber(host, '4')).toBe('opp_22');
   });
 });
 
@@ -71,6 +86,23 @@ describe('tag popup accessibility and focus', () => {
     expect(tagPopup.trapFocusInPopup(root, backwardEvent, first)).toBe(true);
     expect(backwardEvent.preventDefault).toHaveBeenCalledTimes(1);
     expect(last.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it('focuses the note textarea first for note-only popups', () => {
+    const noteInput = { disabled: false, focus: vi.fn(), offsetParent: {} };
+    const saveButton = { disabled: false, focus: vi.fn(), offsetParent: {} };
+    const root = {
+      querySelector: (selector) => {
+        if (selector.includes('[data-popup-note]')) return noteInput;
+        if (selector.includes('[data-popup-complete]')) return saveButton;
+        return null;
+      },
+      querySelectorAll: () => [noteInput, saveButton],
+    };
+
+    expect(tagPopup.focusFirstPopupControl(root)).toBe(true);
+    expect(noteInput.focus).toHaveBeenCalledTimes(1);
+    expect(saveButton.focus).not.toHaveBeenCalled();
   });
 });
 

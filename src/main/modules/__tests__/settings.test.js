@@ -133,8 +133,8 @@ describe('settings.js', () => {
 
   it('provides validated clip export defaults and clamps unreasonable durations', () => {
     expect(mergeSettings()).toEqual(expect.objectContaining({
-      clipPreRollSeconds: 3,
-      clipPostRollSeconds: 10,
+      clipPreRollSeconds: 5,
+      clipPostRollSeconds: 8,
       clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',
     }));
@@ -145,7 +145,7 @@ describe('settings.js', () => {
       clipOutputModeDefault: 'unsupported',
       clipExportQuality: 'unknown',
     })).toEqual(expect.objectContaining({
-      clipPreRollSeconds: 3,
+      clipPreRollSeconds: 5,
       clipPostRollSeconds: 60,
       clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',

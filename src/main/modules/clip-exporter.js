@@ -9,8 +9,8 @@ const YOUTUBE_CLIP_EXPORT_MESSAGE = 'La exportación de clips requiere tener car
 const MISSING_VIDEO_MESSAGE = 'No se encontró el video original. Volvé a cargar el MP4 del partido.';
 const MISSING_TIMESTAMP_MESSAGE = 'El evento no tiene timestamp válido para exportar.';
 const EMPTY_EXPORT_MESSAGE = 'No hay clips para exportar con estos filtros.';
-const DEFAULT_CLIP_PRE_ROLL_SECONDS = 3;
-const DEFAULT_CLIP_POST_ROLL_SECONDS = 10;
+const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
+const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
 const MAX_CLIP_EDGE_SECONDS = 60;
 
 /**
@@ -133,7 +133,7 @@ function eventMatchesResult(event, resultFilter) {
 
 /**
  * @param {Array<object>} events
- * @param {{type?: string, result?: string, team?: string, fromSeconds?: number|null, toSeconds?: number|null}} filters
+ * @param {{type?: string, result?: string, team?: string, fromSeconds?: number|null, toSeconds?: number|null, eventIds?: Array<string|number>}} filters
  * @param {object} [match]
  * @returns {Array<object>}
  */
@@ -144,10 +144,14 @@ function filterEventsForClipExport(events = [], filters = {}, match = {}) {
   const toSeconds = Number(filters.toSeconds);
   const hasFrom = Number.isFinite(fromSeconds);
   const hasTo = Number.isFinite(toSeconds);
+  const selectedIds = Array.isArray(filters.eventIds) && filters.eventIds.length > 0
+    ? new Set(filters.eventIds.map(id => String(id)))
+    : null;
 
   return (Array.isArray(events) ? events : [])
     .filter((event) => {
       if (!hasValidTimestamp(event?.timestamp)) return false;
+      if (selectedIds && !selectedIds.has(String(event.id))) return false;
       const timestamp = Number(event.timestamp);
       if (type && type !== 'all' && normalizeKey(event.type) !== type) return false;
       if (!eventMatchesResult(event, filters.result || 'all')) return false;

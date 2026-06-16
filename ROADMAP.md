@@ -193,7 +193,7 @@
 - [x] 3.6.4 Guardar umbrales en configuración global (`electron-store`)
 
 ### 3.7 Exportación PDF
-- [x] 3.7.1 Configurar Puppeteer (headless Chromium) dentro de Electron
+- [x] 3.7.1 Configurar `BrowserWindow` oculta + `webContents.printToPDF()` dentro de Electron
 - [x] 3.7.2 Renderizar una vista especial del dashboard optimizada para PDF (sin interactividad)
 - [x] 3.7.3 Encabezado PDF: logo BiguAnalytics, nombre de equipos, fecha, competencia
 - [x] 3.7.4 Página 1: KPIs generales + score
@@ -328,7 +328,7 @@
 - [x] 5.3.1 Configurar `electron-builder` para generar `.exe` instalable en Windows
 - [x] 5.3.2 Icono de la app (usar isotipo BiguAnalytics)
 - [x] 5.3.3 Nombre del ejecutable y carpeta de instalación
-- [x] 5.3.4 Incluir todas las dependencias nativas (Puppeteer, etc.) en el bundle
+- [x] 5.3.4 Incluir dependencias nativas runtime en el bundle sin navegador externo para PDF
 - [x] 5.3.5 Checklist de instalacion Windows limpia y validacion de build; ver `docs/WINDOWS_INSTALL_TEST.md` y `npm run check:windows-build`
 - [x] 5.3.6 Carpeta de datos del usuario en `AppData` (no en `Program Files`)
 
@@ -340,7 +340,7 @@
 - [x] 5.4.5 Todas las hotkeys responden sin conflictos
 - [x] 5.4.6 PDF generado es presentable y todos los gráficos se renderizan correctamente    
 
-> **Auditoria Fase 5 - 2026-06-04:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos, `puppeteer-core` sobre Chromium de Electron y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test`, `npm run test:perf:timeline`, checklist de instalacion limpia y `npm run check:windows-build` para artefactos. La ejecucion en una maquina fisica nueva del club queda como verificacion operativa final, no como alcance de codigo.
+> **Auditoria Fase 5 - 2026-06-04:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos via `BrowserWindow` oculta + `webContents.printToPDF()` y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test`, `npm run test:perf:timeline`, checklist de instalacion limpia y `npm run check:windows-build` para artefactos. La ejecucion en una maquina fisica nueva del club queda como verificacion operativa final, no como alcance de codigo.
     
 --- 
     

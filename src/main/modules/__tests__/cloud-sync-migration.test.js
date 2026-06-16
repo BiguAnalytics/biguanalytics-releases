@@ -28,6 +28,14 @@ const scoreMigrationExists = existsSync(scoreMigrationUrl);
 const scoreMigration = scoreMigrationExists
   ? readFileSync(scoreMigrationUrl, 'utf8')
   : '';
+const clubSyncContractMigrationUrl = new URL(
+  '../../../../supabase/migrations/20260616000000_club_cloud_sync_contract.sql',
+  import.meta.url
+);
+const clubSyncContractMigrationExists = existsSync(clubSyncContractMigrationUrl);
+const clubSyncContractMigration = clubSyncContractMigrationExists
+  ? readFileSync(clubSyncContractMigrationUrl, 'utf8')
+  : '';
 
 describe('cloud sync lightweight migration', () => {
   it('creates only lightweight rugby sync tables with RLS enabled', () => {
@@ -128,5 +136,31 @@ describe('cloud sync match score migration', () => {
     expect(scoreMigration).toContain('match_events');
     expect(scoreMigration).toContain("event_type = 'points'");
     expect(scoreMigration).not.toContain('service_role');
+  });
+});
+
+describe('cloud sync club visibility contract migration', () => {
+  it('documents club-level visibility and keeps created_by as audit metadata only', () => {
+    expect(clubSyncContractMigrationExists).toBe(true);
+    expect(clubSyncContractMigration).toContain('comment on table public.matches');
+    expect(clubSyncContractMigration).toContain('club-level visibility');
+    expect(clubSyncContractMigration).toContain('created_by is audit metadata');
+    expect(clubSyncContractMigration).toContain('comment on policy "matches read active club" on public.matches');
+    expect(clubSyncContractMigration).toContain('public.is_active_club_member(matches.club_id)');
+    expect(clubSyncContractMigration).not.toContain('created_by = auth.uid() and public.is_active_club_member(matches.club_id)');
+  });
+
+  it('adds club-scoped indexes for cloud hydration tables without cross-club reads', () => {
+    expect(clubSyncContractMigrationExists).toBe(true);
+    [
+      'match_events_club_match_updated_idx',
+      'match_possessions_club_match_start_idx',
+      'match_sequences_club_match_start_idx',
+      'match_notes_club_match_updated_idx',
+    ].forEach((indexName) => {
+      expect(clubSyncContractMigration).toContain(indexName);
+    });
+    expect(clubSyncContractMigration).not.toContain('to anon');
+    expect(clubSyncContractMigration).not.toContain('service_role');
   });
 });

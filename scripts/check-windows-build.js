@@ -70,7 +70,6 @@ function validatePackageConfig(failures) {
   assertCondition(build.nsis?.perMachine === false, 'NSIS debe instalar por usuario para evitar escribir datos en Program Files.', failures);
   assertCondition((build.asarUnpack || []).includes('node_modules/ffmpeg-static/**/*'), 'ffmpeg-static debe quedar fuera de asar.', failures);
   assertCondition((build.asarUnpack || []).includes('node_modules/ffprobe-static/**/*'), 'ffprobe-static debe quedar fuera de asar.', failures);
-  assertCondition(Boolean(packageJson.dependencies?.['puppeteer-core']), 'puppeteer-core debe estar declarado como dependencia runtime.', failures);
   assertCondition(Boolean(packageJson.dependencies?.['ffmpeg-static']), 'ffmpeg-static debe estar declarado como dependencia runtime.', failures);
   assertCondition(Boolean(packageJson.dependencies?.['ffprobe-static']), 'ffprobe-static debe estar declarado como dependencia runtime.', failures);
   assertCondition(Boolean(packageJson.devDependencies?.resedit || packageJson.dependencies?.resedit), 'resedit debe estar declarado para el hook afterPack.', failures);

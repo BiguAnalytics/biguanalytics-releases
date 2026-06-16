@@ -17,7 +17,7 @@ describe('operational validation checklists', () => {
     expect(pdfValidationDoc).toContain('alertas');
     expect(pdfValidationDoc).toContain('notas');
     expect(pdfValidationDoc).toContain('paginado');
-    expect(pdfValidationDoc).toContain('Puppeteer');
+    expect(pdfValidationDoc).toContain('printToPDF');
     expect(pdfValidationDoc).toContain('Windows');
   });
 
@@ -36,7 +36,7 @@ describe('operational validation checklists', () => {
   it('documents Windows clean install validation and build artifact checks', () => {
     expect(windowsInstallDoc).toContain('AppData');
     expect(windowsInstallDoc).toContain('Program Files');
-    expect(windowsInstallDoc).toContain('Puppeteer');
+    expect(windowsInstallDoc).toContain('printToPDF');
     expect(windowsInstallDoc).toContain('ffmpeg');
     expect(windowsInstallDoc).toContain('preload');
     expect(windowsInstallDoc).toContain('assets');

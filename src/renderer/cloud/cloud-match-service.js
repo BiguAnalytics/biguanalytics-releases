@@ -299,11 +299,15 @@ function getCloudErrorMessage(error) {
  * @param {number} pageSize
  * @returns {Promise<object>}
  */
-async function fetchCloudMatchSummaries(client, page, pageSize) {
+async function fetchCloudMatchSummaries(client, page, pageSize, clubId = '') {
   const query = client.from('matches').select('*, video_references(*)');
-  let ordered = typeof query.order === 'function'
-    ? query.order('created_at', { ascending: false })
-    : query;
+  let scoped = query;
+  if (clubId && typeof scoped.eq === 'function') {
+    scoped = scoped.eq('club_id', clubId);
+  }
+  let ordered = typeof scoped.order === 'function'
+    ? scoped.order('created_at', { ascending: false })
+    : scoped;
   if (ordered && typeof ordered.then === 'function') ordered = await ordered;
   if (ordered && typeof ordered.range === 'function') {
     const from = page * pageSize;
@@ -323,6 +327,14 @@ function announceHomeMatchesUpdated(matches, status) {
       detail: { matches, status },
     }));
   }
+}
+
+/**
+ * @param {string} label
+ * @param {object} [detail]
+ */
+function markCloud(label, detail = {}) {
+  markStartup(label, detail);
 }
 
 /**
@@ -368,6 +380,20 @@ export function createCloudMatchService(deps = {}) {
     }
   }
 
+  function readClubIdFromAccess(access = {}) {
+    return String(access?.profile?.club_id || access?.club?.id || '');
+  }
+
+  async function getKnownAccessClubId() {
+    if (deps.accessProvider) return readClubIdFromAccess(deps.accessProvider());
+    try {
+      const accessGuard = await import('../auth/access-guard.js');
+      return readClubIdFromAccess(accessGuard.getAccessState?.());
+    } catch {
+      return '';
+    }
+  }
+
   async function syncOperations(operations, context) {
     for (const operation of operations) {
       await applyOrEnqueue(context.client, activeSyncService, operation);
@@ -399,9 +425,17 @@ export function createCloudMatchService(deps = {}) {
     return localApi.matches.upsertCache(local);
   }
 
-  async function getNormalizedLocalMatches() {
+  function isVisibleForClub(match, clubId = '') {
+    const matchClubId = String(match?.cloud?.clubId || match?.clubId || match?.club_id || '');
+    return !clubId || !matchClubId || matchClubId === String(clubId);
+  }
+
+  async function getNormalizedLocalMatches(clubId = '') {
     const matches = await localApi.matches.getAll();
-    return (Array.isArray(matches) ? matches : []).filter(Boolean).map(normalizeMatchForHome).filter(match => match.id);
+    return (Array.isArray(matches) ? matches : [])
+      .filter(Boolean)
+      .map(normalizeMatchForHome)
+      .filter(match => match.id && isVisibleForClub(match, clubId));
   }
 
   /**
@@ -459,14 +493,20 @@ export function createCloudMatchService(deps = {}) {
   async function refreshCloudList(options) {
     const { page, pageSize, cacheKey } = options;
     let refreshedCloudMatches = [];
+    let visibleClubId = '';
+    markCloud('cloud:home:list-start', { page, pageSize });
     if (!isBrowserOffline()) {
-      const freshCache = listCache.key === cacheKey && now() - listCache.fetchedAt < CLOUD_LIST_CACHE_TTL_MS;
-      if (!freshCache || options.forceRefresh) {
-        try {
-          await timeStartup('cloud:flush-pending-sync', () => activeSyncService.flushPendingSync?.());
-          const context = await timeStartup('supabase:resolve-cloud-context', () => resolveCloudContext(deps));
-          const cachedBefore = await getNormalizedLocalMatches();
-          const result = await timeStartup('supabase:list-matches', () => fetchCloudMatchSummaries(context.client, page, pageSize));
+      try {
+        const context = await timeStartup('supabase:resolve-cloud-context', () => resolveCloudContext(deps));
+        visibleClubId = context.clubId;
+        const scopedCacheKey = `${context.clubId}:${cacheKey}`;
+        const freshCache = listCache.key === scopedCacheKey && now() - listCache.fetchedAt < CLOUD_LIST_CACHE_TTL_MS;
+        if (!freshCache || options.forceRefresh) {
+          const flushResult = await timeStartup('cloud:flush-pending-sync', () => activeSyncService.flushPendingSync?.());
+          if (flushResult) markCloud('sync:flush-result', flushResult);
+          const cachedBefore = await getNormalizedLocalMatches(context.clubId);
+          markCloud('cloud:match:sync-pull', { clubId: context.clubId, page, pageSize });
+          const result = await timeStartup('supabase:list-matches', () => fetchCloudMatchSummaries(context.client, page, pageSize, context.clubId));
           assertSupabaseOk(result);
           const rows = result.data || [];
           const errors = [];
@@ -493,7 +533,7 @@ export function createCloudMatchService(deps = {}) {
           refreshedCloudMatches = refreshed;
           await removeDeletedCloudMatches(cachedBefore, rows, context, page, pageSize);
           listCache = {
-            key: cacheKey,
+            key: scopedCacheKey,
             fetchedAt: now(),
           };
           setLastListStatus({
@@ -509,26 +549,28 @@ export function createCloudMatchService(deps = {}) {
             hasCloudSession: true,
             errors,
           });
-        } catch (error) {
-          const message = getCloudErrorMessage(error);
+          markCloud('cloud:home:matches-count', { count: rows.length, cached });
+        } else {
           setLastListStatus({
-            source: 'cache',
-            partial: true,
+            ...lastListStatus,
             page,
             pageSize,
             fromCache: true,
             initialCloudSyncPending: false,
-            hasCloudSession: !/no hay sesion/i.test(message),
-            errors: [{ matchId: '', message }],
           });
         }
-      } else {
+      } catch (error) {
+        const message = getCloudErrorMessage(error);
+        markCloud('cloud:rls-or-query-error', { message });
         setLastListStatus({
-          ...lastListStatus,
+          source: 'cache',
+          partial: true,
           page,
           pageSize,
           fromCache: true,
           initialCloudSyncPending: false,
+          hasCloudSession: !/no hay sesion/i.test(message),
+          errors: [{ matchId: '', message }],
         });
       }
     } else {
@@ -543,7 +585,8 @@ export function createCloudMatchService(deps = {}) {
         errors: [],
       });
     }
-    const matches = mergeRefreshedCloudMatches(await getNormalizedLocalMatches(), refreshedCloudMatches);
+    const matches = mergeRefreshedCloudMatches(await getNormalizedLocalMatches(visibleClubId), refreshedCloudMatches);
+    markCloud('cloud:home:list-end', { count: matches.length, source: lastListStatus.source, partial: lastListStatus.partial });
     if (options.announce !== false) {
       announceHomeMatchesUpdated(matches, { ...lastListStatus, errors: [...lastListStatus.errors] });
     }
@@ -567,7 +610,8 @@ export function createCloudMatchService(deps = {}) {
           hasCloudSession: shouldRefreshInBackground,
           errors: [],
         });
-        const localMatches = await timeStartup('data:matches-local-cache', () => getNormalizedLocalMatches());
+        const knownClubId = await getKnownAccessClubId();
+        const localMatches = await timeStartup('data:matches-local-cache', () => getNormalizedLocalMatches(knownClubId));
         if (shouldRefreshInBackground) {
           refreshCloudList({ page, pageSize, cacheKey, forceRefresh: true, announce: true }).catch(() => {});
         }
@@ -603,22 +647,19 @@ export function createCloudMatchService(deps = {}) {
 
     async createMatch(data) {
       const match = await localApi.matches.create(data);
+      markCloud('cloud:match:create', { matchId: match.id });
       try {
         const context = await resolveCloudContext(deps);
+        markCloud('cloud:match:sync-push', { matchId: match.id, entity: 'matches' });
         await syncOperations(buildFullSyncOperations(context, match), context);
       } catch {
         const fallbackContext = {
           clubId: '',
           userId: '',
         };
-        await activeSyncService.enqueue({
-          matchId: match.id,
-          entity: 'matches',
-          action: 'upsert',
-          status: 'pending_sync',
-          dedupeKey: `matches:${match.id}`,
-          payload: mapLocalMatchToCloud(match, fallbackContext),
-        });
+        for (const operation of buildFullSyncOperations(fallbackContext, match)) {
+          await activeSyncService.enqueue(operation);
+        }
       }
       return match;
     },
@@ -637,6 +678,7 @@ export function createCloudMatchService(deps = {}) {
       const match = await localApi.matches.update(matchId, updates);
       try {
         const context = await resolveCloudContext(deps);
+        markCloud('cloud:match:sync-push', { matchId: match.id, entity: 'matches' });
         await syncOperations(buildUpdateOperations(context, match, updates), context);
       } catch {
         const pending = buildUpdateOperations({ clubId: '', userId: '' }, match, updates);

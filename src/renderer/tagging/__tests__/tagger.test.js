@@ -17,6 +17,7 @@ import {
   resetPossession,
   selectPopupOption,
   selectPopupZone,
+  shouldAutoClosePopup,
   startSequence,
   togglePossession,
   updatePopupNote,
@@ -99,13 +100,14 @@ describe('tagger engine', () => {
     }));
   });
 
-  it('builds a single-step event payload with note and selected zone', () => {
+  it('builds a single-step event payload with note, selected sector id and label', () => {
     const opened = openTagPopup(createTaggerState(), 'R', 15.5);
-    const withZone = selectPopupZone(updatePopupNote(opened, 'dominante'), 'C4');
+    const withZone = selectPopupZone(updatePopupNote(opened, 'dominante'), 'own_22');
     const selected = selectPopupOption(withZone, 'ganado');
 
     expect(selected.completed).toBe(false);
     expect(selected.state.activePopup.stepIndex).toBe(1);
+    expect(selected.state.activePopup.zoneLabel).toBe('22 propia');
 
     const withTeam = selectPopupOption(selected.state, 'home');
     expect(withTeam.completed).toBe(true);
@@ -115,9 +117,25 @@ describe('tagger engine', () => {
       team: 'home',
       result: 'ganado',
       note: 'dominante',
-      zone: 'C4',
+      zone: 'own_22',
+      zoneId: 'own_22',
+      zoneLabel: '22 propia',
     }));
     expect(withTeam.state.activePopup).toBeNull();
+  });
+
+  it('maps a legacy popup zone to a four-sector payload without losing the original zone', () => {
+    const opened = openTagPopup(createTaggerState(), 'R', 15.5);
+    const withLegacyZone = selectPopupZone(opened, 'Z13');
+    const selected = selectPopupOption(withLegacyZone, 'ganado');
+    const completed = selectPopupOption(selected.state, 'home');
+
+    expect(completed.event).toEqual(expect.objectContaining({
+      zone: 'opp_22',
+      zoneId: 'opp_22',
+      zoneLabel: '22 rival',
+      legacyZone: 'Z13',
+    }));
   });
 
   it('infers the event team from active possession without adding a team step', () => {
@@ -182,6 +200,40 @@ describe('tagger engine', () => {
       note: 'Cambio defensivo',
       timestamp: 72,
     }));
+  });
+
+  it('opens consecutive free notes with fresh state and distinct payloads', () => {
+    const initial = createTaggerState({ autoCloseMs: 8000 });
+    const firstOpened = updatePopupNote(openTagPopup(initial, 'N', 72), 'Primera nota');
+    const firstCompleted = completePopup(firstOpened);
+    const secondOpened = openTagPopup(firstCompleted.state, 'N', 95);
+    const secondUpdated = updatePopupNote(secondOpened, 'Segunda nota');
+    const secondCompleted = completePopup(secondUpdated);
+
+    expect(secondOpened.activePopup).toEqual(expect.objectContaining({
+      hotkey: 'N',
+      type: 'note',
+      timestamp: 95,
+      note: '',
+      zone: null,
+      values: {},
+    }));
+    expect(firstCompleted.event).toEqual(expect.objectContaining({ note: 'Primera nota' }));
+    expect(secondCompleted.event).toEqual(expect.objectContaining({ note: 'Segunda nota' }));
+  });
+
+  it('does not auto-close while the popup note input is being edited', () => {
+    const opened = openTagPopup(createTaggerState({ autoCloseMs: 8000 }), 'N', 72);
+    const stalePopup = {
+      ...opened,
+      activePopup: {
+        ...opened.activePopup,
+        lastInteractionAt: 1_000,
+      },
+    };
+
+    expect(shouldAutoClosePopup(stalePopup, 9_500)).toBe(true);
+    expect(shouldAutoClosePopup(stalePopup, 9_500, { isInteracting: true })).toBe(false);
   });
 
   it('registers possession intervals and calculates live percentages', () => {
@@ -375,7 +427,7 @@ describe('tagger engine', () => {
   });
 
   it('exposes an explicit payload builder for the active popup', () => {
-    const state = selectPopupZone(updatePopupNote(openTagPopup(createTaggerState(), 'T', 80), 'pegado a la bandera'), 'R5');
+    const state = selectPopupZone(updatePopupNote(openTagPopup(createTaggerState(), 'T', 80), 'pegado a la bandera'), 'opp_22');
     const afterResult = selectPopupOption(state, 'try');
     const payload = buildEventPayload(selectPopupOption(afterResult.state, 'away').event);
 
@@ -384,7 +436,9 @@ describe('tagger engine', () => {
       team: 'away',
       result: 'try',
       note: 'pegado a la bandera',
-      zone: 'R5',
+      zone: 'opp_22',
+      zoneId: 'opp_22',
+      zoneLabel: '22 rival',
     }));
   });
 

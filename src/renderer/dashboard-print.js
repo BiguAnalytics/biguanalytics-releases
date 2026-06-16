@@ -1,5 +1,7 @@
 // @ts-check
 
+window.__BIGU_PDF_READY__ = false;
+
 /**
  * @param {string|number|null|undefined} value
  * @returns {string}
@@ -42,6 +44,38 @@ function getScoreSourceLabel(source) {
   if (source === 'manual') return 'Eventos + ajuste manual';
   if (source === 'legacy-manual') return 'Score manual legacy';
   return '';
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+function waitForAnimationFrames() {
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  });
+}
+
+/**
+ * @param {HTMLImageElement} image
+ * @returns {Promise<void>}
+ */
+function waitForImage(image) {
+  if (image.complete && image.naturalWidth > 0) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    image.addEventListener('load', () => resolve(), { once: true });
+    image.addEventListener('error', () => {
+      reject(new Error(`No se pudo cargar asset PDF: ${image.getAttribute('alt') || image.getAttribute('src') || 'imagen'}`));
+    }, { once: true });
+  });
+}
+
+/**
+ * @returns {Promise<void>}
+ */
+async function waitForPdfAssets() {
+  if (document.fonts?.ready) await document.fonts.ready;
+  await Promise.all(Array.from(document.images).map(waitForImage));
+  await waitForAnimationFrames();
 }
 
 /**
@@ -324,9 +358,12 @@ function frameLimitWarning(payload) {
 
 /**
  * @param {object} payload
+ * @returns {Promise<{ready: boolean, pageCount: number}>}
  */
-window.renderDashboardPrint = function renderDashboardPrint(payload) {
+window.renderDashboardPrint = async function renderDashboardPrint(payload) {
+  window.__BIGU_PDF_READY__ = false;
   const root = document.getElementById('print-root');
+  if (!root) throw new Error('Contenedor PDF no disponible.');
   const stats = payload.stats;
   const chartImages = payload.chartImages || {};
   const notesHtml = payload.notesHtml || '';
@@ -337,7 +374,10 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
   pages.push(`
     <section class="print-page">
       <header class="print-brand">
-        <div class="print-logo">Bigu<span>Analytics</span></div>
+        <div class="print-logo-lockup">
+          <img class="print-logo-mark" src="assets/bigu-logo.svg" alt="Bigua Rugby Club">
+          <div class="print-logo">Bigu<span>Analytics</span></div>
+        </div>
         <div class="print-meta">
           <div>${escapeHtml(stats.match.competition || 'Sin competencia')}</div>
           <div>${escapeHtml(stats.match.date || 'Sin fecha')}</div>
@@ -419,4 +459,10 @@ window.renderDashboardPrint = function renderDashboardPrint(payload) {
       page.insertAdjacentHTML('beforeend', licenseFooter);
     });
   }
+  await waitForPdfAssets();
+  window.__BIGU_PDF_READY__ = true;
+  return {
+    ready: true,
+    pageCount: root.querySelectorAll('.print-page').length,
+  };
 };

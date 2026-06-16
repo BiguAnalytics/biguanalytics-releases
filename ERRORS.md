@@ -228,12 +228,12 @@ Verificacion funcional actual:
   - Recomendacion: usar store cifrado o `safeStorage`, con migracion.
   - Verificacion: `npm test` y `npm run security:check` pasaron; `clientToken` se guarda cifrado con `electron.safeStorage`, migra legacy plano y usa memoria si no hay cifrado disponible.
 
-- [x] ~~**SEC-06 - PDF - Puppeteer con `--no-sandbox`**~~
+- [x] ~~**SEC-06 - PDF - render externo inestable**~~
   - Severidad: Medio.
-  - Evidencia: `src/main/modules/pdf-export.js:73`.
-  - Impacto: reduce aislamiento del proceso Chromium de exportacion.
-  - Recomendacion: evitar `--no-sandbox` cuando sea posible o documentar restriccion Windows.
-  - Verificacion: `npm test` y `npm run security:check` pasaron; PDF lanza Chromium con sandbox por defecto y solo usa `--no-sandbox` como fallback controlado con warning.
+  - Evidencia: `src/main/modules/pdf-export.js`.
+  - Impacto: una integracion CDP no soportada podia romper la exportacion en Electron empaquetado.
+  - Recomendacion: usar Chromium embebido de Electron sin navegador externo ni flags de sandbox innecesarios.
+  - Verificacion: `npm test` y `npm run security:check` pasaron; PDF usa una `BrowserWindow` oculta con `webContents.printToPDF()`.
 
 - [x] ~~**SEC-07 - Secret scan - Cobertura acotada**~~
   - Severidad: Bajo.

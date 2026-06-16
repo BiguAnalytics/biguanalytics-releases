@@ -31,55 +31,152 @@ function buildSuggestedFileName(stats) {
 }
 
 /**
- * Uses Electron's bundled Chromium instead of a Puppeteer-downloaded browser.
  * @returns {string}
  */
-function getElectronChromiumExecutablePath() {
-  return process.execPath;
+function getDashboardPrintFilePath() {
+  return path.join(__dirname, '../../renderer/dashboard-print.html');
 }
 
 /**
- * @param {string} message
+ * @returns {typeof import('electron').BrowserWindow}
  */
-function emitPdfExportWarning(message) {
-  if (typeof process?.emitWarning === 'function') {
-    process.emitWarning(message, { code: 'BIGU_PDF_EXPORT' });
+function loadBrowserWindow() {
+  return require('electron').BrowserWindow;
+}
+
+/**
+ * @param {typeof import('electron').BrowserWindow} BrowserWindowImpl
+ * @returns {object}
+ */
+function createHiddenPdfWindow(BrowserWindowImpl) {
+  return new BrowserWindowImpl({
+    show: false,
+    width: 1600,
+    height: 1100,
+    paintWhenInitiallyHidden: true,
+    backgroundColor: '#080E1A',
+    webPreferences: {
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      backgroundThrottling: false,
+    },
+  });
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function formatPdfErrorDetail(error) {
+  return error instanceof Error && error.message
+    ? error.message.replace(/\s+/g, ' ').slice(0, 180)
+    : 'error desconocido';
+}
+
+/**
+ * @param {object} payload
+ * @returns {string}
+ */
+function serializePayloadForScript(payload) {
+  return JSON.stringify(payload)
+    .replaceAll('<', '\\u003C')
+    .replaceAll('>', '\\u003E')
+    .replaceAll('&', '\\u0026')
+    .replaceAll('\u2028', '\\u2028')
+    .replaceAll('\u2029', '\\u2029');
+}
+
+/**
+ * @param {object} webContents
+ * @param {object} payload
+ * @returns {Promise<object>}
+ */
+async function renderPrintPayload(webContents, payload) {
+  const script = `
+    (async () => {
+      if (typeof window.renderDashboardPrint !== 'function') {
+        throw new Error('Vista PDF no inicializada.');
+      }
+      window.__BIGU_PDF_READY__ = false;
+      const result = await window.renderDashboardPrint(${serializePayloadForScript(payload)});
+      if (window.__BIGU_PDF_READY__ !== true) {
+        throw new Error('La vista PDF no confirmo render completo.');
+      }
+      return result || { ready: true };
+    })();
+  `;
+
+  try {
+    return await webContents.executeJavaScript(script, true);
+  } catch (error) {
+    throw new Error(`No se pudo renderizar la vista PDF: ${formatPdfErrorDetail(error)}`);
   }
 }
 
-function loadPuppeteerCore() {
-  return require('puppeteer-core');
+const PDF_PRINT_OPTIONS = {
+  landscape: true,
+  pageSize: 'A4',
+  printBackground: true,
+  preferCSSPageSize: true,
+  margins: {
+    marginType: 'custom',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
+};
+
+/**
+ * @param {object} payload
+ * @param {{
+ *   BrowserWindow?: typeof import('electron').BrowserWindow,
+ *   printFile?: string,
+ * }} [options]
+ * @returns {Promise<Buffer>}
+ */
+async function renderDashboardPdfBuffer(payload, options = {}) {
+  const BrowserWindowImpl = options.BrowserWindow || loadBrowserWindow();
+  const printFile = options.printFile || getDashboardPrintFilePath();
+  const pdfWindow = createHiddenPdfWindow(BrowserWindowImpl);
+
+  try {
+    try {
+      await pdfWindow.loadFile(printFile);
+    } catch (error) {
+      throw new Error(`No se pudo cargar la vista PDF local: ${formatPdfErrorDetail(error)}`);
+    }
+
+    await renderPrintPayload(pdfWindow.webContents, payload);
+
+    try {
+      const pdfBuffer = await pdfWindow.webContents.printToPDF(PDF_PRINT_OPTIONS);
+      const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
+      if (buffer.length === 0) throw new Error('PDF vacio.');
+      return buffer;
+    } catch (error) {
+      throw new Error(`No se pudo generar el PDF: ${formatPdfErrorDetail(error)}`);
+    }
+  } finally {
+    if (typeof pdfWindow.isDestroyed !== 'function' || !pdfWindow.isDestroyed()) {
+      pdfWindow.close();
+    }
+  }
 }
 
 /**
- * @param {{
- *   puppeteerImpl?: object,
- *   executablePath?: string,
- *   warn?: function(string): void,
- * }} [options]
- * @returns {Promise<object>}
+ * @param {string} filePath
+ * @param {Buffer} pdfBuffer
+ * @param {{mkdir: function(string, object): Promise<void>, writeFile: function(string, Buffer): Promise<void>}} [fsImpl]
  */
-async function launchPdfBrowser(options = {}) {
-  const puppeteerImpl = options.puppeteerImpl || loadPuppeteerCore();
-  const executablePath = options.executablePath || getElectronChromiumExecutablePath();
-  const warn = options.warn || emitPdfExportWarning;
-  const baseOptions = {
-    headless: 'new',
-    executablePath: executablePath,
-  };
-
+async function savePdfBuffer(filePath, pdfBuffer, fsImpl = fs) {
   try {
-    return await puppeteerImpl.launch({
-      ...baseOptions,
-      args: [],
-    });
+    await fsImpl.mkdir(path.dirname(filePath), { recursive: true });
+    await fsImpl.writeFile(filePath, pdfBuffer);
   } catch (error) {
-    // Windows packaged Electron can fail Chromium sandbox initialization in locked-down installs.
-    warn(`PDF export falling back to --no-sandbox after Chromium sandbox launch failed: ${error?.message || 'unknown error'}`);
-    return puppeteerImpl.launch({
-      ...baseOptions,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
-    });
+    throw new Error(`No se pudo guardar el PDF. Verifica permisos y que el archivo no este abierto: ${formatPdfErrorDetail(error)}`);
   }
 }
 
@@ -100,75 +197,53 @@ async function choosePdfPath(dialog, browserWindow, stats) {
 /**
  * @param {string} matchId
  * @param {object} printPayload
- * @param {{dialog: object, browserWindow: object|null}} options
+ * @param {{
+ *   dialog: object,
+ *   browserWindow: object|null,
+ *   BrowserWindow?: typeof import('electron').BrowserWindow,
+ *   fsImpl?: object,
+ *   data?: {match: object, settings: object, drawingFramePayload?: object|Array<object>},
+ * }} options
  * @returns {Promise<{canceled: boolean, filePath?: string}>}
  */
 async function exportDashboardPdf(matchId, printPayload = {}, options) {
-  const [match, settings] = await Promise.all([
-    getMatchById(matchId),
-    getSettings(),
-  ]);
-  const drawingFramePayload = await getAnnotatedFramesForPdf(matchId);
+  const data = options.data;
+  const [match, settings] = data
+    ? [data.match, data.settings || {}]
+    : await Promise.all([
+      getMatchById(matchId),
+      getSettings(),
+    ]);
+  const drawingFramePayload = data
+    ? data.drawingFramePayload || []
+    : await getAnnotatedFramesForPdf(matchId);
   const drawingFrames = Array.isArray(drawingFramePayload)
     ? drawingFramePayload
     : drawingFramePayload.frames || [];
   const stats = calculateMatchStats(match, settings, printPayload.filters || settings.dashboard?.filters || {});
   const saveResult = await choosePdfPath(options.dialog, options.browserWindow, stats);
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
-  await fs.mkdir(path.dirname(saveResult.filePath), { recursive: true });
 
-  const printFile = path.join(__dirname, '../../renderer/dashboard-print.html');
-  const browser = await launchPdfBrowser();
-
-  try {
-    const page = await browser.newPage();
-    await page.setRequestInterception(true);
-    page.on('request', (request) => {
-      const url = request.url();
-      if (/^https?:\/\//i.test(url)) {
-        request.abort();
-        return;
-      }
-      request.continue();
-    });
-    await page.goto(`file:///${printFile.replaceAll('\\', '/')}`, { waitUntil: 'networkidle0' });
-    await page.evaluate(
-      (payload) => window.renderDashboardPrint(payload),
-      {
-        ...printPayload,
-        stats,
-        match: {
-          ...match,
-          coachNotes: match.coachNotes || '',
-        },
-        drawingFrames,
-        drawingFrameWarning: drawingFramePayload.warning || '',
-      }
-    );
-    await page.pdf({
-      path: saveResult.filePath,
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      preferCSSPageSize: true,
-      margin: {
-        top: '10mm',
-        right: '10mm',
-        bottom: '10mm',
-        left: '10mm',
-      },
-    });
-  } finally {
-    await browser.close();
-  }
+  const pdfBuffer = await renderDashboardPdfBuffer({
+    ...printPayload,
+    stats,
+    match: {
+      ...match,
+      coachNotes: match.coachNotes || '',
+    },
+    drawingFrames,
+    drawingFrameWarning: drawingFramePayload.warning || '',
+  }, options);
+  await savePdfBuffer(saveResult.filePath, pdfBuffer, options.fsImpl || fs);
 
   return { canceled: false, filePath: saveResult.filePath };
 }
 
 module.exports = {
   buildSuggestedFileName,
-  getElectronChromiumExecutablePath,
-  loadPuppeteerCore,
-  launchPdfBrowser,
+  createHiddenPdfWindow,
   exportDashboardPdf,
+  getDashboardPrintFilePath,
+  renderDashboardPdfBuffer,
+  savePdfBuffer,
 };

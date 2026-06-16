@@ -1,6 +1,7 @@
 // @ts-check
 const { getAllMatches, getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
+const { FOUR_SECTOR_FIELD_ZONES, isFourSectorZoneId, normalizeFieldZone } = require('./field-zones');
 
 const TEAMS = ['home', 'away'];
 const DEFAULT_ALERT_THRESHOLDS = {
@@ -124,7 +125,9 @@ function normalizeDashboardFilters(filters = {}, teams) {
     ? filters.timeBand
     : 'all';
   const teamFilter = normalizeKey(filters.team || 'all');
-  const zone = String(filters.zone || 'all');
+  const rawZone = String(filters.zone || 'all');
+  const normalizedZone = rawZone === 'all' ? null : normalizeFieldZone(rawZone);
+  const zone = normalizedZone?.id || 'all';
   let team = null;
 
   if (teamFilter === 'bigua') team = teams.biguaTeam;
@@ -160,7 +163,7 @@ function timestampInRange(timestamp, timeRange) {
 function eventMatchesDashboardFilters(event, filters) {
   if (filters.team && event.team !== filters.team) return false;
   if (!timestampInRange(Number(event.timestamp), filters.timeRange)) return false;
-  if (filters.zone !== 'all' && String(event.zone || '') !== filters.zone) return false;
+  if (filters.zone !== 'all' && normalizeFieldZone(event)?.id !== filters.zone) return false;
   return true;
 }
 
@@ -190,7 +193,9 @@ function sequenceMatchesDashboardFilters(sequence, filters) {
   const timestamp = Number.isFinite(start) ? start : end;
   if (!timestampInRange(timestamp, filters.timeRange)) return false;
   if (filters.zone !== 'all') {
-    const zones = [sequence.zone, sequence.zoneStart, sequence.zoneEnd].filter(Boolean).map(String);
+    const zones = [sequence.zone, sequence.zoneStart, sequence.zoneEnd]
+      .map(zone => normalizeFieldZone(zone)?.id)
+      .filter(Boolean);
     if (!zones.includes(filters.zone)) return false;
   }
   return true;
@@ -495,7 +500,7 @@ function calculatePossession(match, events, filters = { timeRange: null }) {
 function calculateTerritory(events) {
   const counts = { home: 0, away: 0, total: 0 };
   events.forEach((event) => {
-    if (!event.zone || (event.team !== 'home' && event.team !== 'away')) return;
+    if (!normalizeFieldZone(event) || (event.team !== 'home' && event.team !== 'away')) return;
     counts[event.team] += 1;
     counts.total += 1;
   });
@@ -913,19 +918,24 @@ function calculateSequences(sequences) {
  * @returns {object}
  */
 function calculateHeatmap(events) {
-  const zones = {};
+  const counts = {};
 
   events.forEach((event) => {
-    if (!event.zone || (event.team !== 'home' && event.team !== 'away')) return;
-    const zone = String(event.zone);
-    if (!zones[zone]) zones[zone] = { home: 0, away: 0, total: 0, intensity: 0 };
-    zones[zone][event.team] += 1;
-    zones[zone].total += 1;
+    if (event.team !== 'home' && event.team !== 'away') return;
+    const zone = normalizeFieldZone(event);
+    if (!zone || !isFourSectorZoneId(zone.id)) return;
+    if (!counts[zone.id]) counts[zone.id] = { home: 0, away: 0, total: 0, intensity: 0, label: zone.label };
+    counts[zone.id][event.team] += 1;
+    counts[zone.id].total += 1;
   });
 
-  const maxCount = Object.values(zones).reduce((max, zone) => Math.max(max, zone.total), 0);
-  Object.values(zones).forEach((zone) => {
+  const maxCount = Object.values(counts).reduce((max, zone) => Math.max(max, zone.total), 0);
+  const zones = {};
+  FOUR_SECTOR_FIELD_ZONES.forEach((sector) => {
+    const zone = counts[sector.id];
+    if (!zone) return;
     zone.intensity = maxCount > 0 ? round(zone.total / maxCount) : 0;
+    zones[sector.id] = zone;
   });
 
   return {

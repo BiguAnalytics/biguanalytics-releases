@@ -2,6 +2,7 @@
 const { v4: uuidv4 } = require('uuid');
 const { getMatchById, updateMatch } = require('./storage');
 const { buildScoreUpdate } = require('./score');
+const { normalizeFieldZone } = require('./field-zones');
 
 const TEAM_REQUIRED_EVENT_TYPES = new Set([
   'ruck',
@@ -181,6 +182,7 @@ function validateEventPayload(event) {
     throw new Error('Subtipo invalido para este tipo de evento.');
   }
 
+  const zone = normalizeFieldZone(event);
   const normalized = {
     ...event,
     id,
@@ -190,9 +192,10 @@ function validateEventPayload(event) {
     result,
     subtype,
     note: normalizeEventText(event.note, 'Nota', MAX_EVENT_NOTE_LENGTH),
-    zone: event.zone === null || event.zone === undefined || event.zone === ''
-      ? null
-      : normalizeEventText(event.zone, 'Zona', 40),
+    zone: zone ? normalizeEventText(zone.id, 'Zona', 40) : null,
+    zoneId: zone ? normalizeEventText(zone.id, 'Zona', 40) : null,
+    zoneLabel: zone ? normalizeEventText(zone.label, 'Zona label', 80) : null,
+    ...(zone?.legacy && zone.originalZone ? { legacyZone: normalizeEventText(zone.originalZone, 'Zona legacy', 40) } : {}),
   };
 
   if (event.player !== undefined) normalized.player = normalizeEventText(event.player, 'Jugador', 80);

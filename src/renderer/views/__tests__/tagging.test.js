@@ -25,6 +25,8 @@ const {
   getSpeechErrorMessage,
   getPossessionPersistenceFingerprint,
   shouldSavePossessionSnapshot,
+  isPopupInputFocused,
+  shouldCompletePopupFromKeydown,
 } = tagging;
 
 describe('tagging video controls', () => {
@@ -561,6 +563,7 @@ describe('tagging match selection entrypoint', () => {
 
 describe('tagging event inspector', () => {
   const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+  const videoPlayerCss = readFileSync(new URL('../../../styles/components/video-player.css', import.meta.url), 'utf8');
 
   it('renders timeline event detail in the right inspector surface', () => {
     expect(taggingSource).toContain('id="event-inspector-host"');
@@ -824,6 +827,26 @@ describe('tagging event inspector', () => {
     );
   });
 
+  it('keeps plain Enter inside popup textareas and saves multiline notes with Ctrl+Enter', () => {
+    const textarea = { tagName: 'TEXTAREA', isContentEditable: false };
+    const button = { tagName: 'BUTTON', isContentEditable: false };
+
+    expect(shouldCompletePopupFromKeydown?.({ key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: false }, textarea)).toBe(false);
+    expect(shouldCompletePopupFromKeydown?.({ key: 'Enter', shiftKey: true, ctrlKey: false, metaKey: false }, textarea)).toBe(false);
+    expect(shouldCompletePopupFromKeydown?.({ key: 'Enter', shiftKey: false, ctrlKey: true, metaKey: false }, textarea)).toBe(true);
+    expect(shouldCompletePopupFromKeydown?.({ key: 'Enter', shiftKey: false, ctrlKey: false, metaKey: false }, button)).toBe(true);
+  });
+
+  it('detects focused popup inputs so auto-close does not close while writing', () => {
+    const textarea = { tagName: 'TEXTAREA', isContentEditable: false };
+    const outsideInput = { tagName: 'TEXTAREA', isContentEditable: false };
+    const popupHost = { contains: target => target === textarea };
+
+    expect(isPopupInputFocused?.(popupHost, textarea)).toBe(true);
+    expect(isPopupInputFocused?.(popupHost, outsideInput)).toBe(false);
+    expect(taggingSource).toContain('shouldAutoClosePopup(state, Date.now(), { isInteracting: isPopupInputFocused(popupHost) })');
+  });
+
   it('moves the playhead when selecting a sequence but keeps the action single-click', () => {
     expect(taggingSource).toContain('seekTo(Number(sequence.start));');
   });
@@ -837,6 +860,14 @@ describe('tagging event inspector', () => {
   it('renders event and note details as framed stat cells', () => {
     expect(taggingSource).toContain('event-inspector-meta-grid');
     expect(taggingSource).toContain('event-inspector-stat');
+  });
+
+  it('shows selected free-note content as a readable inspector preview', () => {
+    expect(tagging.getTimelineEventNotePreview?.({ type: 'note', note: ' Ajustar presion\nsalida rival ' })).toBe('Ajustar presion\nsalida rival');
+    expect(tagging.getTimelineEventNotePreview?.({ type: 'note', note: '   ' })).toBe('');
+    expect(taggingSource).toContain('const selectedEventNotePreview = getTimelineEventNotePreview(selectedEvent);');
+    expect(taggingSource).toContain('class="event-inspector-note-preview"');
+    expect(videoPlayerCss).toMatch(/\.event-inspector-note-preview\s*{[^}]*white-space:\s*pre-wrap;[^}]*overflow-wrap:\s*anywhere;/s);
   });
 
   it('renders selected tag values as capitalized display text', () => {

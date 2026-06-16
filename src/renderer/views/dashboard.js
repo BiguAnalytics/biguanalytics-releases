@@ -3,10 +3,10 @@ import { getPrintLicensePayload, refreshAccessState } from '../auth/access-guard
 import { cloudMatchService } from '../cloud/cloud-match-service.js';
 import { createKpiCard } from '../components/kpi-card.js';
 import { MATCH_EDIT_ICON, getMatchSelectionItems } from '../components/match-selection.js';
-import { openModal } from '../components/modal.js';
 import { openEditMatchModal } from '../components/new-match-form.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
+import { FOUR_SECTOR_FIELD_ZONES, normalizeFieldZone } from '../field-zones.js';
 import { navigate } from '../router.js';
 import { ensureChartJs } from '../vendor-loader.js';
 
@@ -52,43 +52,6 @@ const TIME_FILTERS = [
   { id: '+80', label: '+80' },
 ];
 
-const CLIP_EXPORT_EVENT_TYPES = [
-  { id: 'all', label: 'Todos' },
-  { id: 'ruck', label: 'Ruck' },
-  { id: 'scrum', label: 'Scrum' },
-  { id: 'lineout', label: 'Line Out' },
-  { id: 'penal', label: 'Penal' },
-  { id: 'points', label: 'Try/Puntos' },
-  { id: 'break-line', label: 'Break Line' },
-  { id: 'kick', label: 'Kick' },
-  { id: 'maul', label: 'Maul' },
-  { id: 'turnover', label: 'Turnover' },
-  { id: 'card', label: 'Tarjeta' },
-  { id: 'note', label: 'Nota' },
-];
-
-const CLIP_EXPORT_RESULTS = [
-  { id: 'all', label: 'Todos' },
-  { id: 'ganado', label: 'Ganado' },
-  { id: 'perdido', label: 'Perdido' },
-  { id: 'ganado-sucio', label: 'Ganado sucio' },
-  { id: 'ataque', label: 'Ataque' },
-  { id: 'defensa', label: 'Defensa' },
-  { id: 'try', label: 'Try' },
-  { id: 'touch', label: 'Touch' },
-  { id: 'recuperado', label: 'Recuperado' },
-  { id: 'contestado', label: 'Contestado' },
-];
-
-const DASHBOARD_SECTION_CLIP_TYPES = {
-  'set-pieces': 'scrum',
-  rucks: 'ruck',
-  discipline: 'penal',
-  kicks: 'kick',
-  'break-lines': 'break-line',
-  'custom-events': 'all',
-};
-
 const DASHBOARD_SECTION_EVENT_TYPES = {
   'set-pieces': ['scrum', 'lineout', 'maul'],
   rucks: ['ruck'],
@@ -100,21 +63,6 @@ const DASHBOARD_SECTION_EVENT_TYPES = {
   bip: [],
   heatmap: [],
 };
-
-const CLIP_MODULE_PRESETS = [
-  { type: 'all', label: 'Todos' },
-  { type: 'ruck', label: 'Rucks' },
-  { type: 'penal', label: 'Penales' },
-  { type: 'kick', label: 'Kicks' },
-  { type: 'points', label: 'Try/Puntos' },
-  { type: 'break-line', label: 'Break Lines' },
-];
-
-const CLIP_EXPORT_YOUTUBE_MESSAGE = 'La exportación de clips requiere tener cargado el archivo MP4 local del partido.';
-const CLIP_EXPORT_MISSING_VIDEO_MESSAGE = 'No se encontró el video original. Volvé a cargar el MP4 del partido.';
-const CLIP_EXPORT_EMPTY_MESSAGE = 'No hay clips para exportar con estos filtros';
-const YOUTUBE_CLIP_NOTICE = 'Este partido usa video de YouTube. Podés reproducir clips dentro de BiguAnalytics, pero para exportarlos como archivos MP4 necesitás asociar un video local. Requiere conexión a internet.';
-const YOUTUBE_MP4_EXPORT_HELPER = 'La exportación MP4 requiere video local.';
 
 const PDF_TEMPLATES = [
   { id: 'complete', label: 'Completo' },
@@ -250,24 +198,6 @@ function formatLabel(value) {
 }
 
 /**
- * @param {string|null|undefined} value
- * @returns {number|null}
- */
-function parseClipTimeInput(value) {
-  const trimmed = String(value || '').trim();
-  if (!trimmed) return null;
-  const parts = trimmed.split(':').map(part => Number(part));
-  if (parts.length === 2 && parts.every(Number.isFinite)) {
-    return Math.max(0, (parts[0] * 60) + parts[1]);
-  }
-  if (parts.length === 3 && parts.every(Number.isFinite)) {
-    return Math.max(0, (parts[0] * 3600) + (parts[1] * 60) + parts[2]);
-  }
-  const numeric = Number(trimmed);
-  return Number.isFinite(numeric) ? Math.max(0, numeric) : null;
-}
-
-/**
  * @param {number|null|undefined} seconds
  * @returns {string}
  */
@@ -284,19 +214,6 @@ function formatClipTimeInput(seconds) {
 }
 
 /**
- * @param {string|null|undefined} value
- * @returns {string}
- */
-function normalizeClipFilterKey(value) {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, '-');
-}
-
-/**
  * @param {unknown} value
  * @returns {boolean}
  */
@@ -305,67 +222,6 @@ function hasValidClipTimestamp(value) {
   if (typeof value === 'string' && value.trim() === '') return false;
   const timestamp = Number(value);
   return Number.isFinite(timestamp) && timestamp >= 0;
-}
-
-/**
- * @param {object} match
- * @returns {'home'|'away'}
- */
-function identifyDashboardBiguaTeam(match = {}) {
-  if (String(match.homeTeam || '').toLowerCase().includes('bigua')) return 'home';
-  if (String(match.awayTeam || '').toLowerCase().includes('bigua')) return 'away';
-  return 'home';
-}
-
-/**
- * @param {string|null|undefined} team
- * @param {object} match
- * @returns {'home'|'away'|null}
- */
-function resolveClipTeamFilter(team, match = {}) {
-  const normalized = normalizeClipFilterKey(team || 'all');
-  if (!normalized || normalized === 'all') return null;
-  if (normalized === 'home' || normalized === 'away') return normalized;
-  const bigua = identifyDashboardBiguaTeam(match);
-  if (normalized === 'bigua') return bigua;
-  if (normalized === 'rival') return bigua === 'home' ? 'away' : 'home';
-  return null;
-}
-
-/**
- * @param {Array<object>} events
- * @param {object} filters
- * @param {object} match
- * @returns {Array<object>}
- */
-function filterDashboardClipEvents(events = [], filters = {}, match = {}) {
-  const type = normalizeClipFilterKey(filters.type || 'all');
-  const result = normalizeClipFilterKey(filters.result || 'all');
-  const team = resolveClipTeamFilter(filters.team, match);
-  const fromSeconds = Number(filters.fromSeconds);
-  const toSeconds = Number(filters.toSeconds);
-  const hasFrom = Number.isFinite(fromSeconds);
-  const hasTo = Number.isFinite(toSeconds);
-
-  return (Array.isArray(events) ? events : [])
-    .filter((event) => {
-      if (!hasValidClipTimestamp(event?.timestamp)) return false;
-      const timestamp = Number(event.timestamp);
-      if (type !== 'all' && normalizeClipFilterKey(event.type) !== type) return false;
-      if (result !== 'all') {
-        const resultMatches = [
-          event.result,
-          event.outcome,
-          event.subtype,
-        ].some(value => normalizeClipFilterKey(value) === result);
-        if (!resultMatches) return false;
-      }
-      if (team && event.team !== team) return false;
-      if (hasFrom && timestamp < fromSeconds) return false;
-      if (hasTo && timestamp > toSeconds) return false;
-      return true;
-    })
-    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
 }
 
 /**
@@ -1186,6 +1042,8 @@ function normalizeDashboardPreferences(preferences = {}) {
     ? preferences.pdfTemplate
     : DEFAULT_DASHBOARD_PREFERENCES.pdfTemplate;
   const template = DASHBOARD_TEMPLATES[preferences.template] ? preferences.template : DEFAULT_DASHBOARD_PREFERENCES.template;
+  const rawZone = preferences.filters?.zone || 'all';
+  const zone = rawZone === 'all' ? 'all' : normalizeFieldZone(rawZone)?.id || 'all';
   return {
     template,
     pdfTemplate,
@@ -1195,7 +1053,7 @@ function normalizeDashboardPreferences(preferences = {}) {
     filters: {
       team: ['bigua', 'rival', 'compare', 'all'].includes(preferences.filters?.team) ? preferences.filters.team : 'bigua',
       timeBand: TIME_FILTERS.some(filter => filter.id === preferences.filters?.timeBand) ? preferences.filters.timeBand : 'all',
-      zone: preferences.filters?.zone || 'all',
+      zone,
     },
   };
 }
@@ -1229,15 +1087,23 @@ function applyDashboardTemplate(preferences, templateId) {
  * @returns {Array<string>}
  */
 function getZoneOptions(match) {
-  const zones = new Set();
+  const sectors = new Set();
+  const legacy = new Map();
   (match.events || []).forEach((event) => {
-    if (event.zone) zones.add(String(event.zone));
+    const zone = normalizeFieldZone(event);
+    if (!zone) return;
+    if (FOUR_SECTOR_FIELD_ZONES.some(sector => sector.id === zone.id)) {
+      sectors.add(zone.id);
+      return;
+    }
+    legacy.set(zone.id, zone.label);
   });
-  return Array.from(zones).sort((a, b) => {
-    const aNumber = Number(a.replace(/\D/g, ''));
-    const bNumber = Number(b.replace(/\D/g, ''));
-    return aNumber - bNumber || a.localeCompare(b);
-  });
+  return [
+    ...FOUR_SECTOR_FIELD_ZONES
+      .filter(zone => sectors.has(zone.id))
+      .map(zone => ({ id: zone.id, label: zone.label })),
+    ...Array.from(legacy.entries()).map(([id, label]) => ({ id, label })),
+  ];
 }
 
 /**
@@ -1252,392 +1118,6 @@ function renderOptions(options, selected) {
 }
 
 /**
- * @param {string} sectionId
- * @returns {string}
- */
-function getClipTypeForSection(sectionId) {
-  return DASHBOARD_SECTION_CLIP_TYPES[sectionId] || 'all';
-}
-
-/**
- * @param {object} stateOrMatch
- * @returns {'youtube'|'local'}
- */
-function getClipSourceType(stateOrMatch) {
-  const match = stateOrMatch?.match || stateOrMatch;
-  return match?.video?.type === 'youtube' ? 'youtube' : 'local';
-}
-
-/**
- * @param {object} filters
- * @param {'youtube'|'local'} sourceType
- * @returns {string}
- */
-function buildClipExportModalBody(filters = {}, sourceType = 'local') {
-  const isYouTube = sourceType === 'youtube';
-  const hasCustomTime = filters.timePreset === 'custom'
-    || Boolean(filters.from)
-    || Boolean(filters.to)
-    || (filters.fromSeconds !== null && filters.fromSeconds !== undefined && Number.isFinite(Number(filters.fromSeconds)))
-    || (filters.toSeconds !== null && filters.toSeconds !== undefined && Number.isFinite(Number(filters.toSeconds)));
-  const timePreset = hasCustomTime ? 'custom' : 'all';
-  const fromValue = filters.from || formatClipTimeInput(filters.fromSeconds);
-  const toValue = filters.to || formatClipTimeInput(filters.toSeconds);
-  return `
-    <div class="clip-export-panel" data-clip-export-modal>
-      ${isYouTube ? `
-        <div class="clip-export-helper" data-clip-youtube-helper>
-          <strong>${escapeHtml(YOUTUBE_MP4_EXPORT_HELPER)}</strong>
-          <span>${escapeHtml(YOUTUBE_CLIP_NOTICE)}</span>
-        </div>
-      ` : ''}
-      <div class="clip-export-grid">
-        <label class="dashboard-control">
-          <span>Tipo de evento</span>
-          <select data-clip-filter-type>
-            ${renderOptions(CLIP_EXPORT_EVENT_TYPES, filters.type || 'all')}
-          </select>
-        </label>
-        <label class="dashboard-control">
-          <span>Resultado/subtipo</span>
-          <select data-clip-filter-result>
-            ${renderOptions(CLIP_EXPORT_RESULTS, filters.result || 'all')}
-          </select>
-        </label>
-        <label class="dashboard-control">
-          <span>Equipo</span>
-          <select data-clip-filter-team>
-            ${renderOptions([
-              { id: 'all', label: 'Todos' },
-              { id: 'bigua', label: 'Bigua' },
-              { id: 'rival', label: 'Rival' },
-            ], filters.team || 'all')}
-          </select>
-        </label>
-        <label class="dashboard-control">
-          <span>Tiempo</span>
-          <select data-clip-filter-time-preset>
-            ${renderOptions([
-              { id: 'all', label: 'Todo el partido' },
-              { id: 'custom', label: 'Personalizado' },
-            ], timePreset)}
-          </select>
-        </label>
-        <label class="dashboard-control" data-clip-custom-time-field ${timePreset === 'custom' ? '' : 'hidden'}>
-          <span>Desde</span>
-          <input class="form-input" type="text" inputmode="numeric" placeholder="mm:ss" data-clip-filter-from value="${escapeHtml(fromValue)}" ${timePreset === 'custom' ? '' : 'disabled'} />
-        </label>
-        <label class="dashboard-control" data-clip-custom-time-field ${timePreset === 'custom' ? '' : 'hidden'}>
-          <span>Hasta</span>
-          <input class="form-input" type="text" inputmode="numeric" placeholder="mm:ss" data-clip-filter-to value="${escapeHtml(toValue)}" ${timePreset === 'custom' ? '' : 'disabled'} />
-        </label>
-      </div>
-      <label class="clip-export-checkbox" ${isYouTube ? 'hidden' : ''}>
-        <input type="checkbox" checked data-clip-output-separate />
-        <span>Exportar como clips separados</span>
-      </label>
-      <div class="clip-export-preview" data-clip-export-preview>${isYouTube ? 'Se reproducirán' : 'Se exportarán'} 0 clips</div>
-      <div class="clip-export-empty" data-clip-export-empty hidden>No hay clips para ${isYouTube ? 'reproducir' : 'exportar'} con estos filtros</div>
-      <div class="clip-export-progress" data-clip-export-progress hidden>
-        <span data-clip-export-progress-text>Exportando 12 / 48 clips</span>
-        <strong data-clip-export-current></strong>
-        <div class="clip-export-progress-bar" aria-hidden="true"><span data-clip-export-progress-bar></span></div>
-      </div>
-      <div class="clip-export-error" data-clip-export-error role="alert" hidden></div>
-      <div class="clip-export-complete" data-clip-export-complete hidden></div>
-      <div class="clip-export-actions">
-        <button class="btn btn-secondary" type="button" data-clip-export-cancel>Cancelar</button>
-        ${isYouTube ? '<button class="btn btn-secondary" type="button" data-associate-local-mp4>Asociar MP4 local</button>' : ''}
-        <button class="btn btn-primary" type="button" data-clip-export-start>${isYouTube ? 'Reproducir clips' : 'Exportar clips'}</button>
-      </div>
-    </div>
-  `;
-}
-
-/**
- * @param {HTMLElement} host
- * @returns {{type: string, result: string, team: string, fromSeconds: number|null, toSeconds: number|null}}
- */
-function readClipExportFilters(host) {
-  const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';
-  return {
-    type: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-type]'))?.value || 'all',
-    result: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-result]'))?.value || 'all',
-    team: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-team]'))?.value || 'all',
-    fromSeconds: timePreset === 'custom'
-      ? parseClipTimeInput(/** @type {HTMLInputElement|null} */ (host.querySelector('[data-clip-filter-from]'))?.value)
-      : null,
-    toSeconds: timePreset === 'custom'
-      ? parseClipTimeInput(/** @type {HTMLInputElement|null} */ (host.querySelector('[data-clip-filter-to]'))?.value)
-      : null,
-  };
-}
-
-/**
- * @param {HTMLElement} host
- */
-function syncClipCustomTimeFields(host) {
-  const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';
-  const isCustom = timePreset === 'custom';
-  host.querySelectorAll('[data-clip-custom-time-field]').forEach((field) => {
-    if (field instanceof HTMLElement) field.hidden = !isCustom;
-    field.querySelectorAll('input').forEach((input) => {
-      input.disabled = !isCustom;
-    });
-  });
-}
-
-/**
- * @param {HTMLElement} host
- * @param {object} state
- * @param {'youtube'|'local'} sourceType
- * @returns {number}
- */
-function updateClipExportPreview(host, state, sourceType = 'local') {
-  const count = filterDashboardClipEvents(state.match?.events || [], readClipExportFilters(host), state.match || {}).length;
-  const preview = host.querySelector('[data-clip-export-preview]');
-  const empty = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-empty]'));
-  const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
-  if (preview) preview.textContent = `${sourceType === 'youtube' ? 'Se reproducirán' : 'Se exportarán'} ${count} clips`;
-  if (empty) empty.textContent = `No hay clips para ${sourceType === 'youtube' ? 'reproducir' : 'exportar'} con estos filtros`;
-  if (empty) empty.hidden = count > 0;
-  if (startButton && startButton.dataset.exporting !== 'true') startButton.disabled = count === 0;
-  return count;
-}
-
-/**
- * @param {HTMLElement} host
- * @param {boolean} busy
- * @param {'youtube'|'local'} sourceType
- */
-function setClipExportBusy(host, busy, sourceType = 'local') {
-  host.querySelectorAll('input, select').forEach((control) => {
-    control.disabled = busy;
-  });
-  if (!busy) syncClipCustomTimeFields(host);
-  const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
-  const cancelButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-cancel]'));
-  if (startButton) {
-    startButton.dataset.exporting = busy ? 'true' : 'false';
-    startButton.disabled = busy;
-    startButton.textContent = busy ? 'Exportando...' : sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips';
-  }
-  if (cancelButton) {
-    cancelButton.disabled = false;
-  }
-}
-
-/**
- * @param {HTMLElement} host
- * @param {string} message
- */
-function setClipExportError(host, message) {
-  const errorEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-error]'));
-  if (!errorEl) return;
-  errorEl.textContent = message;
-  errorEl.hidden = !message;
-}
-
-/**
- * @param {HTMLElement} host
- */
-function clearClipExportFeedback(host) {
-  setClipExportError(host, '');
-  const completeEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-complete]'));
-  if (completeEl) {
-    completeEl.hidden = true;
-    completeEl.innerHTML = '';
-  }
-}
-
-/**
- * @param {HTMLElement} host
- * @param {object} payload
- */
-function renderClipExportProgress(host, payload = {}) {
-  const progress = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-progress]'));
-  const text = host.querySelector('[data-clip-export-progress-text]');
-  const currentClip = host.querySelector('[data-clip-export-current]');
-  const bar = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-progress-bar]'));
-  const total = Math.max(0, Number(payload.total) || 0);
-  const current = Math.max(0, Number(payload.current) || 0);
-  if (progress) progress.hidden = false;
-  if (text) text.textContent = payload.message || `Exportando ${current} / ${total} clips`;
-  if (currentClip) currentClip.textContent = payload.currentClipName || '';
-  if (bar) bar.style.width = `${total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0}%`;
-}
-
-/**
- * @param {HTMLElement} host
- * @param {object} result
- */
-function renderClipExportComplete(host, result = {}) {
-  const completeEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-complete]'));
-  if (!completeEl) return;
-  const exported = Number(result.exported) || 0;
-  const failed = Number(result.failed) || 0;
-  const message = result.canceled
-    ? `Exportación cancelada. Exportados ${exported} clips.`
-    : failed > 0
-      ? `Exportados ${exported} clips. Fallaron ${failed}.`
-      : `Exportados ${exported} clips.`;
-  completeEl.hidden = false;
-  completeEl.innerHTML = `
-    <span>${escapeHtml(message)}</span>
-    ${result.outputDir ? '<button type="button" data-open-clip-folder>Abrir carpeta</button>' : ''}
-  `;
-  completeEl.querySelector('[data-open-clip-folder]')?.addEventListener('click', () => {
-    window.api.files.open(result.outputDir);
-  });
-}
-
-/**
- * @param {object} state
- * @returns {Promise<string|null>}
- */
-async function getDashboardClipExportBlockedMessage(state) {
-  if (state.match?.video?.type !== 'local' || !state.match.video.path) {
-    return CLIP_EXPORT_YOUTUBE_MESSAGE;
-  }
-  const exists = await window.api.media.localVideoExists(state.match.video.path);
-  return exists ? null : CLIP_EXPORT_MISSING_VIDEO_MESSAGE;
-}
-
-/**
- * @param {HTMLElement} container
- * @param {object} state
- * @param {{close?: function}|null} [modal]
- */
-async function associateLocalMp4FromDashboard(container, state, modal = null) {
-  const selected = await window.api.media.selectLocalVideo();
-  if (!selected || !state.match?.id) return;
-  state.match = await cloudMatchService.updateMatch(state.match.id, { video: selected, status: state.match.status === 'created' ? 'tagging' : state.match.status });
-  modal?.close?.();
-  showToast(container, 'MP4 local asociado. Ya podés exportar clips reales.');
-  renderLoadedDashboard(container, state);
-}
-
-/**
- * @param {HTMLElement} container
- * @param {object} state
- * @param {object} [initialFilters]
- */
-function openClipExportModal(container, state, initialFilters = {}) {
-  let modal;
-  const cleanup = [];
-  const sourceType = getClipSourceType(state);
-  let completeRendered = false;
-  modal = openModal({
-    title: sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips',
-    body: buildClipExportModalBody(initialFilters, sourceType),
-    allowHtml: true,
-    buttons: [],
-    className: 'clip-export-modal',
-    onClose: () => cleanup.forEach(remove => remove?.()),
-  });
-
-  const host = /** @type {HTMLElement|null} */ (document.querySelector('[data-clip-export-modal]'));
-  if (!host) {
-    modal.close();
-    return;
-  }
-
-  const refreshPreview = () => {
-    clearClipExportFeedback(host);
-    updateClipExportPreview(host, state, sourceType);
-  };
-  const refreshTimePreset = () => {
-    syncClipCustomTimeFields(host);
-    refreshPreview();
-  };
-  syncClipCustomTimeFields(host);
-  host.querySelectorAll('[data-clip-filter-type], [data-clip-filter-result], [data-clip-filter-team]').forEach((control) => {
-    control.addEventListener('change', refreshPreview);
-  });
-  host.querySelector('[data-clip-filter-time-preset]')?.addEventListener('change', refreshTimePreset);
-  host.querySelectorAll('[data-clip-filter-from], [data-clip-filter-to]').forEach((control) => {
-    control.addEventListener('input', refreshPreview);
-  });
-
-  const handleComplete = (result) => {
-    completeRendered = true;
-    setClipExportBusy(host, false, sourceType);
-    renderClipExportComplete(host, result);
-    updateClipExportPreview(host, state, sourceType);
-    if (result?.outputDir) showToast(container, result.failed > 0 ? `Exportados ${result.exported} clips. Fallaron ${result.failed}.` : 'Clips exportados correctamente.', result.outputDir, 'Abrir carpeta');
-  };
-
-  cleanup.push(window.api.clips.onProgress?.(payload => renderClipExportProgress(host, payload)));
-  cleanup.push(window.api.clips.onComplete?.(handleComplete));
-  cleanup.push(window.api.clips.onError?.(payload => setClipExportError(host, payload?.message || 'No se pudieron exportar los clips.')));
-
-  host.querySelector('[data-clip-export-cancel]')?.addEventListener('click', async (event) => {
-    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
-    const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
-    if (startButton?.dataset.exporting !== 'true') {
-      modal.close();
-      return;
-    }
-    button.disabled = true;
-    await window.api.clips.cancelExport();
-  });
-
-  host.querySelector('[data-associate-local-mp4]')?.addEventListener('click', async () => {
-    await associateLocalMp4FromDashboard(container, state, modal);
-  });
-
-  host.querySelector('[data-clip-export-start]')?.addEventListener('click', async () => {
-    clearClipExportFeedback(host);
-    const total = updateClipExportPreview(host, state, sourceType);
-    if (total === 0) {
-      setClipExportError(host, sourceType === 'youtube' ? 'No hay clips para reproducir con estos filtros' : CLIP_EXPORT_EMPTY_MESSAGE);
-      return;
-    }
-    const filters = readClipExportFilters(host);
-    if (sourceType === 'youtube') {
-      modal.close();
-      navigate('clips', {
-        matchId: state.match.id,
-        clipType: filters.type,
-        clipResult: filters.result,
-        clipTeam: filters.team,
-        clipFrom: filters.fromSeconds ?? '',
-        clipTo: filters.toSeconds ?? '',
-      });
-      return;
-    }
-    const blockedMessage = await getDashboardClipExportBlockedMessage(state);
-    if (blockedMessage) {
-      setClipExportError(host, blockedMessage);
-      return;
-    }
-    setClipExportBusy(host, true, sourceType);
-    completeRendered = false;
-    renderClipExportProgress(host, { total, current: 0, currentClipName: '', message: `Exportando 0 / ${total} clips` });
-    try {
-      const result = await window.api.clips.exportBatch({ matchId: state.match.id, filters, outputMode: 'separate' });
-      if (!completeRendered) handleComplete(result);
-    } catch (error) {
-      setClipExportBusy(host, false, sourceType);
-      updateClipExportPreview(host, state, sourceType);
-      setClipExportError(host, error instanceof Error ? error.message : 'No se pudieron exportar los clips.');
-    }
-  });
-
-  updateClipExportPreview(host, state, sourceType);
-  if (sourceType === 'local') {
-    getDashboardClipExportBlockedMessage(state).then((message) => {
-      if (!message) return;
-      setClipExportError(host, message);
-      const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
-      if (startButton) startButton.disabled = true;
-    }).catch((error) => {
-      setClipExportError(host, error instanceof Error ? error.message : 'No se pudo validar el MP4 local del partido.');
-    });
-  }
-}
-
-/**
  * @param {object} stats
  * @param {object} match
  * @param {object} preferences
@@ -1646,7 +1126,7 @@ function openClipExportModal(container, state, initialFilters = {}) {
  */
 function buildDashboardControls(stats, match, preferences, customizerOpen) {
   const normalized = normalizeDashboardPreferences(preferences);
-  const zones = getZoneOptions(match).map(zone => ({ id: zone, label: zone }));
+  const zones = getZoneOptions(match);
   const kpiDefinitions = KPI_DEFINITIONS(stats);
   const kpiOptions = KPI_IDS.map(id => ({ id, label: kpiDefinitions[id]?.label || id }));
   return `
@@ -2012,68 +1492,6 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false, collapsed = false
 }
 
 /**
- * @param {object} match
- * @param {boolean} collapsed
- * @returns {string}
- */
-function buildClipModule(match, collapsed = false) {
-  const sourceType = getClipSourceType(match);
-  const isYouTube = sourceType === 'youtube';
-  const primaryLabel = isYouTube ? 'Reproducir clips' : 'Exportar clips';
-  const sourceLabel = isYouTube ? 'YouTube virtual' : 'MP4 local';
-  const helper = isYouTube
-    ? 'Reproduce segmentos filtrados dentro del player. Para generar archivos MP4, asociá un video local.'
-    : 'Exporta clips MP4 separados con pre-roll y post-roll configurables desde Ajustes.';
-  const validEvents = filterDashboardClipEvents(match.events || [], {}, match);
-  const presets = CLIP_MODULE_PRESETS.map(preset => ({
-    ...preset,
-    count: filterDashboardClipEvents(match.events || [], { type: preset.type }, match).length,
-  }));
-
-  return `
-    <section class="dashboard-clip-module${collapsed ? ' collapsed' : ''}" data-dashboard-clip-module aria-labelledby="dashboard-clip-module-title">
-      <div class="dashboard-clip-module-head">
-      <div class="dashboard-clip-module-copy">
-        <span>Herramienta de clips</span>
-        <h2 id="dashboard-clip-module-title">Módulo de clips</h2>
-        <p>${escapeHtml(helper)}</p>
-      </div>
-        <div class="dashboard-clip-module-head-actions">
-          <button class="dashboard-panel-toggle" type="button" data-clip-module-toggle aria-expanded="${collapsed ? 'false' : 'true'}">
-            ${collapsed ? 'Expandir' : 'Contraer'}
-          </button>
-          <button class="btn btn-primary dashboard-clip-primary" type="button" data-open-clip-module>${escapeHtml(primaryLabel)}</button>
-          ${isYouTube ? '<button class="btn btn-secondary dashboard-clip-secondary" type="button" data-dashboard-associate-mp4>Asociar MP4 local</button>' : ''}
-        </div>
-      </div>
-      <div class="dashboard-clip-module-body">
-      <div class="dashboard-clip-module-summary" aria-label="Estado del módulo de clips">
-        <div>
-          <span>Fuente</span>
-          <strong>${escapeHtml(sourceLabel)}</strong>
-        </div>
-        <div>
-          <span>Eventos con timestamp</span>
-          <strong>${validEvents.length}</strong>
-        </div>
-      </div>
-      <div class="dashboard-clip-presets" aria-label="Filtros rápidos de clips">
-        <span>Filtros rápidos</span>
-        <div>
-          ${presets.map(preset => `
-            <button type="button" data-clip-module-preset="${escapeHtml(preset.type)}" aria-label="${escapeHtml(`${primaryLabel}: ${preset.label}`)}">
-              <strong>${escapeHtml(preset.label)}</strong>
-              <em>${preset.count}</em>
-            </button>
-          `).join('')}
-        </div>
-      </div>
-      </div>
-    </section>
-  `;
-}
-
-/**
  * @param {object} stats
  * @param {object} match
  * @param {'bigua'|'rival'|'compare'} selectedView
@@ -2082,11 +1500,10 @@ function buildClipModule(match, collapsed = false) {
  * @param {boolean} customizerOpen
  * @param {object} aiState
  * @param {boolean} aiLoading
- * @param {boolean} clipModuleCollapsed
  * @param {boolean} aiPanelCollapsed
  * @returns {string}
  */
-function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, clipModuleCollapsed = false, aiPanelCollapsed = false) {
+function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, aiPanelCollapsed = false) {
   const displayScore = getDashboardScore(stats, match);
   const scoreSourceLabel = getScoreSourceLabel(stats?.score?.source);
   const badge = getResultBadge(stats, match);
@@ -2114,8 +1531,6 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
       </div>
 
       ${buildDashboardControls(stats, match, normalized, customizerOpen)}
-
-      ${buildClipModule(match, clipModuleCollapsed)}
 
       <div class="dashboard-view-toggle" role="tablist" aria-label="Vista dashboard">
         ${VIEW_OPTIONS.map(option => `
@@ -2223,7 +1638,7 @@ function eventBelongsToDashboardSection(event, sectionId) {
   if (!Array.isArray(types)) return false;
   if (types.length === 0) {
     if (sectionId === 'bip') return hasValidClipTimestamp(event?.timestamp);
-    if (sectionId === 'heatmap') return Boolean(event?.zone);
+    if (sectionId === 'heatmap') return Boolean(normalizeFieldZone(event));
     return false;
   }
   const eventType = String(event?.type || '');
@@ -2868,8 +2283,7 @@ function getHeatmapGeometry() {
     y,
     width,
     height,
-    cellW: width / 5,
-    cellH: height / 3,
+    sectorW: width / 4,
   };
 }
 
@@ -2880,28 +2294,22 @@ function getHeatmapGeometry() {
  */
 function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
   const field = getHeatmapGeometry();
-  const verticalLines = Array.from({ length: 6 }, (_, index) => field.x + field.cellW * index);
-  const horizontalLines = Array.from({ length: 4 }, (_, index) => field.y + field.cellH * index);
+  const verticalLines = Array.from({ length: 5 }, (_, index) => field.x + field.sectorW * index);
   const hashRows = [field.y + field.height * 0.18, field.y + field.height * 0.50, field.y + field.height * 0.82];
   const hashColumns = verticalLines.slice(1, -1);
-  const zones = [];
-
-  for (let column = 0; column < 5; column += 1) {
-    for (let row = 0; row < 3; row += 1) {
-      const zone = `Z${column * 3 + row + 1}`;
-      const count = zoneCounts[zone] || 0;
-      const intensity = max > 0 ? roundTo(count / max, 2) : 0;
-      const x = field.x + column * field.cellW;
-      const y = field.y + row * field.cellH;
-      zones.push(`
-        <g class="heatmap-zone" data-zone="${zone}">
-          <rect x="${x}" y="${y}" width="${field.cellW}" height="${field.cellH}" fill="#C8102E" fill-opacity="${intensity}" />
-          <text class="heatmap-zone-number" x="${x + 18}" y="${y + 34}">${zone.replace('Z', '')}</text>
-          ${count > 0 ? `<text class="heatmap-zone-count" x="${x + 18}" y="${y + 62}">${count}</text>` : ''}
-        </g>
-      `);
-    }
-  }
+  const zones = FOUR_SECTOR_FIELD_ZONES.map((zone, index) => {
+    const count = zoneCounts[zone.id] || 0;
+    const intensity = max > 0 ? roundTo(count / max, 2) : 0;
+    const x = field.x + index * field.sectorW;
+    const labelY = field.y + field.height / 2 - 8;
+    return `
+      <g class="heatmap-zone" data-zone="${zone.id}">
+        <rect x="${x}" y="${field.y}" width="${field.sectorW}" height="${field.height}" fill="#C8102E" fill-opacity="${intensity}" />
+        <text class="heatmap-zone-number" x="${x + field.sectorW / 2}" y="${labelY}" text-anchor="middle">${escapeHtml(zone.label)}</text>
+        ${count > 0 ? `<text class="heatmap-zone-count" x="${x + field.sectorW / 2}" y="${labelY + 30}" text-anchor="middle">${count}</text>` : ''}
+      </g>
+    `;
+  });
 
   return `
     <defs>
@@ -2921,7 +2329,6 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
     ${zones.join('')}
     <g class="heatmap-field-lines" fill="none" stroke="rgba(255,255,255,0.78)" stroke-width="2.4" vector-effect="non-scaling-stroke">
       ${verticalLines.map(x => `<line x1="${x}" y1="${field.y}" x2="${x}" y2="${field.y + field.height}" />`).join('')}
-      ${horizontalLines.map(y => `<line x1="${field.x}" y1="${y}" x2="${field.x + field.width}" y2="${y}" />`).join('')}
       <path d="M84 202 L30 184 M84 318 L30 336 M84 202 L84 318" />
       <path d="M876 202 L930 184 M876 318 L930 336 M876 202 L876 318" />
     </g>
@@ -2947,12 +2354,14 @@ function renderHeatmap(svg, empty, match, stats, selectedView, heatmapFilter, da
   const team = getSelectedTeam(stats, selectedView);
   const zoneCounts = {};
   (match.events || [])
-    .filter(event => event.zone && eventMatchesHeatmapFilter(event, heatmapFilter))
+    .filter(event => eventMatchesHeatmapFilter(event, heatmapFilter))
     .filter(event => !team || event.team === team)
     .filter(event => timestampMatchesTimeBand(Number(event.timestamp), dashboardFilters.timeBand))
-    .filter(event => !dashboardFilters.zone || dashboardFilters.zone === 'all' || event.zone === dashboardFilters.zone)
+    .map(event => ({ event, zone: normalizeFieldZone(event) }))
+    .filter(({ zone }) => zone && FOUR_SECTOR_FIELD_ZONES.some(sector => sector.id === zone.id))
+    .filter(({ zone }) => !dashboardFilters.zone || dashboardFilters.zone === 'all' || zone.id === dashboardFilters.zone)
     .forEach((event) => {
-      zoneCounts[event.zone] = (zoneCounts[event.zone] || 0) + 1;
+      zoneCounts[event.zone.id] = (zoneCounts[event.zone.id] || 0) + 1;
     });
   const max = Object.values(zoneCounts).reduce((value, count) => Math.max(value, count), 0);
   if (empty) empty.hidden = max > 0;
@@ -3075,25 +2484,6 @@ function wireDashboard(container, state) {
         return;
       }
       navigate('tagging', { matchId: state.match.id, seekTo: timestamp });
-    });
-  });
-
-  container.querySelector('[data-open-clip-module]')?.addEventListener('click', () => {
-    openClipExportModal(container, state);
-  });
-
-  container.querySelector('[data-clip-module-toggle]')?.addEventListener('click', () => {
-    state.clipModuleCollapsed = !state.clipModuleCollapsed;
-    renderLoadedDashboard(container, state);
-  });
-
-  container.querySelector('[data-dashboard-associate-mp4]')?.addEventListener('click', () => {
-    associateLocalMp4FromDashboard(container, state);
-  });
-
-  container.querySelectorAll('[data-clip-module-preset]').forEach(button => {
-    button.addEventListener('click', () => {
-      openClipExportModal(container, state, { type: button.dataset.clipModulePreset || 'all' });
     });
   });
 
@@ -3432,21 +2822,20 @@ async function exportMatchArchive(container, state) {
  * @param {object} state
  */
 function renderLoadedDashboard(container, state) {
-  const clipActionLabel = getClipSourceType(state) === 'youtube' ? 'Reproducir clips' : 'Exportar clips';
   updateTopbarContext(`${state.match.homeTeam || 'Bigua'} vs ${state.match.awayTeam || 'Rival'}`);
   setTopbarActions([
     { id: 'tagging', label: '← Volver al tagging' },
-    { id: 'clips', label: clipActionLabel },
+    { id: 'clips', label: 'Clips' },
     { id: 'export-match', label: 'Exportar partido' },
     { id: 'export', label: 'Exportar PDF' },
   ], (id) => {
     if (id === 'tagging') navigate('tagging', { matchId: state.match.id });
-    if (id === 'clips') openClipExportModal(container, state);
+    if (id === 'clips') navigate('clips', { matchId: state.match.id });
     if (id === 'export-match') exportMatchArchive(container, state);
     if (id === 'export') exportPdf(container, state);
   });
 
-  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.clipModuleCollapsed, state.aiPanelCollapsed);
+  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed);
   renderDashboardFloatingActions(state.match);
   renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
@@ -3495,7 +2884,6 @@ export function renderDashboard(container, params = {}) {
     heatmapFilter: 'all',
     preferences: normalizeDashboardPreferences(DEFAULT_DASHBOARD_PREFERENCES),
     customizerOpen: false,
-    clipModuleCollapsed: false,
     aiPanelCollapsed: false,
     charts: {},
     ai: { status: 'missing', hasAnalysis: false },

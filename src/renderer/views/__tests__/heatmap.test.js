@@ -1,17 +1,16 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-const heatmapUrl = new URL('../heatmap.js', import.meta.url);
+const routerSource = readFileSync(new URL('../../router.js', import.meta.url), 'utf8');
+const dashboardSource = readFileSync(new URL('../dashboard.js', import.meta.url), 'utf8');
 
-describe('heatmap route wrapper', () => {
-  it('reuses Dashboard heatmap rendering without creating a dead placeholder', () => {
-    expect(existsSync(heatmapUrl)).toBe(true);
-
-    const source = readFileSync(heatmapUrl, 'utf8');
-    expect(source).toContain("import { renderDashboard } from './dashboard.js';");
-    expect(source).toContain('export function renderHeatmap');
-    expect(source).toContain("focusSection: 'heatmap'");
-    expect(source).not.toContain('under-construction');
+describe('heatmap dashboard-only integration', () => {
+  it('does not expose Heatmap as a standalone route while preserving dashboard heatmap analytics', () => {
+    expect(routerSource).not.toContain("import { renderHeatmap } from './views/heatmap.js';");
+    expect(routerSource).not.toContain('heatmap: renderHeatmap');
+    expect(dashboardSource).toContain("['heatmap', 'Heatmap']");
+    expect(dashboardSource).toContain('function renderHeatmap');
+    expect(dashboardSource).toContain('<svg id="dashboard-heatmap"');
   });
 });

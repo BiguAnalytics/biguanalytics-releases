@@ -1,4 +1,5 @@
 // @ts-check
+import { normalizeFieldZone } from '../field-zones.js';
 
 const RESULT_OPTIONS = [
   { label: 'Ganado', value: 'ganado' },
@@ -446,6 +447,26 @@ function normalizeTeam(value) {
 }
 
 /**
+ * @param {unknown} zone
+ * @returns {{zone: string|null, zoneId: string|null, zoneLabel: string|null, legacyZone?: string}}
+ */
+function buildZonePayload(zone) {
+  const normalized = normalizeFieldZone(zone);
+  if (!normalized) return { zone: null, zoneId: null, zoneLabel: null };
+  const existingLegacyZone = zone && typeof zone === 'object' ? String(zone.legacyZone || '').trim() : '';
+  return {
+    zone: normalized.id,
+    zoneId: normalized.id,
+    zoneLabel: normalized.label,
+    ...(normalized.legacy && normalized.originalZone
+      ? { legacyZone: normalized.originalZone }
+      : existingLegacyZone
+        ? { legacyZone: existingLegacyZone }
+        : {}),
+  };
+}
+
+/**
  * @param {object} state
  * @param {object} definition
  * @returns {'home'|'away'|null}
@@ -620,11 +641,12 @@ export function buildSpeechNoteValue(baseNote, finalTranscript, interimTranscrip
  */
 export function selectPopupZone(state, zone) {
   if (!state.activePopup) return state;
+  const zonePayload = buildZonePayload(zone);
   return {
     ...state,
     activePopup: {
       ...state.activePopup,
-      zone,
+      ...zonePayload,
       lastInteractionAt: Date.now(),
     },
   };
@@ -636,6 +658,7 @@ export function selectPopupZone(state, zone) {
  */
 export function buildEventPayload(popupOrEvent) {
   if (!popupOrEvent) return null;
+  const zonePayload = buildZonePayload(popupOrEvent);
   if (!popupOrEvent.hotkey) {
     return {
       timestamp: popupOrEvent.timestamp ?? null,
@@ -644,7 +667,7 @@ export function buildEventPayload(popupOrEvent) {
       result: popupOrEvent.result || '',
       subtype: popupOrEvent.subtype || '',
       note: sanitizeNoteText(popupOrEvent.note),
-      zone: popupOrEvent.zone ?? null,
+      ...zonePayload,
       ...(popupOrEvent.player ? { player: popupOrEvent.player } : {}),
     };
   }
@@ -657,7 +680,7 @@ export function buildEventPayload(popupOrEvent) {
     result: definition.defaultResult || '',
     subtype: '',
     note: sanitizeNoteText(popupOrEvent.note),
-    zone: popupOrEvent.zone ?? null,
+    ...zonePayload,
   };
 
   definition.steps.forEach((step) => {
@@ -762,9 +785,11 @@ export function completePopup(state) {
 /**
  * @param {object} state
  * @param {number} now
+ * @param {{isInteracting?: boolean}} [options]
  * @returns {boolean}
  */
-export function shouldAutoClosePopup(state, now = Date.now()) {
+export function shouldAutoClosePopup(state, now = Date.now(), options = {}) {
+  if (options.isInteracting) return false;
   return Boolean(
     state.activePopup &&
     Number.isFinite(state.autoCloseMs) &&

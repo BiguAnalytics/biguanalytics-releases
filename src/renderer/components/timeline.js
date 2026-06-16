@@ -528,8 +528,8 @@ export function renderTimeline(host, options) {
     <section class="tagging-timeline" aria-label="Timeline de eventos">
       <div class="timeline-track-labels" aria-hidden="true">
         <div class="timeline-label-ruler"></div>
-        <span class="timeline-track-label timeline-possession-label">Posesion</span>
-        ${TRACKS.map(track => `<span class="timeline-track-label" data-track-label="${track.id}">${track.label}</span>`).join('')}
+        <span class="timeline-track-label timeline-possession-label" style="--timeline-label-row:2">Posesion</span>
+        ${TRACKS.map((track, index) => `<span class="timeline-track-label" style="--timeline-label-row:${index + 3}" data-track-label="${track.id}">${track.label}</span>`).join('')}
       </div>
       <div class="timeline-scroll">
         <div class="timeline-content" style="width:${timelineWidth}px" data-timeline-duration="${duration}">

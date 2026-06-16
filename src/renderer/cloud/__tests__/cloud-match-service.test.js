@@ -198,18 +198,18 @@ describe('cloudMatchService', () => {
     const client = {
       from(table) {
         if (table === 'matches') {
-          return {
-            select: () => ({
-              order: vi.fn(() => ({
-                range: vi.fn(async () => ({ data: [matchRow], error: null })),
-              })),
-              eq: vi.fn(() => ({
-                single: vi.fn(async () => {
-                  detailCalls.push(table);
-                  return { data: matchRow, error: null };
-                }),
-              })),
+          const query = {
+            order: vi.fn(() => ({
+              range: vi.fn(async () => ({ data: [matchRow], error: null })),
+            })),
+            eq: vi.fn(() => query),
+            single: vi.fn(async () => {
+              detailCalls.push(table);
+              return { data: matchRow, error: null };
             }),
+          };
+          return {
+            select: () => query,
           };
         }
         if (table === 'match_events') {
@@ -280,6 +280,74 @@ describe('cloudMatchService', () => {
       total: 1,
       cached: 1,
     }));
+  });
+
+  it('pulls Home cloud matches through the resolved club_id instead of created_by', async () => {
+    const calls = [];
+    const matchRow = {
+      id: 'club-match',
+      club_id: 'club-1',
+      created_by: 'analyst-user',
+      local_team: 'Bigua',
+      rival_team: 'Cardos',
+      match_date: '2026-06-16',
+      status: 'tagging',
+      video_references: [],
+    };
+    const client = {
+      from(table) {
+        expect(table).toBe('matches');
+        return {
+          select(columns) {
+            calls.push({ method: 'select', columns });
+            return {
+              eq(column, value) {
+                calls.push({ method: 'eq', column, value });
+                return this;
+              },
+              order(column, options) {
+                calls.push({ method: 'order', column, options });
+                return {
+                  range(from, to) {
+                    calls.push({ method: 'range', from, to });
+                    return Promise.resolve({ data: [matchRow], error: null });
+                  },
+                };
+              },
+            };
+          },
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        upsertCache: vi.fn(async match => match),
+        getAll: vi.fn(async () => []),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService: { enqueue: vi.fn(), flushPendingSync: vi.fn(async () => ({ applied: 0, failed: 0 })) },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'coach-user' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    const matches = await service.listMatches({ forceRefresh: true });
+
+    expect(calls).toContainEqual({ method: 'eq', column: 'club_id', value: 'club-1' });
+    expect(calls.some(call => call.method === 'eq' && call.column === 'created_by')).toBe(false);
+    expect(matches).toEqual([
+      expect.objectContaining({
+        id: 'club-match',
+        homeTeam: 'Bigua',
+        awayTeam: 'Cardos',
+        cloud: { clubId: 'club-1', createdBy: 'analyst-user' },
+      }),
+    ]);
   });
 
   it('returns cloud matches without events even when the local cache read is stale', async () => {
@@ -613,6 +681,76 @@ describe('cloudMatchService', () => {
 
     expect(localApi.matches.delete).toHaveBeenCalledWith('cloud-old');
     expect(localApi.matches.delete).not.toHaveBeenCalledWith('local-draft');
+  });
+
+  it('does not expose cached cloud matches from another club in Home', async () => {
+    const cached = [
+      { id: 'club-1-local', homeTeam: 'Bigua', awayTeam: 'Local Draft', cloud: null },
+      { id: 'club-2-cloud', homeTeam: 'Bigua', awayTeam: 'Other Club', cloud: { clubId: 'club-2' } },
+    ];
+    const client = {
+      from(table) {
+        expect(table).toBe('matches');
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                range: async () => ({ data: [], error: null }),
+              }),
+            }),
+          }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getAll: vi.fn(async () => cached),
+        upsertCache: vi.fn(async match => match),
+        delete: vi.fn(async () => {}),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService: { enqueue: vi.fn(), flushPendingSync: vi.fn(async () => ({ applied: 0, failed: 0 })) },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await expect(service.listMatches({ forceRefresh: true })).resolves.toEqual([
+      expect.objectContaining({ id: 'club-1-local' }),
+    ]);
+  });
+
+  it('filters local-first Home cache with the active club when access state is known', async () => {
+    const localApi = {
+      matches: {
+        getAll: vi.fn(async () => [
+          { id: 'club-1-local', homeTeam: 'Bigua', awayTeam: 'Local Draft', cloud: null },
+          { id: 'club-2-cloud', homeTeam: 'Bigua', awayTeam: 'Other Club', cloud: { clubId: 'club-2' } },
+        ]),
+        upsertCache: vi.fn(async match => match),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => {
+        throw new Error('cloud should stay in background');
+      },
+      localApi,
+      syncService: { enqueue: vi.fn(), flushPendingSync: vi.fn(async () => ({ applied: 0, failed: 0 })) },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await expect(service.listMatches({ localFirst: true, refreshInBackground: false })).resolves.toEqual([
+      expect.objectContaining({ id: 'club-1-local' }),
+    ]);
   });
 
   it('announces cloud list refreshes for incremental Home updates', async () => {

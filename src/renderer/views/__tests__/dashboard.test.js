@@ -72,79 +72,86 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('Abrir archivo');
   });
 
-  it('wires local batch clip export from a dedicated dashboard clip module', () => {
-    expect(dashboardSource).toContain("import { openModal } from '../components/modal.js';");
-    expect(dashboardSource).toContain("const clipActionLabel = getClipSourceType(state) === 'youtube' ? 'Reproducir clips' : 'Exportar clips';");
-    expect(dashboardSource).toContain("{ id: 'clips', label: clipActionLabel }");
-    expect(dashboardSource).toContain('data-dashboard-clip-module');
-    expect(dashboardSource).toContain('data-open-clip-module');
-    expect(dashboardSource).toContain('data-clip-module-preset');
-    expect(dashboardSource).toContain('Módulo de clips');
-    expect(dashboardCss).toContain('.dashboard-clip-module');
+  it('keeps clip filtering and export controls out of the dashboard', () => {
+    expect(dashboardSource).not.toContain("import { openModal } from '../components/modal.js';");
+    expect(dashboardSource).not.toContain('CLIP_NO_VIDEO_MESSAGE');
+    expect(dashboardSource).not.toContain('getPlayableVideo');
+    expect(dashboardSource).not.toContain("const clipActionLabel = 'Reproducir clips';");
+    expect(dashboardSource).not.toContain("{ id: 'clips', label: clipActionLabel }");
+    expect(dashboardSource).not.toContain('data-dashboard-clip-module');
+    expect(dashboardSource).not.toContain('data-open-clip-module');
+    expect(dashboardSource).not.toContain('data-clip-module-preset');
+    expect(dashboardSource).not.toContain("{ type: 'scrum', label: 'Scrums' }");
+    expect(dashboardSource).not.toContain('Módulo de clips');
+    expect(dashboardCss).not.toContain('.dashboard-clip-module');
     expect(dashboardSource).not.toContain('data-section-export-clips');
     expect(dashboardCss).not.toContain('.dashboard-section-export');
-    expect(dashboardSource).toContain('Tipo de evento');
-    expect(dashboardSource).toContain('data-clip-filter-time-preset');
+    expect(dashboardSource).not.toContain('data-clip-filter-time-preset');
     expect(dashboardSource).toContain('Todo el partido');
-    expect(dashboardSource).toContain("const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';");
-    expect(dashboardSource).toContain("fromSeconds: timePreset === 'custom'");
-    expect(dashboardSource).toContain('Se exportarán');
-    expect(dashboardSource).toContain('No hay clips para exportar con estos filtros');
-    expect(dashboardSource).toContain('Exportando 12 / 48 clips');
-    expect(dashboardSource).toContain('window.api.clips.exportBatch');
-    expect(dashboardSource).toContain('window.api.clips.cancelExport');
-    expect(dashboardSource).toContain('La exportación de clips requiere tener cargado el archivo MP4 local del partido.');
+    expect(dashboardSource).not.toContain("const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';");
+    expect(dashboardSource).not.toContain("fromSeconds: timePreset === 'custom'");
+    expect(dashboardSource).not.toContain('Se reproducirán');
+    expect(dashboardSource).not.toContain('CLIP_NO_VIDEO_MESSAGE');
+    expect(dashboardSource).not.toContain('CLIP_NO_EVENTS_MESSAGE');
+    expect(dashboardSource).not.toContain('CLIP_MISSING_TIMESTAMPS_MESSAGE');
+    expect(dashboardSource).not.toContain('getPlayableVideo(state.match?.video)');
+    expect(dashboardSource).toContain("navigate('clips', {");
+    expect(dashboardSource).not.toContain('window.api.clips.exportBatch({ matchId: state.match.id');
+    expect(dashboardSource).not.toContain('window.api.clips.cancelExport');
     expect(preloadSource).toContain('clips: {');
     expect(preloadSource).toContain("ipcRenderer.invoke('clips:export-batch'");
     expect(preloadSource).toContain("ipcRenderer.on('clips:export-progress'");
   });
 
-  it('switches the clips modal between YouTube virtual playback and local MP4 export', () => {
-    expect(dashboardSource).toContain("sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips'");
-    expect(dashboardSource).toContain('La exportación MP4 requiere video local.');
-    expect(dashboardSource).toContain('data-associate-local-mp4');
-    expect(dashboardSource).toContain('Asociar MP4 local');
-    expect(dashboardSource).toContain('Se reproducirán');
+  it('routes the dashboard topbar clips action directly to the Clips screen', () => {
+    expect(dashboardSource).toContain("{ id: 'clips', label: 'Clips' }");
+    expect(dashboardSource).toContain("if (id === 'clips') navigate('clips', { matchId: state.match.id });");
+    expect(dashboardSource).not.toContain("const primaryLabel = 'Reproducir clips';");
+    expect(dashboardSource).not.toContain("const sourceLabel = isYouTube ? 'YouTube' : match?.video?.type === 'local' ? 'MP4 local' : 'Sin video';");
+    expect(dashboardSource).not.toContain('Video YouTube asociado.');
+    expect(clipPlayerSource).toContain('data-associate-local-mp4');
+    expect(clipPlayerSource).toContain('Asociar MP4 local');
+    expect(clipPlayerSource).toContain('Exportar clips seleccionados');
+    expect(clipPlayerSource).toContain('data-clip-export-selected');
+    expect(clipPlayerSource).toContain('window.api.clips.exportBatch');
+    expect(dashboardSource).not.toContain('Asociar MP4 local');
+    expect(dashboardSource).not.toContain('Se reproducirán');
     expect(dashboardSource).toContain("navigate('clips', {");
     expect(dashboardSource).not.toContain("clipMode: 'youtube-clips'");
-    expect(dashboardSource).toContain('window.api.media.selectLocalVideo()');
-    expect(dashboardSource).toContain('cloudMatchService.updateMatch(state.match.id, { video: selected');
+    expect(dashboardSource).not.toContain("sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips'");
+    expect(dashboardSource).not.toContain('La exportación MP4 requiere video local.');
+    expect(dashboardSource).not.toContain('window.api.media.selectLocalVideo()');
     expect(dashboardSource).not.toContain('yt-dlp');
     expect(dashboardSource).not.toContain('youtube-dl');
   });
 
-  it('keeps the clips modal cancel action available before local MP4 export starts', () => {
-    const modalBodyStart = dashboardSource.indexOf('function buildClipExportModalBody');
-    const modalBodyEnd = dashboardSource.indexOf('function readClipExportFilters', modalBodyStart);
-    const modalBodySource = dashboardSource.slice(modalBodyStart, modalBodyEnd);
-    const cancelHandlerStart = dashboardSource.indexOf("host.querySelector('[data-clip-export-cancel]')");
-    const cancelHandlerEnd = dashboardSource.indexOf("host.querySelector('[data-associate-local-mp4]')", cancelHandlerStart);
-    const cancelHandlerSource = dashboardSource.slice(cancelHandlerStart, cancelHandlerEnd);
-
-    expect(modalBodySource).toContain('data-clip-export-cancel>Cancelar</button>');
-    expect(modalBodySource).not.toContain('data-clip-export-cancel hidden');
-    expect(cancelHandlerSource).toContain("startButton?.dataset.exporting !== 'true'");
-    expect(cancelHandlerSource).toContain('modal.close();');
-    expect(cancelHandlerSource).toContain('window.api.clips.cancelExport()');
+  it('does not keep the old dashboard clips modal implementation', () => {
+    expect(dashboardSource).not.toContain('function buildClipExportModalBody');
+    expect(dashboardSource).not.toContain('function readClipExportFilters');
+    expect(dashboardSource).not.toContain("host.querySelector('[data-clip-export-cancel]')");
+    expect(dashboardSource).not.toContain('window.api.clips.cancelExport()');
   });
 
-  it('makes the clips and AI dashboard panels collapsible without losing their primary actions', () => {
-    expect(dashboardSource).toContain('clipModuleCollapsed');
+  it('makes the AI dashboard panel collapsible without a dashboard clips panel', () => {
     expect(dashboardSource).toContain('aiPanelCollapsed');
-    expect(dashboardSource).toContain('data-clip-module-toggle');
     expect(dashboardSource).toContain('data-ai-panel-toggle');
-    expect(dashboardSource).toContain('state.clipModuleCollapsed = !state.clipModuleCollapsed');
     expect(dashboardSource).toContain('state.aiPanelCollapsed = !state.aiPanelCollapsed');
-    expect(dashboardCss).toContain('.dashboard-clip-module.collapsed');
+    expect(dashboardSource).not.toContain('clipModuleCollapsed');
+    expect(dashboardSource).not.toContain('data-clip-module-toggle');
     expect(dashboardCss).toContain('.dashboard-ai-panel.collapsed');
+    expect(dashboardCss).not.toContain('.dashboard-clip-module.collapsed');
     expect(dashboardCss).toContain('.dashboard-panel-toggle');
   });
 
   it('renders YouTube clips in a dedicated standalone player instead of the tagging screen', () => {
     expect(clipPlayerSource).toContain('export function renderClipPlayer');
     expect(clipPlayerSource).toContain('clip-player-view');
+    expect(clipPlayerSource).toContain('<h1>Clips</h1>');
+    expect(clipPlayerSource).toContain('Reproducí segmentos del partido filtrados por evento.');
     expect(clipPlayerSource).toContain('clip-player-stage');
     expect(clipPlayerSource).toContain('data-clip-player-queue');
+    expect(clipPlayerSource).toContain('data-clip-filter-type');
+    expect(clipPlayerSource).toContain('data-clip-player-source');
     expect(clipPlayerSource).toContain('youtubePlayer.seekTo(activeClip.start, true)');
     expect(clipPlayerSource).toContain('advanceClipQueue');
     expect(clipPlayerSource).toContain("navigate('dashboard', { matchId: match.id })");
@@ -380,6 +387,14 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('rx="0" fill="url(#heatmap-field-gradient)"');
     expect(dashboardSource).toContain('new XMLSerializer().serializeToString');
     expect(dashboardSource).not.toContain('getContext(\'2d\')');
+  });
+
+  it('draws dashboard heatmap from four normalized field sectors', () => {
+    expect(dashboardSource).toContain("import { FOUR_SECTOR_FIELD_ZONES, normalizeFieldZone } from '../field-zones.js';");
+    expect(dashboardSource).toContain('FOUR_SECTOR_FIELD_ZONES.map((zone, index)');
+    expect(dashboardSource).toContain('data-zone="${zone.id}"');
+    expect(dashboardSource).toContain('normalizeFieldZone(event)');
+    expect(dashboardSource).not.toContain('for (let column = 0; column < 5; column += 1)');
   });
 
   it('hides the heatmap empty overlay and dashboard scrollbar thumb when they should not be visible', () => {

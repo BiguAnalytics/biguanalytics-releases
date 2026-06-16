@@ -24,9 +24,9 @@ npm test src/main/modules/__tests__/pdf-export.test.js src/renderer/__tests__/da
 - alertas: indicador rojo y texto legible.
 - notas: formato basico preservado y sin overflow.
 - paginado: cortes entre secciones sin tapar titulos ni footers.
-- Puppeteer: usa `puppeteer-core` con Chromium de Electron y fallback controlado `--no-sandbox`.
+- Motor PDF: usa una `BrowserWindow` oculta con Chromium embebido de Electron y `webContents.printToPDF()`.
 - Windows: revisar PDF desde build empaquetado y desde app en desarrollo.
 
 ## Resultado
 
-La validacion automatizada cubre payload, renderer de impresion, Chromium de Electron y fallback de sandbox. La inspeccion visual final debe ejecutarse con un PDF real generado desde el build Windows que se entregue al club.
+La validacion automatizada cubre payload, renderer de impresion, ventana oculta de Electron y `printToPDF`. La inspeccion visual final debe ejecutarse con un PDF real generado desde el build Windows que se entregue al club.

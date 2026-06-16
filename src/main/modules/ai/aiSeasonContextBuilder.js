@@ -2,6 +2,7 @@
 const { calculateMatchStats } = require('../analytics');
 const { getSettings } = require('../settings');
 const { getAllMatches, getMatchById } = require('../storage');
+const { normalizeFieldZone } = require('../field-zones');
 const { stableStringify, calculateAIContextHash } = require('./aiContextBuilder');
 
 /**
@@ -138,6 +139,7 @@ function getRuckSummary(stats, side) {
  */
 function sanitizeSeasonEvent(event) {
   const timestamp = timestampOrNull(event.timestamp);
+  const zone = normalizeFieldZone(event);
   return {
     id: stringOrEmpty(event.id),
     timestamp,
@@ -147,7 +149,9 @@ function sanitizeSeasonEvent(event) {
     team: event.team === 'home' || event.team === 'away' ? event.team : null,
     result: stringOrEmpty(event.result),
     subtype: stringOrEmpty(event.subtype),
-    zone: stringOrEmpty(event.zone) || null,
+    zone: zone?.id || null,
+    zoneLabel: zone?.label || null,
+    ...(zone?.legacy && zone.originalZone ? { legacyZone: zone.originalZone } : {}),
     note: stringOrEmpty(event.note),
   };
 }
@@ -209,6 +213,8 @@ function sanitizeSeasonPossession(possession) {
  * @returns {object}
  */
 function sanitizeSeasonSequence(sequence) {
+  const zoneStart = normalizeFieldZone(sequence.zoneStart || sequence.startZone);
+  const zoneEnd = normalizeFieldZone(sequence.zoneEnd || sequence.endZone);
   return {
     id: stringOrEmpty(sequence.id),
     start: timestampOrNull(sequence.start),
@@ -219,8 +225,12 @@ function sanitizeSeasonSequence(sequence) {
     phases: numberOrNull(sequence.phases),
     result: stringOrEmpty(sequence.result),
     team: sequence.team === 'home' || sequence.team === 'away' ? sequence.team : null,
-    zoneStart: stringOrEmpty(sequence.zoneStart || sequence.startZone) || null,
-    zoneEnd: stringOrEmpty(sequence.zoneEnd || sequence.endZone) || null,
+    zoneStart: zoneStart?.id || null,
+    zoneStartLabel: zoneStart?.label || null,
+    ...(zoneStart?.legacy && zoneStart.originalZone ? { legacyZoneStart: zoneStart.originalZone } : {}),
+    zoneEnd: zoneEnd?.id || null,
+    zoneEndLabel: zoneEnd?.label || null,
+    ...(zoneEnd?.legacy && zoneEnd.originalZone ? { legacyZoneEnd: zoneEnd.originalZone } : {}),
     note: stringOrEmpty(sequence.note),
   };
 }

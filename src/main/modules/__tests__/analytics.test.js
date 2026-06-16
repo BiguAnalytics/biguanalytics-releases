@@ -263,8 +263,10 @@ describe('analytics.js', () => {
       penal: { count: 1, pct: 33 },
     });
     expect(stats.sequences.longest.map(sequence => sequence.id)).toEqual(['seq-2', 'seq-1', 'seq-3']);
-    expect(stats.heatmap.maxCount).toBe(2);
-    expect(stats.heatmap.zones.Z13).toEqual({ home: 2, away: 0, total: 2, intensity: 1 });
+    expect(stats.heatmap.maxCount).toBe(9);
+    expect(Object.keys(stats.heatmap.zones)).toEqual(['own_22', 'own_half', 'opp_half', 'opp_22']);
+    expect(stats.heatmap.zones.opp_half).toEqual({ home: 6, away: 3, total: 9, intensity: 1, label: 'Campo rival' });
+    expect(stats.heatmap.zones.opp_22).toEqual({ home: 5, away: 0, total: 5, intensity: 0.56, label: '22 rival' });
     expect(stats.alerts).toEqual(expect.arrayContaining([
       { metrica: '% Rucks ganados', valor: 33, umbral: 50, equipo: 'Bigua' },
       { metrica: 'Penales totales', valor: 2, umbral: 1, equipo: 'Bigua' },
@@ -289,9 +291,23 @@ describe('analytics.js', () => {
     expect(teamFiltered.totals.away).toEqual({ turnovers: 0, penalties: 0, breakLines: 0, kicks: 0 });
     expect(teamFiltered.score.away.total).toBe(0);
 
-    expect(zoneFiltered.match.eventCount).toBe(2);
-    expect(Object.keys(zoneFiltered.heatmap.zones)).toEqual(['Z13']);
-    expect(zoneFiltered.breakLines.home.total).toBe(1);
+    expect(zoneFiltered.match.eventCount).toBe(5);
+    expect(zoneFiltered.match.filters.zone).toBe('opp_22');
+    expect(Object.keys(zoneFiltered.heatmap.zones)).toEqual(['opp_22']);
+    expect(zoneFiltered.breakLines.home.total).toBe(2);
+  });
+
+  it('keeps events with unknown legacy zones available without forcing them into the four-sector heatmap', () => {
+    const stats = calculateMatchStats(buildFixtureMatch({
+      events: [
+        { type: 'ruck', team: 'home', result: 'ganado', timestamp: 120, zone: 'C3' },
+        { type: 'ruck', team: 'away', result: 'ganado', timestamp: 180 },
+      ],
+    }), {}, { zone: 'C3' });
+
+    expect(stats.match.eventCount).toBe(1);
+    expect(stats.match.filters.zone).toBe('C3');
+    expect(stats.heatmap.available).toBe(false);
   });
 
   it('aggregates configured custom hotkey events for the dashboard custom chart', () => {

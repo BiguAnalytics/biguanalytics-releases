@@ -116,6 +116,33 @@ describe('AI analysis context, cache and reports', () => {
     expect(serialized).not.toContain('youtube.com');
   });
 
+  it('normalizes AI event and sequence zones to the four-sector context with labels', () => {
+    const context = buildAIContextFromData(buildMatch(), settings);
+
+    expect(context.events[0]).toMatchObject({
+      zone: 'opp_half',
+      zoneLabel: 'Campo rival',
+      legacyZone: 'Z9',
+    });
+    expect(context.events[2]).toMatchObject({
+      zone: 'opp_half',
+      zoneLabel: 'Campo rival',
+      legacyZone: 'Z12',
+    });
+    expect(context.sequences[0]).toMatchObject({
+      zoneStart: 'opp_half',
+      zoneStartLabel: 'Campo rival',
+      legacyZoneStart: 'Z8',
+      zoneEnd: 'opp_half',
+      zoneEndLabel: 'Campo rival',
+      legacyZoneEnd: 'Z9',
+    });
+    expect(context.stats.heatmap.zones.opp_half).toMatchObject({
+      total: 3,
+      label: 'Campo rival',
+    });
+  });
+
   it('builds deterministic scoreContext for Bigua home, away, loss and draw results', () => {
     const homeWin = buildAIContextFromData(buildMatch({
       homeTeam: 'Bigua',

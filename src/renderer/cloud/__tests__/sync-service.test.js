@@ -59,4 +59,64 @@ describe('syncService', () => {
       dedupeKey: 'match_events:evt-1',
     }));
   });
+
+  it('hydrates pending operations with the current club and user before flushing', async () => {
+    const calls = [];
+    const client = {
+      from(table) {
+        return {
+          upsert: async (payload) => {
+            calls.push({ table, method: 'upsert', payload });
+            return { error: null };
+          },
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getPendingSync: vi.fn(async () => [
+          {
+            id: 'pending-match',
+            matchId: 'match-1',
+            entity: 'matches',
+            action: 'upsert',
+            payload: { id: 'match-1', club_id: '', created_by: '' },
+          },
+          {
+            id: 'pending-event',
+            matchId: 'match-1',
+            entity: 'match_events',
+            action: 'upsert',
+            payload: { id: 'evt-1', match_id: 'match-1', club_id: '', created_by: '' },
+          },
+        ]),
+        markPendingSyncApplied: vi.fn(async () => true),
+      },
+    };
+    const service = createSyncService({
+      clientSource: async () => client,
+      localApi,
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'coach-user' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await expect(service.flushPendingSync()).resolves.toEqual({ applied: 2, failed: 0 });
+
+    expect(calls).toEqual([
+      {
+        table: 'matches',
+        method: 'upsert',
+        payload: { id: 'match-1', club_id: 'club-1', created_by: 'coach-user' },
+      },
+      {
+        table: 'match_events',
+        method: 'upsert',
+        payload: { id: 'evt-1', match_id: 'match-1', club_id: 'club-1', created_by: 'coach-user' },
+      },
+    ]);
+    expect(localApi.matches.markPendingSyncApplied).toHaveBeenCalledWith(['pending-match', 'pending-event']);
+  });
 });

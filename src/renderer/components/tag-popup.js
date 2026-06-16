@@ -1,5 +1,6 @@
 // @ts-check
 import { EVENT_DEFINITIONS } from '../tagging/tagger.js';
+import { FOUR_SECTOR_FIELD_ZONES, normalizeFieldZone } from '../field-zones.js';
 
 /**
  * @param {string} value
@@ -77,7 +78,7 @@ function getFocusablePopupControls(root) {
  * @returns {boolean}
  */
 export function focusFirstPopupControl(root) {
-  const preferred = root?.querySelector?.('.tag-popup-option:not([disabled]), [data-sequence-result]:not([disabled]), [data-popup-complete]:not([disabled])');
+  const preferred = root?.querySelector?.('.tag-popup-option:not([disabled]), [data-sequence-result]:not([disabled]), [data-popup-note]:not([disabled]):not([readonly]), [data-popup-complete]:not([disabled])');
   const first = isFocusablePopupControl(preferred) ? preferred : getFocusablePopupControls(root)[0];
   if (!first) return false;
   first.focus();
@@ -148,11 +149,10 @@ function getSpeechUiState(speech = {}) {
  * @returns {Array<{label: string, value: string, key: string}>}
  */
 export function getZones() {
-  const displayOrder = [1, 4, 7, 10, 13, 2, 5, 8, 11, 14, 3, 6, 9, 12, 15];
-  return displayOrder.map((zoneNumber) => ({
-    label: String(zoneNumber),
-    value: `Z${zoneNumber}`,
-    key: zoneNumber <= 9 ? String(zoneNumber) : '',
+  return FOUR_SECTOR_FIELD_ZONES.map((zone) => ({
+    label: zone.label,
+    value: zone.id,
+    key: zone.key,
   }));
 }
 
@@ -173,7 +173,7 @@ export function renderTagPopup(host, state, context, handlers, uiState = {}) {
   if (!definition) return;
   const step = definition.steps[popup.stepIndex];
   const options = step ? getStepOptions(step, context) : [];
-  const selectedZone = popup.zone;
+  const selectedZone = normalizeFieldZone(popup);
   const speech = getSpeechUiState(uiState.speech || {});
 
   host.innerHTML = `
@@ -220,15 +220,16 @@ export function renderTagPopup(host, state, context, handlers, uiState = {}) {
         ${speech.errorMessage ? `<small class="tag-popup-speech-error" role="status">${escapeHtml(speech.errorMessage)}</small>` : ''}
       </label>
       <details class="tag-popup-zone" ${selectedZone ? 'open' : ''}>
-        <summary>Zona del campo ${selectedZone ? `<span>${escapeHtml(selectedZone)}</span>` : ''}</summary>
+        <summary>Zona del campo ${selectedZone ? `<span>${escapeHtml(selectedZone.label)}</span>` : ''}</summary>
         <div class="tag-popup-field-grid" role="group" aria-label="Zonas del campo">
           ${getZones().map(zone => `
             <button
-              class="tag-popup-zone-cell${selectedZone === zone.value ? ' active' : ''}"
+              class="tag-popup-zone-cell${selectedZone?.id === zone.value ? ' active' : ''}"
               type="button"
               data-zone-value="${zone.value}"
               data-zone-key="${zone.key}"
-            >${zone.label}</button>
+              data-zone-label="${escapeHtml(zone.label)}"
+            >${escapeHtml(zone.label)}</button>
           `).join('')}
         </div>
       </details>

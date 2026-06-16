@@ -416,6 +416,7 @@
 
 :root[data-theme="light"] .tag-popup-option,
 :root[data-theme="light"] .event-inspector-stat,
+:root[data-theme="light"] .event-inspector-note-preview,
 :root[data-theme="light"] .sequence-inspector-stat,
 :root[data-theme="light"] .event-inspector-field-grid,
 :root[data-theme="light"] .event-inspector-zone-picker summary,

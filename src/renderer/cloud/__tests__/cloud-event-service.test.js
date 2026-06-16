@@ -165,7 +165,7 @@ describe('cloudEventService', () => {
     }));
   });
 
-  it('keeps local tagging responsive when cloud context is unavailable', async () => {
+  it('keeps local tagging responsive and queues sync when cloud context is unavailable', async () => {
     const localEvent = { id: 'evt-offline', timestamp: 22, type: 'scrum', team: 'home' };
     const localApi = {
       events: {
@@ -187,6 +187,77 @@ describe('cloudEventService', () => {
     await expect(service.addEvent('match-1', { timestamp: 22, type: 'scrum', team: 'home' }))
       .resolves.toBe(localEvent);
     expect(localApi.events.add).toHaveBeenCalledTimes(1);
-    expect(syncService.enqueue).not.toHaveBeenCalled();
+    expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: 'match-1',
+      entity: 'match_events',
+      action: 'upsert',
+      status: 'pending_sync',
+    }));
+  });
+
+  it('enqueues tagged events and match metadata when cloud context is unavailable', async () => {
+    const localEvent = {
+      id: 'evt-offline',
+      timestamp: 22,
+      type: 'scrum',
+      team: 'home',
+      result: 'ganado',
+    };
+    const localMatch = {
+      id: 'match-1',
+      homeTeam: 'Bigua',
+      awayTeam: 'Cardos',
+      date: '2026-06-16',
+      status: 'tagging',
+      events: [localEvent],
+      homeScore: 0,
+      awayScore: 0,
+    };
+    const localApi = {
+      events: {
+        add: vi.fn(async () => localEvent),
+      },
+      matches: {
+        getById: vi.fn(async () => localMatch),
+      },
+    };
+    const syncService = {
+      enqueue: vi.fn(async operation => operation),
+    };
+    const service = createCloudEventService({
+      clientSource: async () => {
+        throw new Error('offline');
+      },
+      localApi,
+      syncService,
+      accessProvider: () => null,
+    });
+
+    await expect(service.addEvent('match-1', { timestamp: 22, type: 'scrum', team: 'home' }))
+      .resolves.toBe(localEvent);
+
+    expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: 'match-1',
+      entity: 'match_events',
+      action: 'upsert',
+      dedupeKey: 'match_events:evt-offline',
+      payload: expect.objectContaining({
+        id: 'evt-offline',
+        match_id: 'match-1',
+        club_id: '',
+        created_by: '',
+      }),
+    }));
+    expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: 'match-1',
+      entity: 'matches',
+      action: 'upsert',
+      dedupeKey: 'matches:match-1',
+      payload: expect.objectContaining({
+        id: 'match-1',
+        club_id: '',
+        created_by: '',
+      }),
+    }));
   });
 });

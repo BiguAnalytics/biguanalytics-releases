@@ -241,15 +241,15 @@
 .tag-popup-field-grid {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 2px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 4px;
   margin-top: var(--space-2);
   border: 1px solid rgba(138, 155, 176, 0.14);
   border-radius: var(--radius-md);
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(17, 88, 50, 0.34), rgba(8, 14, 26, 0.68));
-  padding: var(--space-1);
+  padding: 6px;
 }
 
 .tag-popup-field-grid::before {
@@ -257,25 +257,38 @@
   position: absolute;
   inset: var(--space-1);
   background:
-    linear-gradient(90deg, transparent 19%, rgba(255,255,255,0.1) 20%, transparent 21%, transparent 39%, rgba(255,255,255,0.1) 40%, transparent 41%, transparent 59%, rgba(255,255,255,0.1) 60%, transparent 61%, transparent 79%, rgba(255,255,255,0.1) 80%, transparent 81%),
-    linear-gradient(180deg, transparent 32%, rgba(255,255,255,0.08) 33%, transparent 34%, transparent 65%, rgba(255,255,255,0.08) 66%, transparent 67%);
+    linear-gradient(90deg, transparent 24%, rgba(255,255,255,0.12) 25%, transparent 26%, transparent 49%, rgba(255,255,255,0.16) 50%, transparent 51%, transparent 74%, rgba(255,255,255,0.12) 75%, transparent 76%),
+    linear-gradient(180deg, transparent 49%, rgba(255,255,255,0.08) 50%, transparent 51%);
   pointer-events: none;
 }
 
 .tag-popup-zone-cell {
   position: relative;
   z-index: 1;
-  min-height: 28px;
-  border-radius: 4px;
-  color: rgba(240, 244, 248, 0.62);
-  font: 800 10px var(--font-ui);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 62px;
+  padding: var(--space-2) var(--space-1);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 6px;
+  color: rgba(240, 244, 248, 0.78);
+  font: 900 11px var(--font-ui);
+  line-height: 1.15;
+  text-align: center;
   cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
 }
 
 .tag-popup-zone-cell:hover,
 .tag-popup-zone-cell.active {
   background: rgba(200, 16, 46, 0.24);
+  border-color: rgba(200, 16, 46, 0.52);
   color: var(--color-text-primary);
+}
+
+.tag-popup-zone-cell:hover {
+  transform: translateY(-1px);
 }
 
 .tag-popup-footer {

@@ -408,6 +408,7 @@ button.tagging-match-card {
 
 .event-inspector-row span,
 .event-inspector-note span,
+.event-inspector-note-preview span,
 .event-inspector-stat span,
 .sequence-inspector-stat span,
 .sequence-color-field legend {
@@ -435,6 +436,25 @@ button.tagging-match-card {
   display: grid;
   gap: var(--space-2);
   padding: 0 var(--space-4) var(--space-3);
+}
+
+.event-inspector-note-preview {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 var(--space-4) var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-md);
+  background:
+    linear-gradient(145deg, rgba(99, 102, 241, 0.12), transparent),
+    rgba(8, 14, 26, 0.38);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.event-inspector-note-preview p {
+  color: var(--color-text-primary);
+  font: 700 13px/1.5 var(--font-ui);
 }
 
 .event-inspector-form {
@@ -581,7 +601,7 @@ button.tagging-match-card {
 }
 
 .event-inspector-field-grid {
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   margin-top: var(--space-2);
 }
 

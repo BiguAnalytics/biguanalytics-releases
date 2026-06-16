@@ -23,4 +23,11 @@ describe('dashboard print annotated frames', () => {
     expect(dashboardPrintSource).toContain('payload.drawingFrameWarning');
     expect(dashboardPrintSource).toContain('print-frame-limit-warning');
   });
+
+  it('includes the Bigua logo and exposes a PDF readiness flag after assets load', () => {
+    expect(dashboardPrintSource).toContain('assets/bigu-logo.svg');
+    expect(dashboardPrintSource).toContain('window.__BIGU_PDF_READY__');
+    expect(dashboardPrintSource).toContain('function waitForPdfAssets');
+    expect(dashboardPrintSource).toContain('document.fonts.ready');
+  });
 });

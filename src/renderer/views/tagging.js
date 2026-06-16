@@ -10,6 +10,7 @@ import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { SEQUENCE_COLOR_CHOICES, formatClock, renderTimeline, updateTimelinePlayback, updateTimelinePossession } from '../components/timeline.js';
 import { MATCH_EDIT_ICON, getMatchSelectionItems, getMatchTitle } from '../components/match-selection.js';
+import { normalizeFieldZone } from '../field-zones.js';
 import { drawStrokes } from '../drawing/drawing-engine.js';
 import {
   getDrawingSequenceDuration,
@@ -60,8 +61,8 @@ const YOUTUBE_PLAYER_STATE = {
   playing: 1,
   paused: 2,
 };
-const DEFAULT_CLIP_PRE_ROLL_SECONDS = 3;
-const DEFAULT_CLIP_POST_ROLL_SECONDS = 10;
+const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
+const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
 const YOUTUBE_CLIP_NOTICE = 'Este partido usa video de YouTube. Podés reproducir clips dentro de BiguAnalytics, pero para exportarlos como archivos MP4 necesitás asociar un video local. Requiere conexión a internet.';
 
 /**
@@ -192,7 +193,7 @@ function ensureYouTubeIframeApi() {
  * @param {EventTarget|null} target
  * @returns {boolean}
  */
-function isEditableTarget(target) {
+export function isEditableTarget(target) {
   const element = /** @type {HTMLElement|null} */ (target);
   if (!element) return false;
   return ['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName) || element.isContentEditable;
@@ -212,6 +213,28 @@ function hasSystemModifier(event) {
  */
 function isSpeechToggleHotkey(event) {
   return (event.ctrlKey || event.altKey) && !event.metaKey && String(event.key || '').toLowerCase() === 'm';
+}
+
+/**
+ * @param {Element|null|undefined} popupHost
+ * @param {EventTarget|null} [activeElement]
+ * @returns {boolean}
+ */
+export function isPopupInputFocused(popupHost, activeElement = typeof document !== 'undefined' ? document.activeElement : null) {
+  return Boolean(popupHost?.contains?.(/** @type {Node} */ (activeElement)) && isEditableTarget(activeElement));
+}
+
+/**
+ * @param {{key?: string, shiftKey?: boolean, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean}} event
+ * @param {EventTarget|null} [activeElement]
+ * @returns {boolean}
+ */
+export function shouldCompletePopupFromKeydown(event, activeElement = typeof document !== 'undefined' ? document.activeElement : null) {
+  if (event.key !== 'Enter' || event.shiftKey) return false;
+  const element = /** @type {HTMLElement|null} */ (activeElement);
+  if (element?.tagName === 'TEXTAREA') return Boolean(event.ctrlKey || event.metaKey);
+  if (isEditableTarget(activeElement)) return true;
+  return !hasSystemModifier(/** @type {KeyboardEvent} */ (event));
 }
 
 /**
@@ -458,7 +481,9 @@ export function getInitialTimelineDuration(match, statsOnlyMode, currentDuration
  * @returns {string}
  */
 function renderInspectorZonePicker(label, targetAttribute, selectedZone) {
-  const selected = selectedZone || '';
+  const normalizedZone = normalizeFieldZone(selectedZone);
+  const selected = normalizedZone?.id || '';
+  const selectedLabel = normalizedZone?.label || 'Sin dato';
 
   return `
     <div class="event-inspector-zone-picker" data-zone-picker>
@@ -466,7 +491,7 @@ function renderInspectorZonePicker(label, targetAttribute, selectedZone) {
       <details>
         <summary>
           <span>${escapeHtml(label)}</span>
-          <strong data-zone-picker-selected>${escapeHtml(selected || 'Sin dato')}</strong>
+          <strong data-zone-picker-selected>${escapeHtml(selectedLabel)}</strong>
         </summary>
         <div class="tag-popup-field-grid event-inspector-field-grid" role="group" aria-label="${escapeHtml(label)}">
           ${getZones().map(zone => `
@@ -475,7 +500,8 @@ function renderInspectorZonePicker(label, targetAttribute, selectedZone) {
               type="button"
               data-zone-target="${targetAttribute}"
               data-zone-picker-value="${zone.value}"
-            >${zone.label}</button>
+              data-zone-picker-label="${escapeHtml(zone.label)}"
+            >${escapeHtml(zone.label)}</button>
           `).join('')}
         </div>
       </details>
@@ -509,6 +535,14 @@ export function getTimelineEventDetails(event, match = {}) {
   if (event?.zone) rows.push({ label: 'Zona', value: event.zone });
 
   return rows;
+}
+
+/**
+ * @param {object} event
+ * @returns {string}
+ */
+export function getTimelineEventNotePreview(event) {
+  return typeof event?.note === 'string' ? event.note.trim() : '';
 }
 
 /**
@@ -1919,6 +1953,7 @@ export function renderTagging(container, params = {}) {
     }
 
     const rows = getTimelineEventDetails(selectedEvent, match);
+    const selectedEventNotePreview = getTimelineEventNotePreview(selectedEvent);
     host.innerHTML = `
       <section class="event-inspector" role="dialog" aria-label="Detalle del evento seleccionado">
         <header class="event-inspector-header">
@@ -1939,6 +1974,12 @@ export function renderTagging(container, params = {}) {
               <strong>${escapeHtml(row.value)}</strong>
             </div>
           `).join('')}
+        </div>
+        ` : ''}
+        ${!isEventInspectorEditing && selectedEventNotePreview ? `
+        <div class="event-inspector-note-preview" aria-label="Nota del evento">
+          <span>Nota</span>
+          <p>${escapeHtml(selectedEventNotePreview)}</p>
         </div>
         ` : ''}
         ${isEventInspectorEditing ? `
@@ -2021,9 +2062,10 @@ export function renderTagging(container, params = {}) {
         const nextZone = getToggledZone(input?.value, selectedZone);
         const selectedLabel = picker?.querySelector('[data-zone-picker-selected]');
         const details = button.closest('details');
+        const normalizedZone = normalizeFieldZone(nextZone);
 
         if (input) input.value = nextZone;
-        if (selectedLabel) selectedLabel.textContent = nextZone || 'Sin dato';
+        if (selectedLabel) selectedLabel.textContent = normalizedZone?.label || 'Sin dato';
         picker?.querySelectorAll('[data-zone-picker-value]').forEach((zoneButton) => {
           zoneButton.classList.toggle('active', Boolean(nextZone) && zoneButton.dataset.zonePickerValue === nextZone);
         });
@@ -3659,7 +3701,8 @@ export function renderTagging(container, params = {}) {
   }
 
   function checkAutoClose() {
-    if (!shouldAutoClosePopup(state)) return;
+    const popupHost = container.querySelector('#tag-popup-host');
+    if (!shouldAutoClosePopup(state, Date.now(), { isInteracting: isPopupInputFocused(popupHost) })) return;
     closeActivePopupAnimated();
   }
 
@@ -3702,18 +3745,19 @@ export function renderTagging(container, params = {}) {
         toggleSpeechNote();
         return;
       }
-      if (hasSystemModifier(event)) return;
       if (event.key === 'Escape') {
         event.preventDefault();
         closeActivePopupAnimated();
         return;
       }
       if (popupHost && trapFocusInPopup(popupHost, event)) return;
-      if (event.key === 'Enter' && !event.shiftKey) {
+      if (shouldCompletePopupFromKeydown(event, document.activeElement)) {
         event.preventDefault();
         completeActivePopup();
         return;
       }
+      if (isEditableTarget(document.activeElement)) return;
+      if (hasSystemModifier(event)) return;
       if (/^[1-9]$/.test(event.key) && popupHost) {
         const zone = getPopupZoneByNumber(popupHost, event.key);
         const option = zone ? null : getPopupOptionByNumber(popupHost, event.key);

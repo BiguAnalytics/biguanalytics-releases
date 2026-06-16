@@ -36,8 +36,8 @@ describe('windows packaging readiness', () => {
     expect(mainSource).toContain('process.resourcesPath');
   });
 
-  it('ships puppeteer-core instead of downloading Chromium with Puppeteer', () => {
-    expect(packageJson.dependencies['puppeteer-core']).toBeDefined();
+  it('does not ship Puppeteer or require external Chrome for PDF export', () => {
+    expect(packageJson.dependencies['puppeteer-core']).toBeUndefined();
     expect(packageJson.dependencies.puppeteer).toBeUndefined();
   });
 
@@ -74,7 +74,7 @@ describe('windows packaging readiness', () => {
     expect(windowsBuildCheckSource).toContain('app.asar.unpacked');
     expect(windowsBuildCheckSource).toContain('ffmpeg-static');
     expect(windowsBuildCheckSource).toContain('ffprobe-static');
-    expect(windowsBuildCheckSource).toContain('puppeteer-core');
+    expect(windowsBuildCheckSource).not.toContain('puppeteer-core');
     expect(windowsBuildCheckSource).toContain('preload.js');
     expect(windowsBuildCheckSource).toContain('icon.ico');
   });

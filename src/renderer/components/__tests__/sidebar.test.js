@@ -19,11 +19,14 @@ describe('sidebar active route', () => {
     expect(routerSource).toContain('setSidebarActive(route)');
   });
 
-  it('exposes Heatmap as a first-class route and sidebar item', () => {
-    expect(routerSource).toContain("import { renderHeatmap } from './views/heatmap.js';");
-    expect(routerSource).toContain('heatmap: renderHeatmap');
-    expect(sidebarSource).toContain("{ id: 'heatmap', label: 'Heatmap'");
-    expect(sidebarSource).toContain('heatmap:');
+  it('exposes Clips as a first-class route and removes Heatmap from primary navigation', () => {
+    expect(routerSource).toContain("import { renderClipPlayer } from './views/clip-player.js';");
+    expect(routerSource).toContain('clips: renderClipPlayer');
+    expect(routerSource).not.toContain("import { renderHeatmap } from './views/heatmap.js';");
+    expect(routerSource).not.toContain('heatmap: renderHeatmap');
+    expect(sidebarSource).toContain("{ id: 'clips', label: 'Clips'");
+    expect(sidebarSource).toContain('clips:');
+    expect(sidebarSource).not.toContain("{ id: 'heatmap', label: 'Heatmap'");
   });
 
   it('uses the primary button gradient for the selected module', () => {

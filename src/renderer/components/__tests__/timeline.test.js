@@ -203,7 +203,7 @@ describe('timeline track labels', () => {
     expect(timelineSource).toContain('class="timeline-track-labels"');
     expect(timelineSource).toContain('class="timeline-track-label timeline-possession-label"');
     expect(timelineSource).not.toContain('<span class="timeline-track-label">${track.label}</span>');
-    expect(timelineCss).toContain('--timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(var(--timeline-track-min-height), 1fr));');
+    expect(timelineCss).toContain('--timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(0, 1fr));');
     expect(timelineCss).toMatch(/\.timeline-content\s*{[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
     expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
     expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*grid-template-columns:\s*136px\s+minmax\(0,\s*1fr\);/s);
@@ -475,16 +475,32 @@ describe('timeline sequences', () => {
     expect(timelineCss).toMatch(/\.timeline-scroll\s*{[^}]*box-sizing:\s*border-box;/s);
     expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*height:\s*calc\(100%\s*-\s*var\(--timeline-scrollbar-lane\)\);/s);
     expect(timelineCss).toMatch(/\.timeline-content\s*{[^}]*height:\s*calc\(100%\s*-\s*var\(--timeline-scrollbar-lane\)\);[^}]*display:\s*grid;[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
-    expect(timelineCss).toMatch(/\.timeline-track\s*{[^}]*min-height:\s*var\(--timeline-track-min-height\);/s);
     expect(timelineCss).not.toMatch(/\.timeline-track\s*{[^}]*height:\s*calc\(\(100%\s*-\s*22px\)\s*\/\s*5\);/s);
   });
 
   it('uses the same row sizing variables for labels and timeline channels', () => {
     expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*--timeline-ruler-height:\s*22px;/s);
     expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*--timeline-track-min-height:\s*34px;/s);
+    expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*min-height:\s*calc\([^}]*var\(--timeline-track-min-height\)[^}]*var\(--timeline-track-min-height\)[^}]*var\(--timeline-track-min-height\)[^}]*var\(--timeline-track-min-height\)[^}]*var\(--timeline-track-min-height\)[^}]*\);/s);
     expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
     expect(timelineCss).toMatch(/\.timeline-content\s*{[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
     expect(timelineCss).toMatch(/\.timeline-ruler\s*{[^}]*height:\s*var\(--timeline-ruler-height\);/s);
+    expect(timelineCss).toContain('--timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(0, 1fr));');
+  });
+
+  it('pins each label to the same grid row as its timeline channel', () => {
+    expect(timelineSource).toContain('style="--timeline-label-row:2"');
+    expect(timelineSource).toContain('style="--timeline-label-row:${index + 3}"');
+    expect(timelineCss).toMatch(/\.timeline-label-ruler\s*{[^}]*grid-row:\s*1;/s);
+    expect(timelineCss).toMatch(/\.timeline-track-label\s*{[^}]*grid-row:\s*var\(--timeline-label-row\);[^}]*align-self:\s*stretch;/s);
+  });
+
+  it('keeps separator borders inside shared grid rows so label and channel lines align', () => {
+    expect(timelineCss).toMatch(/\.timeline-label-ruler,\s*\.timeline-ruler,\s*\.timeline-possession-track,\s*\.timeline-track-label,\s*\.timeline-track\s*{[^}]*box-sizing:\s*border-box;/s);
+    expect(timelineCss).toMatch(/\.timeline-track-label\s*{[^}]*height:\s*auto;/s);
+    expect(timelineCss).toMatch(/\.timeline-track-label\s*{[^}]*min-height:\s*0;/s);
+    expect(timelineCss).toMatch(/\.timeline-track\s*{[^}]*min-height:\s*0;/s);
+    expect(timelineCss).not.toMatch(/\.timeline-track-label\s*{[^}]*height:\s*100%;/s);
   });
 
   it('keeps the timeline scrollbar visible and draggable', () => {

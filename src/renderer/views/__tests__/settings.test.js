@@ -105,7 +105,7 @@ describe('settings clip export configuration', () => {
     };
 
     expect(getClipExportSettingsPayload?.(container)).toEqual({
-      clipPreRollSeconds: 3,
+      clipPreRollSeconds: 5,
       clipPostRollSeconds: 60,
       clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',

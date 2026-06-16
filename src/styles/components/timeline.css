@@ -13,9 +13,19 @@
   --timeline-possession-height: 16px;
   --timeline-track-min-height: 34px;
   --timeline-scrollbar-lane: 12px;
-  --timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(var(--timeline-track-min-height), 1fr));
+  --timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(0, 1fr));
   position: relative;
   height: 100%;
+  min-height: calc(
+    var(--timeline-ruler-height)
+    + var(--timeline-possession-height)
+    + var(--timeline-track-min-height)
+    + var(--timeline-track-min-height)
+    + var(--timeline-track-min-height)
+    + var(--timeline-track-min-height)
+    + var(--timeline-track-min-height)
+    + var(--timeline-scrollbar-lane)
+  );
   overflow: hidden;
   display: grid;
   grid-template-columns: 136px minmax(0, 1fr);
@@ -74,7 +84,16 @@
   z-index: 4;
 }
 
+.timeline-label-ruler,
+.timeline-ruler,
+.timeline-possession-track,
+.timeline-track-label,
+.timeline-track {
+  box-sizing: border-box;
+}
+
 .timeline-label-ruler {
+  grid-row: 1;
   border-bottom: 1px solid rgba(138, 155, 176, 0.12);
 }
 
@@ -187,7 +206,7 @@
 
 .timeline-track {
   position: relative;
-  min-height: var(--timeline-track-min-height);
+  min-height: 0;
   border-bottom: 1px solid rgba(138, 155, 176, 0.08);
   z-index: 2;
 }
@@ -224,10 +243,13 @@
 }
 
 .timeline-track-label {
+  grid-row: var(--timeline-label-row);
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
   min-width: 0;
-  height: 100%;
+  min-height: 0;
+  height: auto;
   padding: 0 var(--space-2) 0 var(--space-3);
   border-bottom: 1px solid rgba(138, 155, 176, 0.08);
   color: rgba(138, 155, 176, 0.52);

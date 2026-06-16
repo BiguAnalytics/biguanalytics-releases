@@ -52,7 +52,7 @@ describe('video player layout CSS', () => {
 
   it('styles inspector zone pickers as compact rugby field selectors', () => {
     expect(css).toMatch(/\.event-inspector-zone-picker\s*{[^}]*grid-column:\s*1\s*\/\s*-1;/s);
-    expect(css).toMatch(/\.event-inspector-field-grid\s*{[^}]*grid-template-columns:\s*repeat\(5,\s*1fr\);/s);
+    expect(css).toMatch(/\.event-inspector-field-grid\s*{[^}]*grid-template-columns:\s*repeat\(4,\s*minmax\(0,\s*1fr\)\);/s);
     expect(css).toMatch(/\.event-inspector-zone-cell\.active\s*{[^}]*background:\s*rgba\(200,\s*16,\s*46,\s*0\.28\);/s);
   });
 

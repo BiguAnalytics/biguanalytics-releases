@@ -4,6 +4,7 @@ const { calculateMatchStats } = require('../analytics');
 const { getSettings } = require('../settings');
 const { getMatchById } = require('../storage');
 const { buildScoreContext } = require('./aiScoreContext');
+const { normalizeFieldZone } = require('../field-zones');
 
 const ALERT_KEYS = [
   'ruckWinPctMin',
@@ -64,6 +65,7 @@ function buildPlayerMap(events) {
  */
 function sanitizeEventForAI(event, playerMap = new Map()) {
   const player = stringOrEmpty(event.player);
+  const zone = normalizeFieldZone(event);
   return {
     id: stringOrEmpty(event.id),
     timestamp: numericOrNull(event.timestamp),
@@ -72,7 +74,9 @@ function sanitizeEventForAI(event, playerMap = new Map()) {
     result: stringOrEmpty(event.result),
     subtype: stringOrEmpty(event.subtype),
     note: stringOrEmpty(event.note),
-    zone: stringOrEmpty(event.zone) || null,
+    zone: zone?.id || null,
+    zoneLabel: zone?.label || null,
+    ...(zone?.legacy && zone.originalZone ? { legacyZone: zone.originalZone } : {}),
     player: player ? playerMap.get(player) || null : null,
   };
 }
@@ -95,6 +99,8 @@ function sortEvents(values) {
  * @returns {object}
  */
 function sanitizeSequence(sequence) {
+  const zoneStart = normalizeFieldZone(sequence.zoneStart);
+  const zoneEnd = normalizeFieldZone(sequence.zoneEnd);
   return {
     id: stringOrEmpty(sequence.id),
     start: numericOrNull(sequence.start),
@@ -103,8 +109,12 @@ function sanitizeSequence(sequence) {
     phases: numericOrNull(sequence.phases),
     result: stringOrEmpty(sequence.result),
     team: sequence.team === 'away' ? 'away' : sequence.team === 'home' ? 'home' : null,
-    zoneStart: stringOrEmpty(sequence.zoneStart) || null,
-    zoneEnd: stringOrEmpty(sequence.zoneEnd) || null,
+    zoneStart: zoneStart?.id || null,
+    zoneStartLabel: zoneStart?.label || null,
+    ...(zoneStart?.legacy && zoneStart.originalZone ? { legacyZoneStart: zoneStart.originalZone } : {}),
+    zoneEnd: zoneEnd?.id || null,
+    zoneEndLabel: zoneEnd?.label || null,
+    ...(zoneEnd?.legacy && zoneEnd.originalZone ? { legacyZoneEnd: zoneEnd.originalZone } : {}),
     note: stringOrEmpty(sequence.note),
   };
 }

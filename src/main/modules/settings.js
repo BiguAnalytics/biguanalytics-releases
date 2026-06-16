@@ -47,8 +47,8 @@ const DEFAULT_SETTINGS = {
   autoSave: true,
   firstLaunch: true,
   onboarding: DEFAULT_ONBOARDING_SETTINGS,
-  clipPreRollSeconds: 3,
-  clipPostRollSeconds: 10,
+  clipPreRollSeconds: 5,
+  clipPostRollSeconds: 8,
   clipOutputModeDefault: 'separate',
   clipExportQuality: 'copy',
   alerts: {

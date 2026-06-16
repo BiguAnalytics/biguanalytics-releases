@@ -2,6 +2,7 @@
 import { assertSupabaseOk, resolveCloudContext } from './cloud-context.js';
 import { applyCloudOperation, syncService as defaultSyncService } from './sync-service.js';
 import { mapLocalMatchToCloud, normalizeMatchForHome } from './match-mapper.js';
+import { markStartup } from '../startup-timing.js';
 
 /**
  * @param {number|null|undefined} seconds
@@ -95,6 +96,18 @@ async function announceLocalHomeUpdate(localApi, status = {}) {
 }
 
 /**
+ * @param {object} syncService
+ * @param {object} operation
+ */
+async function enqueuePending(syncService, operation) {
+  await syncService.enqueue({
+    status: 'pending_sync',
+    ...operation,
+    status: 'pending_sync',
+  });
+}
+
+/**
  * @param {{clientSource?: Promise<object>|object|function(): Promise<object>, localApi?: object, syncService?: object, accessProvider?: function(): object|null}} [deps]
  */
 export function createCloudEventService(deps = {}) {
@@ -140,12 +153,44 @@ export function createCloudEventService(deps = {}) {
       return event;
     },
 
+    async enqueueEventSync(matchId, event) {
+      await enqueuePending(activeSyncService, {
+        matchId,
+        entity: 'match_events',
+        action: 'upsert',
+        dedupeKey: `match_events:${event.id}`,
+        payload: mapLocalEventToCloud(event, {
+          matchId,
+          clubId: '',
+          userId: '',
+        }),
+      });
+      if (typeof localApi.matches?.getById !== 'function') return;
+      const match = await localApi.matches.getById(matchId);
+      await enqueuePending(activeSyncService, {
+        matchId,
+        entity: 'matches',
+        action: 'upsert',
+        dedupeKey: `matches:${matchId}`,
+        payload: mapLocalMatchToCloud(match, {
+          clubId: '',
+          userId: '',
+        }),
+      });
+    },
+
     async addEvent(matchId, eventData) {
       const event = await localApi.events.add(matchId, eventData);
       try {
         await this.syncEvent(matchId, event);
-      } catch {
-        // Local tagging must not depend on an active cloud session.
+      } catch (error) {
+        try {
+          await this.enqueueEventSync(matchId, event);
+        } catch (enqueueError) {
+          markStartup('cloud:rls-or-query-error', {
+            message: enqueueError instanceof Error ? enqueueError.message.slice(0, 160) : String(enqueueError || error || 'sync failed'),
+          });
+        }
       }
       await announceLocalHomeUpdate(localApi, { source: 'local-event', partial: false });
       return event;
@@ -155,8 +200,14 @@ export function createCloudEventService(deps = {}) {
       const event = await localApi.events.update(matchId, eventId, updates);
       try {
         await this.syncEvent(matchId, event);
-      } catch {
-        // Local tagging must not depend on an active cloud session.
+      } catch (error) {
+        try {
+          await this.enqueueEventSync(matchId, event);
+        } catch (enqueueError) {
+          markStartup('cloud:rls-or-query-error', {
+            message: enqueueError instanceof Error ? enqueueError.message.slice(0, 160) : String(enqueueError || error || 'sync failed'),
+          });
+        }
       }
       await announceLocalHomeUpdate(localApi, { source: 'local-event', partial: false });
       return event;
@@ -176,8 +227,33 @@ export function createCloudEventService(deps = {}) {
         };
         await applyOrEnqueue(context.client, activeSyncService, operation);
         await this.syncMatchMetadata(matchId, context);
-      } catch {
-        // Local tagging must not depend on an active cloud session.
+      } catch (error) {
+        try {
+          await enqueuePending(activeSyncService, {
+            matchId,
+            entity: 'match_events',
+            action: 'delete',
+            dedupeKey: `match_events:${eventId}:delete`,
+            payload: { id: eventId },
+          });
+          if (typeof localApi.matches?.getById === 'function') {
+            const match = await localApi.matches.getById(matchId);
+            await enqueuePending(activeSyncService, {
+              matchId,
+              entity: 'matches',
+              action: 'upsert',
+              dedupeKey: `matches:${matchId}`,
+              payload: mapLocalMatchToCloud(match, {
+                clubId: '',
+                userId: '',
+              }),
+            });
+          }
+        } catch (enqueueError) {
+          markStartup('cloud:rls-or-query-error', {
+            message: enqueueError instanceof Error ? enqueueError.message.slice(0, 160) : String(enqueueError || error || 'sync failed'),
+          });
+        }
       }
       await announceLocalHomeUpdate(localApi, { source: 'local-event', partial: false });
     },

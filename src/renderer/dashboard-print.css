@@ -53,6 +53,18 @@ body {
   gap: 16px;
 }
 
+.print-logo-lockup {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.print-logo-mark {
+  width: 34px;
+  height: 34px;
+  object-fit: contain;
+}
+
 .print-logo {
   font: 900 22px 'Arial Black', Arial, sans-serif;
 }

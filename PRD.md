@@ -321,7 +321,7 @@ App de iOS/Android para tagging en vivo desde el costado del campo, sincronizada
 | Reproductor video local | HTML5 `<video>` + Node.js File API | Sin limitaciones de tamaño, sin upload |
 | Reproductor YouTube | YouTube IFrame API | Control programático del video, manejo de foco |
 | Gráficos del dashboard | Chart.js o Recharts | Gráficos interactivos, open source |
-| Exportación PDF | Puppeteer (headless Chromium) | Renderiza el dashboard como PDF de alta calidad |
+| Exportación PDF | Electron `BrowserWindow` + `webContents.printToPDF()` | Renderiza el dashboard como PDF de alta calidad sin navegador externo |
 | Exportación de clips | ffmpeg-static + ffprobe-static | Corte local de MP4 sin recodificación por defecto; sin nube, sin descarga de YouTube |
 | Storage local | JSON files + electron-store | Cache offline y compatibilidad con `data/{matchId}/match.json` |
 | Cloud Sync opcional | Supabase | Sincroniza datos livianos; no sube videos, PDFs ni dashboards renderizados |
