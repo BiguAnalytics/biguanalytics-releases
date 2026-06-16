@@ -10,6 +10,7 @@ const TEAM_OPTIONS = [
   { label: 'Bigua', value: 'home' },
   { label: 'Rival', value: 'away' },
 ];
+const TEAM_STEP = { field: 'team', payload: 'team', options: TEAM_OPTIONS };
 
 const PENAL_TYPES = [
   { label: 'Ruck', value: 'ruck' },
@@ -25,21 +26,24 @@ export const EVENT_DEFINITIONS = {
     hotkey: 'R',
     type: 'ruck',
     label: 'Ruck',
-    steps: [{ field: 'result', payload: 'result', options: RESULT_OPTIONS }],
+    requiresTeam: true,
+    steps: [{ field: 'result', payload: 'result', options: RESULT_OPTIONS }, TEAM_STEP],
   },
   S: {
     hotkey: 'S',
     type: 'scrum',
     label: 'Scrum',
+    requiresTeam: true,
     steps: [
       { field: 'result', payload: 'result', options: RESULT_OPTIONS },
-      { field: 'team', payload: 'team', options: TEAM_OPTIONS },
+      TEAM_STEP,
     ],
   },
   L: {
     hotkey: 'L',
     type: 'lineout',
     label: 'Line Out',
+    requiresTeam: true,
     steps: [
       { field: 'result', payload: 'result', options: RESULT_OPTIONS },
       {
@@ -51,12 +55,14 @@ export const EVENT_DEFINITIONS = {
           { label: 'Lanzamiento malo', value: 'malo' },
         ],
       },
+      TEAM_STEP,
     ],
   },
   P: {
     hotkey: 'P',
     type: 'penal',
     label: 'Penal / Free Kick',
+    requiresTeam: true,
     steps: [
       {
         field: 'phase',
@@ -67,12 +73,14 @@ export const EVENT_DEFINITIONS = {
         ],
       },
       { field: 'subtype', payload: 'subtype', options: PENAL_TYPES },
+      TEAM_STEP,
     ],
   },
   T: {
     hotkey: 'T',
     type: 'points',
     label: 'Try y puntos',
+    requiresTeam: true,
     steps: [
       {
         field: 'result',
@@ -85,12 +93,14 @@ export const EVENT_DEFINITIONS = {
           { label: 'Try Penal', value: 'try-penal' },
         ],
       },
+      TEAM_STEP,
     ],
   },
   B: {
     hotkey: 'B',
     type: 'break-line',
     label: 'Break Line',
+    requiresTeam: true,
     steps: [
       {
         field: 'result',
@@ -104,12 +114,14 @@ export const EVENT_DEFINITIONS = {
           { label: 'Juego', value: 'juego' },
         ],
       },
+      TEAM_STEP,
     ],
   },
   K: {
     hotkey: 'K',
     type: 'kick',
     label: 'Kick',
+    requiresTeam: true,
     steps: [
       { field: 'player', payload: 'player', dynamic: 'roster', options: [] },
       {
@@ -122,19 +134,22 @@ export const EVENT_DEFINITIONS = {
           { label: 'Contestado', value: 'contestado' },
         ],
       },
+      TEAM_STEP,
     ],
   },
   M: {
     hotkey: 'M',
     type: 'maul',
     label: 'Maul',
-    steps: [{ field: 'result', payload: 'result', options: RESULT_OPTIONS }],
+    requiresTeam: true,
+    steps: [{ field: 'result', payload: 'result', options: RESULT_OPTIONS }, TEAM_STEP],
   },
   V: {
     hotkey: 'V',
     type: 'turnover',
     label: 'Turnover',
     defaultResult: 'turnover',
+    requiresTeam: true,
     steps: [
       {
         field: 'subtype',
@@ -149,12 +164,14 @@ export const EVENT_DEFINITIONS = {
           { label: 'Otro', value: 'otro' },
         ],
       },
+      TEAM_STEP,
     ],
   },
   A: {
     hotkey: 'A',
     type: 'card',
     label: 'Tarjeta',
+    requiresTeam: true,
     steps: [
       {
         field: 'result',
@@ -164,7 +181,7 @@ export const EVENT_DEFINITIONS = {
           { label: 'Roja', value: 'roja' },
         ],
       },
-      { field: 'team', payload: 'team', options: TEAM_OPTIONS },
+      TEAM_STEP,
     ],
   },
   N: {
@@ -175,6 +192,11 @@ export const EVENT_DEFINITIONS = {
     steps: [],
   },
 };
+
+const EVENT_DEFINITION_ORDER = Object.values(EVENT_DEFINITIONS);
+const DEFAULT_HOTKEYS_BY_TYPE = Object.fromEntries(
+  EVENT_DEFINITION_ORDER.map(definition => [definition.type, definition.hotkey])
+);
 
 export const SEQUENCE_RESULT_OPTIONS = [
   { label: 'Try', value: 'try' },
@@ -193,7 +215,8 @@ export function createTaggerState(options = {}) {
     activePopup: null,
     blockedHotkey: null,
     autoCloseMs: options.autoCloseMs ?? 8000,
-    defaultTeam: options.defaultTeam || 'home',
+    defaultTeam: normalizeTeam(options.defaultTeam),
+    eventDefinitions: options.eventDefinitions || EVENT_DEFINITIONS,
     possession: normalizePossession(options.possession),
     sequence: {
       active: null,
@@ -314,6 +337,148 @@ export function normalizeHotkey(key) {
 }
 
 /**
+ * @param {string} value
+ * @returns {string}
+ */
+function normalizeCustomId(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * @param {string} key
+ * @returns {boolean}
+ */
+function isUsableEventHotkey(key) {
+  return /^[A-Z0-9]$/.test(key);
+}
+
+/**
+ * @param {Array<string>|string|null|undefined} options
+ * @returns {Array<{label: string, value: string}>}
+ */
+function normalizeCustomResultOptions(options) {
+  const values = Array.isArray(options)
+    ? options
+    : String(options || '').split(',');
+  return values
+    .map(option => String(option || '').trim())
+    .filter(Boolean)
+    .map(option => ({ label: option, value: normalizeCustomId(option) || option.toLowerCase() }));
+}
+
+/**
+ * @param {object} [taggingSettings]
+ * @returns {Record<string, object>}
+ */
+export function buildEventDefinitions(taggingSettings = {}) {
+  const definitions = {};
+  const usedHotkeys = new Set();
+  const hotkeys = {
+    ...DEFAULT_HOTKEYS_BY_TYPE,
+    ...(taggingSettings?.hotkeys || {}),
+  };
+  const requestedHotkeys = Object.fromEntries(EVENT_DEFINITION_ORDER.map((definition) => {
+    const requestedHotkey = normalizeHotkey(hotkeys[definition.type]);
+    return [
+      definition.type,
+      isUsableEventHotkey(requestedHotkey) ? requestedHotkey : normalizeHotkey(definition.hotkey),
+    ];
+  }));
+  const requestCounts = Object.values(requestedHotkeys)
+    .reduce((counts, hotkey) => ({ ...counts, [hotkey]: (counts[hotkey] || 0) + 1 }), {});
+
+  EVENT_DEFINITION_ORDER.forEach((definition) => {
+    const fallbackHotkey = normalizeHotkey(definition.hotkey);
+    const requestedHotkey = requestedHotkeys[definition.type];
+    const resolvedHotkey = requestCounts[requestedHotkey] === 1 ? requestedHotkey : fallbackHotkey;
+    if (usedHotkeys.has(resolvedHotkey)) return;
+    usedHotkeys.add(resolvedHotkey);
+    definitions[resolvedHotkey] = {
+      ...definition,
+      hotkey: resolvedHotkey,
+      defaultHotkey: fallbackHotkey,
+      custom: false,
+    };
+  });
+
+  (Array.isArray(taggingSettings?.customHotkeys) ? taggingSettings.customHotkeys : []).forEach((customHotkey) => {
+    const hotkey = normalizeHotkey(customHotkey?.hotkey);
+    const label = String(customHotkey?.label || '').trim();
+    const id = normalizeCustomId(customHotkey?.id || label);
+    if (!id || !label || !isUsableEventHotkey(hotkey) || usedHotkeys.has(hotkey)) return;
+    const resultOptions = normalizeCustomResultOptions(customHotkey?.resultOptions);
+    usedHotkeys.add(hotkey);
+    definitions[hotkey] = {
+      hotkey,
+      defaultHotkey: hotkey,
+      type: `custom:${id}`,
+      label,
+      custom: true,
+      noteOnly: resultOptions.length === 0,
+      defaultResult: resultOptions.length === 0 ? 'registrado' : '',
+      steps: resultOptions.length > 0
+        ? [{ field: 'result', payload: 'result', options: resultOptions }]
+        : [],
+    };
+  });
+
+  return definitions;
+}
+
+/**
+ * @param {object} state
+ * @returns {Record<string, object>}
+ */
+function getStateEventDefinitions(state) {
+  return state?.eventDefinitions || EVENT_DEFINITIONS;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'home'|'away'|null}
+ */
+function normalizeTeam(value) {
+  return value === 'home' || value === 'away' ? value : null;
+}
+
+/**
+ * @param {object} state
+ * @param {object} definition
+ * @returns {'home'|'away'|null}
+ */
+function inferEventTeam(state, definition) {
+  if (!definition?.requiresTeam) return null;
+  return normalizeTeam(state?.possession?.activeTeam);
+}
+
+/**
+ * @param {object} step
+ * @param {object} values
+ * @returns {boolean}
+ */
+function shouldSkipPopupStep(step, values) {
+  return step?.field === 'team' && Boolean(normalizeTeam(values?.team));
+}
+
+/**
+ * @param {object} definition
+ * @param {object} popup
+ * @param {number} nextStepIndex
+ * @returns {number}
+ */
+function getNextPopupStepIndex(definition, popup, nextStepIndex) {
+  let index = nextStepIndex;
+  while (index < definition.steps.length && shouldSkipPopupStep(definition.steps[index], popup.values)) {
+    index += 1;
+  }
+  return index;
+}
+
+/**
  * @param {object} state
  * @param {string} key
  * @param {number|null} timestamp
@@ -321,13 +486,14 @@ export function normalizeHotkey(key) {
  */
 export function openTagPopup(state, key, timestamp) {
   const hotkey = normalizeHotkey(key);
-  const definition = EVENT_DEFINITIONS[hotkey];
+  const definition = getStateEventDefinitions(state)[hotkey];
   if (!definition) return state;
   if (state.activePopup) {
     return { ...state, blockedHotkey: hotkey };
   }
 
   const now = Date.now();
+  const inferredTeam = inferEventTeam(state, definition);
   return {
     ...state,
     blockedHotkey: null,
@@ -337,7 +503,7 @@ export function openTagPopup(state, key, timestamp) {
       label: definition.label,
       timestamp: Number.isFinite(timestamp) ? timestamp : null,
       stepIndex: 0,
-      values: {},
+      values: inferredTeam ? { team: inferredTeam } : {},
       note: '',
       zone: null,
       openedAt: now,
@@ -375,6 +541,78 @@ export function updatePopupNote(state, note) {
   };
 }
 
+const SPEECH_ACCENT_TERMS = [
+  ['presion', 'presi\u00f3n'],
+  ['posesion', 'posesi\u00f3n'],
+  ['recepcion', 'recepci\u00f3n'],
+  ['conversion', 'conversi\u00f3n'],
+  ['intercepcion', 'intercepci\u00f3n'],
+  ['recuperacion', 'recuperaci\u00f3n'],
+  ['linea', 'l\u00ednea'],
+  ['veintidos', 'veintid\u00f3s'],
+  ['despues', 'despu\u00e9s'],
+  ['rapido', 'r\u00e1pido'],
+  ['rapida', 'r\u00e1pida'],
+  ['tactico', 't\u00e1ctico'],
+  ['tactica', 't\u00e1ctica'],
+  ['analisis', 'an\u00e1lisis'],
+];
+
+/**
+ * @param {string} value
+ * @param {string} replacement
+ * @returns {string}
+ */
+function preserveSpeechTermCase(value, replacement) {
+  return /^[A-Z]/.test(value) ? `${replacement.charAt(0).toUpperCase()}${replacement.slice(1)}` : replacement;
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+export function sanitizeNoteText(value) {
+  return String(value || '')
+    .normalize('NFC')
+    .replace(/\uFFFD/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+function normalizeSpeechText(value) {
+  return SPEECH_ACCENT_TERMS.reduce((text, [source, replacement]) => {
+    const pattern = new RegExp(`\\b${source}\\b`, 'gi');
+    return text.replace(pattern, match => preserveSpeechTermCase(match, replacement));
+  }, sanitizeNoteText(value));
+}
+
+/**
+ * @param {string|null|undefined} baseNote
+ * @param {string|null|undefined} finalTranscript
+ * @param {string|null|undefined} interimTranscript
+ * @returns {string}
+ */
+export function buildSpeechNoteValue(baseNote, finalTranscript, interimTranscript = '') {
+  const base = normalizeSpeechText(baseNote);
+  const finalText = normalizeSpeechText(finalTranscript);
+  const interimText = normalizeSpeechText(interimTranscript);
+  const segments = [];
+
+  if (base) segments.push(base);
+  if (finalText && !(base && base.toLowerCase().endsWith(finalText.toLowerCase()))) {
+    segments.push(finalText);
+  }
+  if (interimText && !segments.join(' ').toLowerCase().endsWith(interimText.toLowerCase())) {
+    segments.push(interimText);
+  }
+
+  return segments.join(' ').trim();
+}
+
 /**
  * @param {object} state
  * @param {string|null} zone
@@ -402,30 +640,30 @@ export function buildEventPayload(popupOrEvent) {
     return {
       timestamp: popupOrEvent.timestamp ?? null,
       type: popupOrEvent.type || '',
-      team: popupOrEvent.team ?? 'home',
+      team: normalizeTeam(popupOrEvent.team),
       result: popupOrEvent.result || '',
       subtype: popupOrEvent.subtype || '',
-      note: popupOrEvent.note || '',
+      note: sanitizeNoteText(popupOrEvent.note),
       zone: popupOrEvent.zone ?? null,
       ...(popupOrEvent.player ? { player: popupOrEvent.player } : {}),
     };
   }
 
-  const definition = EVENT_DEFINITIONS[popupOrEvent.hotkey];
+  const definition = popupOrEvent.definition || EVENT_DEFINITIONS[popupOrEvent.hotkey];
   const event = {
     timestamp: popupOrEvent.timestamp ?? null,
     type: definition.type,
-    team: popupOrEvent.values.team || 'home',
+    team: normalizeTeam(popupOrEvent.values.team),
     result: definition.defaultResult || '',
     subtype: '',
-    note: popupOrEvent.note || '',
+    note: sanitizeNoteText(popupOrEvent.note),
     zone: popupOrEvent.zone ?? null,
   };
 
   definition.steps.forEach((step) => {
     const value = popupOrEvent.values[step.field];
     if (!value) return;
-    event[step.payload] = value;
+    event[step.payload] = step.payload === 'team' ? normalizeTeam(value) : value;
   });
 
   return event;
@@ -441,7 +679,8 @@ export function selectPopupOption(state, value) {
     return { state, completed: false, event: null };
   }
 
-  const definition = EVENT_DEFINITIONS[state.activePopup.hotkey];
+  const definition = getStateEventDefinitions(state)[state.activePopup.hotkey];
+  if (!definition) return { state: closePopup(state), completed: false, event: null };
   const step = definition.steps[state.activePopup.stepIndex];
   if (!step) {
     return completePopup(state);
@@ -456,13 +695,14 @@ export function selectPopupOption(state, value) {
     lastInteractionAt: Date.now(),
   };
 
-  if (activePopup.stepIndex < definition.steps.length - 1) {
+  const nextStepIndex = getNextPopupStepIndex(definition, activePopup, activePopup.stepIndex + 1);
+  if (nextStepIndex < definition.steps.length) {
     return {
       state: {
         ...state,
         activePopup: {
           ...activePopup,
-          stepIndex: activePopup.stepIndex + 1,
+          stepIndex: nextStepIndex,
         },
       },
       completed: false,
@@ -470,7 +710,14 @@ export function selectPopupOption(state, value) {
     };
   }
 
-  const event = buildEventPayload(activePopup);
+  const event = buildEventPayload({ ...activePopup, definition });
+  if (definition.requiresTeam && !normalizeTeam(event.team)) {
+    return {
+      state: { ...state, activePopup },
+      completed: false,
+      event: null,
+    };
+  }
   return {
     state: {
       ...state,
@@ -491,12 +738,16 @@ export function completePopup(state) {
     return { state, completed: false, event: null };
   }
 
-  const definition = EVENT_DEFINITIONS[state.activePopup.hotkey];
+  const definition = getStateEventDefinitions(state)[state.activePopup.hotkey];
+  if (!definition) return { state: closePopup(state), completed: false, event: null };
   if (!definition.noteOnly && state.activePopup.stepIndex < definition.steps.length) {
     return { state, completed: false, event: null };
   }
 
-  const event = buildEventPayload(state.activePopup);
+  const event = buildEventPayload({ ...state.activePopup, definition });
+  if (definition.requiresTeam && !normalizeTeam(event.team)) {
+    return { state, completed: false, event: null };
+  }
   return {
     state: {
       ...state,
@@ -567,31 +818,46 @@ export function advancePossession(state, timestamp, maxGapSeconds = 2) {
 
   const activeEnd = Number.isFinite(possession.activeEnd) ? possession.activeEnd : possession.activeStart;
   if (timestamp <= activeEnd) return state;
-
-  if (timestamp - activeEnd > maxGapSeconds) {
-    const intervals = activeEnd > possession.activeStart
-      ? overlayPossessionSegment(resolvePossessionSegments(possession.intervals), {
-        team: possession.activeTeam,
-        start: possession.activeStart,
-        end: activeEnd,
-      })
-      : resolvePossessionSegments(possession.intervals);
-    return {
-      ...state,
-      possession: {
-        activeTeam: null,
-        activeStart: null,
-        activeEnd: null,
-        intervals,
-      },
-    };
-  }
+  void maxGapSeconds;
 
   return {
     ...state,
     possession: {
       ...possession,
       activeEnd: timestamp,
+    },
+  };
+}
+
+/**
+ * @param {object} state
+ * @param {number} timestamp
+ * @returns {object}
+ */
+export function closeActivePossession(state, timestamp) {
+  const possession = normalizePossession(state.possession);
+  if (!possession.activeTeam || !Number.isFinite(possession.activeStart)) return {
+    ...state,
+    possession,
+  };
+
+  const fallbackEnd = Number.isFinite(possession.activeEnd) ? possession.activeEnd : possession.activeStart;
+  const safeEnd = Number.isFinite(timestamp) ? Math.max(possession.activeStart, timestamp) : fallbackEnd;
+  let intervals = resolvePossessionSegments(possession.intervals || []);
+  const closedSegment = normalizePossessionSegment({
+    team: possession.activeTeam,
+    start: possession.activeStart,
+    end: safeEnd,
+  });
+  if (closedSegment) intervals = overlayPossessionSegment(intervals, closedSegment);
+
+  return {
+    ...state,
+    possession: {
+      activeTeam: null,
+      activeStart: null,
+      activeEnd: null,
+      intervals,
     },
   };
 }
@@ -655,17 +921,22 @@ export function calculatePossessionPercentages(possession, currentTime = 0) {
 /**
  * @param {object} state
  * @param {number} timestamp
+ * @param {{zoneStart?: string|null}} [options]
  * @returns {object}
  */
-export function startSequence(state, timestamp) {
+export function startSequence(state, timestamp, options = {}) {
+  const safeTimestamp = Number(timestamp);
+  if (!Number.isFinite(safeTimestamp) || safeTimestamp < 0) return state;
+
   return {
     ...state,
     sequence: {
       ...state.sequence,
       active: {
-        start: timestamp,
+        start: safeTimestamp,
         phases: 0,
-        zone: null,
+        zone: options.zoneStart || null,
+        zoneStart: options.zoneStart || null,
       },
     },
   };
@@ -675,18 +946,42 @@ export function startSequence(state, timestamp) {
  * @param {object} state
  * @param {number} timestamp
  * @param {string} result
- * @returns {{state: object, sequence: object|null}}
+ * @param {{zoneStart?: string|null, zoneEnd?: string|null, requireZones?: boolean}} [options]
+ * @returns {{state: object, sequence: object|null, error?: string}}
  */
-export function finishSequence(state, timestamp, result) {
+export function finishSequence(state, timestamp, result, options = {}) {
   if (!state.sequence?.active) {
     return { state, sequence: null };
   }
 
+  const start = Number(state.sequence.active.start);
+  const end = Number(timestamp);
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return {
+      state,
+      sequence: null,
+      error: 'El fin de secuencia debe ser posterior al inicio.',
+    };
+  }
+
+  const zoneStart = options.zoneStart || state.sequence.active.zoneStart || state.sequence.active.zone || null;
+  const zoneEnd = options.zoneEnd || state.sequence.active.zoneEnd || null;
+  if (options.requireZones && (!zoneStart || !zoneEnd)) {
+    return {
+      state,
+      sequence: null,
+      error: 'Selecciona zona de inicio y zona de fin para guardar la secuencia.',
+    };
+  }
+
   const sequence = {
     ...state.sequence.active,
-    end: timestamp,
-    duration: Number((timestamp - state.sequence.active.start).toFixed(2)),
+    start,
+    end,
+    duration: Number((end - start).toFixed(2)),
     result,
+    zoneStart,
+    zoneEnd,
     createdAt: new Date().toISOString(),
   };
 

@@ -5,6 +5,10 @@ const { v4: uuidv4 } = require('uuid');
 const { getDataPath, getMatchDataPath, getMatchById, updateMatch } = require('./storage');
 const { updateEvent } = require('./events');
 
+const MAX_FRAME_IMAGE_BYTES = 5 * 1024 * 1024;
+const MAX_FRAME_DRAWINGS_PER_MATCH = 250;
+const MAX_PDF_FRAME_ATTACHMENTS = 80;
+
 /**
  * @param {string} value
  * @returns {string}
@@ -26,13 +30,111 @@ function normalizeDuration(value) {
 }
 
 /**
+ * @param {number|null|undefined} value
+ * @param {number} [fallback]
+ * @returns {number}
+ */
+function normalizeStepDuration(value, fallback = 3) {
+  const numeric = Number(value);
+  const safeFallback = Number.isFinite(Number(fallback)) ? Number(fallback) : 3;
+  const base = Number.isFinite(numeric) ? numeric : safeFallback;
+  return Math.max(0.5, Math.min(10, Math.round(base * 10) / 10));
+}
+
+/**
+ * @param {Array<object>} strokes
+ * @returns {Array<object>}
+ */
+function cloneStrokes(strokes = []) {
+  return JSON.parse(JSON.stringify(Array.isArray(strokes) ? strokes : []));
+}
+
+/**
+ * @param {object} step
+ * @param {number} index
+ * @param {number} fallbackDuration
+ * @returns {object}
+ */
+function normalizeSequenceStep(step = {}, index = 0, fallbackDuration = 3) {
+  return {
+    id: sanitizeFilePart(step.id || `step-${index + 1}`),
+    label: String(step.label || `Etapa ${index + 1}`).trim().slice(0, 40) || `Etapa ${index + 1}`,
+    durationSeconds: normalizeStepDuration(step.durationSeconds, fallbackDuration),
+    strokes: cloneStrokes(step.strokes),
+  };
+}
+
+/**
+ * @param {object} data
+ * @param {number} [fallbackDuration]
+ * @returns {Array<object>}
+ */
+function normalizeSequenceSteps(data = {}, fallbackDuration = 3) {
+  const sourceSteps = Array.isArray(data.steps)
+    ? data.steps
+    : Array.isArray(data.sequence?.steps)
+      ? data.sequence.steps
+      : [];
+
+  if (sourceSteps.length > 0) {
+    return sourceSteps.map((step, index) => normalizeSequenceStep(step, index));
+  }
+
+  const stepDuration = Number.isFinite(Number(data.durationSeconds))
+    ? Number(data.durationSeconds)
+    : fallbackDuration;
+  return [
+    normalizeSequenceStep({
+      id: 'step-1',
+      label: 'Etapa 1',
+      durationSeconds: stepDuration,
+      strokes: data.strokes,
+    }, 0, stepDuration),
+  ];
+}
+
+/**
+ * @param {Array<object>} steps
+ * @returns {number}
+ */
+function getSequenceDurationSeconds(steps = []) {
+  const timedSteps = steps.length > 1 ? steps.slice(0, -1) : steps;
+  const total = timedSteps.reduce((sum, step) => sum + normalizeStepDuration(step.durationSeconds), 0);
+  return Math.round(total * 10) / 10;
+}
+
+/**
+ * @param {object} drawing
+ * @returns {Array<object>}
+ */
+function getSequencePreviewStrokes(drawing = {}) {
+  const steps = Array.isArray(drawing.steps) ? drawing.steps : [];
+  if (steps.length > 0) return cloneStrokes(steps[0].strokes);
+  return cloneStrokes(drawing.strokes);
+}
+
+/**
  * @param {string} dataUrl
  * @returns {Buffer}
  */
 function pngDataUrlToBuffer(dataUrl) {
-  const match = /^data:image\/png;base64,(.+)$/i.exec(String(dataUrl || ''));
-  if (!match) throw new Error('PNG invalido.');
-  return Buffer.from(match[1], 'base64');
+  const match = /^data:image\/(png);base64,([A-Za-z0-9+/]+={0,2})$/i.exec(String(dataUrl || '').trim());
+  if (!match) throw new Error('Imagen PNG base64 invalida.');
+  const base64 = match[2];
+  if (base64.length % 4 !== 0) throw new Error('Imagen base64 invalida.');
+  const buffer = Buffer.from(base64, 'base64');
+  if (buffer.length > MAX_FRAME_IMAGE_BYTES) throw new Error('Imagen tamano demasiado grande.');
+  const isPng = buffer.length >= 8
+    && buffer[0] === 0x89
+    && buffer[1] === 0x50
+    && buffer[2] === 0x4e
+    && buffer[3] === 0x47
+    && buffer[4] === 0x0d
+    && buffer[5] === 0x0a
+    && buffer[6] === 0x1a
+    && buffer[7] === 0x0a;
+  if (!isPng) throw new Error('PNG invalido.');
+  return buffer;
 }
 
 /**
@@ -58,6 +160,63 @@ function normalizeCanvas(data = {}) {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeBackgroundImage(value) {
+  const text = typeof value === 'string' ? value.trim() : '';
+  if (/^data:image\/[a-z0-9.+-]+;base64,/i.test(text)) return text;
+  if (/^https:\/\/[^\s]+$/i.test(text)) return text;
+  return '';
+}
+
+/**
+ * @param {object} marker
+ * @returns {string}
+ */
+function getLiveDrawingFileName(marker = {}) {
+  const markerFile = path.basename(String(marker.file || ''));
+  if (markerFile.toLowerCase().endsWith('.json')) {
+    return `${sanitizeFilePart(markerFile.slice(0, -5))}.json`;
+  }
+  return `${sanitizeFilePart(marker.id)}.json`;
+}
+
+/**
+ * @param {string} matchId
+ * @param {object} marker
+ * @returns {Promise<object>}
+ */
+async function readLiveDrawing(matchId, marker = {}) {
+  const fileName = getLiveDrawingFileName(marker);
+  const filePath = path.join(getMatchDataPath(matchId), 'drawings', fileName);
+
+  try {
+    const drawing = JSON.parse(await fs.readFile(filePath, 'utf-8'));
+    const timestamp = Math.max(0, Number(marker.timestamp ?? drawing.timestamp) || 0);
+    const steps = normalizeSequenceSteps(drawing, normalizeDuration(marker.durationSeconds ?? drawing.durationSeconds));
+    const durationSeconds = getSequenceDurationSeconds(steps);
+    return {
+      ...marker,
+      ...drawing,
+      id: marker.id || drawing.id,
+      kind: 'live-sequence',
+      timestamp,
+      durationSeconds,
+      stepCount: steps.length,
+      file: marker.file || `drawings/${fileName}`,
+      canvas: normalizeCanvas(drawing.canvas),
+      backgroundImage: normalizeBackgroundImage(drawing.backgroundImage || marker.backgroundImage),
+      steps,
+      strokes: getSequencePreviewStrokes({ ...drawing, steps }),
+    };
+  } catch (error) {
+    if (error.code === 'ENOENT') return marker;
+    throw error;
+  }
+}
+
+/**
  * @param {string} matchId
  * @param {object} data
  * @returns {Promise<object>}
@@ -65,16 +224,20 @@ function normalizeCanvas(data = {}) {
 async function saveLiveDrawing(matchId, data = {}) {
   const id = sanitizeFilePart(data.id || uuidv4());
   const timestamp = Math.max(0, Number(data.timestamp) || 0);
-  const durationSeconds = normalizeDuration(data.durationSeconds);
+  const steps = normalizeSequenceSteps(data, normalizeDuration(data.durationSeconds));
+  const durationSeconds = getSequenceDurationSeconds(steps);
   const now = new Date().toISOString();
   const drawing = {
     id,
-    kind: 'live',
+    kind: 'live-sequence',
     matchId,
     timestamp,
     durationSeconds,
+    stepCount: steps.length,
     canvas: normalizeCanvas(data.canvas),
-    strokes: Array.isArray(data.strokes) ? data.strokes : [],
+    backgroundImage: normalizeBackgroundImage(data.backgroundImage),
+    steps,
+    strokes: getSequencePreviewStrokes({ ...data, steps }),
     createdAt: now,
   };
   const drawingsPath = await ensureMatchSubdir(matchId, 'drawings');
@@ -83,8 +246,10 @@ async function saveLiveDrawing(matchId, data = {}) {
   const match = await getMatchById(matchId);
   const marker = {
     id,
+    kind: 'live-sequence',
     timestamp,
     durationSeconds,
+    stepCount: steps.length,
     file: `drawings/${id}.json`,
     createdAt: now,
   };
@@ -102,6 +267,91 @@ async function saveLiveDrawing(matchId, data = {}) {
 
 /**
  * @param {string} matchId
+ * @param {string} drawingId
+ * @param {object} data
+ * @returns {Promise<object>}
+ */
+async function updateLiveDrawing(matchId, drawingId, data = {}) {
+  const match = await getMatchById(matchId);
+  const safeId = sanitizeFilePart(drawingId);
+  const marker = (Array.isArray(match.drawings) ? match.drawings : [])
+    .find(item => item.id === drawingId || item.id === safeId);
+  if (!marker) throw new Error('Drawing not found');
+
+  const existing = await readLiveDrawing(matchId, marker);
+  const timestamp = Number.isFinite(Number(data.timestamp))
+    ? Math.max(0, Number(data.timestamp))
+    : Math.max(0, Number(existing.timestamp) || 0);
+  const steps = Array.isArray(data.steps)
+    ? normalizeSequenceSteps(data, normalizeDuration(existing.durationSeconds))
+    : Array.isArray(data.strokes)
+      ? normalizeSequenceSteps(data, normalizeDuration(data.durationSeconds ?? existing.durationSeconds))
+      : Array.isArray(existing.steps)
+        ? existing.steps
+        : normalizeSequenceSteps(existing, normalizeDuration(existing.durationSeconds));
+  const durationSeconds = getSequenceDurationSeconds(steps);
+  const updatedAt = new Date().toISOString();
+  const drawing = {
+    ...existing,
+    id: marker.id,
+    kind: 'live-sequence',
+    matchId,
+    timestamp,
+    durationSeconds,
+    stepCount: steps.length,
+    canvas: normalizeCanvas(data.canvas ?? existing.canvas),
+    backgroundImage: normalizeBackgroundImage(data.backgroundImage) || normalizeBackgroundImage(existing.backgroundImage),
+    steps,
+    strokes: getSequencePreviewStrokes({ ...existing, ...data, steps }),
+    updatedAt,
+  };
+  const fileName = getLiveDrawingFileName(marker);
+  const drawingsPath = await ensureMatchSubdir(matchId, 'drawings');
+  await fs.writeFile(path.join(drawingsPath, fileName), JSON.stringify(drawing, null, 2), 'utf-8');
+
+  const nextMarkers = (Array.isArray(match.drawings) ? match.drawings : [])
+    .map(item => (item.id === marker.id ? {
+      ...item,
+      kind: 'live-sequence',
+      timestamp,
+      durationSeconds,
+      stepCount: steps.length,
+      file: item.file || `drawings/${fileName}`,
+      updatedAt,
+    } : item))
+    .sort((a, b) => (Number(a.timestamp) || 0) - (Number(b.timestamp) || 0));
+  await updateMatch(matchId, { drawings: nextMarkers });
+  return drawing;
+}
+
+/**
+ * @param {string} matchId
+ * @param {string} drawingId
+ * @returns {Promise<{deleted: boolean, id: string}>}
+ */
+async function deleteLiveDrawing(matchId, drawingId) {
+  const match = await getMatchById(matchId);
+  const safeId = sanitizeFilePart(drawingId);
+  const marker = (Array.isArray(match.drawings) ? match.drawings : [])
+    .find(item => item.id === drawingId || item.id === safeId);
+  if (!marker) return { deleted: false, id: safeId };
+
+  const fileName = getLiveDrawingFileName(marker);
+  try {
+    await fs.unlink(path.join(getMatchDataPath(matchId), 'drawings', fileName));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+
+  await updateMatch(matchId, {
+    drawings: (Array.isArray(match.drawings) ? match.drawings : [])
+      .filter(item => item.id !== marker.id),
+  });
+  return { deleted: true, id: marker.id };
+}
+
+/**
+ * @param {string} matchId
  * @param {string} eventId
  * @param {object} data
  * @returns {Promise<object>}
@@ -111,10 +361,17 @@ async function saveFrameDrawing(matchId, eventId, data = {}) {
   const match = await getMatchById(matchId);
   const event = (match.events || []).find(item => item.id === eventId);
   if (!event) throw new Error('Event not found');
+  const existingFrameCount = (match.events || [])
+    .filter(item => item.drawingId && item.id !== event.id)
+    .length;
+  if (!event.drawingId && existingFrameCount >= MAX_FRAME_DRAWINGS_PER_MATCH) {
+    throw new Error('Limite de dibujos por partido alcanzado.');
+  }
+  const imageBuffer = pngDataUrlToBuffer(data.imageDataUrl);
 
   const framesPath = await ensureMatchSubdir(matchId, 'frames');
   const drawingsPath = await ensureMatchSubdir(matchId, 'drawings');
-  await fs.writeFile(path.join(framesPath, `${safeEventId}.png`), pngDataUrlToBuffer(data.imageDataUrl));
+  await fs.writeFile(path.join(framesPath, `${safeEventId}.png`), imageBuffer);
 
   const drawing = {
     id: safeEventId,
@@ -144,7 +401,8 @@ async function saveFrameDrawing(matchId, eventId, data = {}) {
  */
 async function getMatchDrawings(matchId) {
   const match = await getMatchById(matchId);
-  const live = Array.isArray(match.drawings) ? match.drawings : [];
+  const live = await Promise.all((Array.isArray(match.drawings) ? match.drawings : [])
+    .map(marker => readLiveDrawing(matchId, marker)));
   const frames = (match.events || [])
     .filter(event => event.drawingId)
     .map(event => ({
@@ -161,18 +419,28 @@ async function getMatchDrawings(matchId) {
 
 /**
  * @param {string} matchId
- * @returns {Promise<Array<object>>}
+ * @returns {Promise<{frames: Array<object>, omitted: {overLimit: number, oversized: number, missing: number}, limit: number, maxBytes: number, warning: string}>}
  */
 async function getAnnotatedFramesForPdf(matchId) {
   const match = await getMatchById(matchId);
-  const attachments = [];
+  const annotatedEvents = (match.events || []).filter(event => event.drawingId);
+  const frames = [];
+  const omitted = {
+    overLimit: Math.max(0, annotatedEvents.length - MAX_PDF_FRAME_ATTACHMENTS),
+    oversized: 0,
+    missing: 0,
+  };
 
-  for (const event of match.events || []) {
-    if (!event.drawingId) continue;
+  for (const event of annotatedEvents.slice(0, MAX_PDF_FRAME_ATTACHMENTS)) {
     const filePath = path.join(getMatchDataPath(matchId), 'frames', `${sanitizeFilePart(event.drawingId)}.png`);
     try {
+      const stat = await fs.stat(filePath);
+      if (stat.size > MAX_FRAME_IMAGE_BYTES) {
+        omitted.oversized += 1;
+        continue;
+      }
       const image = await fs.readFile(filePath);
-      attachments.push({
+      frames.push({
         eventId: event.id,
         drawingId: event.drawingId,
         timestamp: Number(event.timestamp) || 0,
@@ -183,10 +451,22 @@ async function getAnnotatedFramesForPdf(matchId) {
       });
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
+      omitted.missing += 1;
     }
   }
 
-  return attachments;
+  const omittedTotal = omitted.overLimit + omitted.oversized + omitted.missing;
+  const warning = omittedTotal > 0
+    ? `PDF: se incluyeron ${frames.length} frames anotados y se omitieron ${omittedTotal} por limite ${MAX_PDF_FRAME_ATTACHMENTS}, tamano o archivo faltante.`
+    : '';
+
+  return {
+    frames,
+    omitted,
+    limit: MAX_PDF_FRAME_ATTACHMENTS,
+    maxBytes: MAX_FRAME_IMAGE_BYTES,
+    warning,
+  };
 }
 
 /**
@@ -209,6 +489,8 @@ async function exportPng(dataUrl, suggestedName = 'frame.png', options) {
 
 module.exports = {
   saveLiveDrawing,
+  updateLiveDrawing,
+  deleteLiveDrawing,
   saveFrameDrawing,
   getMatchDrawings,
   getAnnotatedFramesForPdf,

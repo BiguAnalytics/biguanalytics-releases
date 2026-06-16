@@ -61,11 +61,13 @@ describe('video player layout CSS', () => {
     expect(css).toMatch(/\.status-card\s*{[^}]*gap:\s*var\(--space-2\);[^}]*padding:\s*var\(--space-2\);/s);
   });
 
-  it('styles the simplified manual score controls as a single scoreline', () => {
-    expect(css).toMatch(/\.status-score-card\s*{[^}]*padding:\s*var\(--space-2\)\s+var\(--space-3\);/s);
-    expect(css).toMatch(/\.scoreboard-compact\s*{[^}]*grid-template-columns:\s*minmax\(0,\s*1fr\)\s+auto\s+minmax\(0,\s*1fr\);/s);
-    expect(css).toMatch(/\.scoreline\s*{[^}]*font:\s*900\s+24px\s+var\(--font-brand\);/s);
-    expect(css).toMatch(/\.score-stepper button\s*{[^}]*min-width:\s*28px;[^}]*cursor:\s*pointer;/s);
+  it('styles the manual score controls as a light integrated score strip', () => {
+    expect(css).toMatch(/\.status-score-card\s*{[^}]*padding:\s*var\(--space-3\)\s+var\(--space-3\)\s+var\(--space-2\);[^}]*border-color:\s*transparent;/s);
+    expect(css).toMatch(/\.status-score-card\s*{[^}]*box-shadow:\s*none;/s);
+    expect(css).toMatch(/\.scoreboard-compact\s*{[^}]*grid-template-columns:\s*minmax\(78px,\s*1fr\)\s+auto\s+minmax\(78px,\s*1fr\);/s);
+    expect(css).toMatch(/\.scoreline\s*{[^}]*min-width:\s*116px;[^}]*background:\s*transparent;[^}]*font:\s*900\s+42px\s+var\(--font-brand\);/s);
+    expect(css).toMatch(/\.score-stepper button\s*{[^}]*min-width:\s*34px;[^}]*min-height:\s*34px;[^}]*cursor:\s*pointer;/s);
+    expect(css).not.toMatch(/\.status-score-card\s*{[^}]*border:\s*1px solid rgba\(138,\s*155,\s*176,\s*0\.13\);/s);
   });
 
   it('keeps possession compact without duplicated detail rows or a second history strip', () => {
@@ -78,7 +80,10 @@ describe('video player layout CSS', () => {
   it('styles the module entry selector as a focused selectable video grid', () => {
     expect(css).toMatch(/\.tagging-match-select-view\s*{[^}]*display:\s*grid;[^}]*overflow-y:\s*auto;/s);
     expect(css).toMatch(/\.tagging-match-select-grid\s*{[^}]*grid-template-columns:\s*repeat\(auto-fill,\s*minmax\(260px,\s*1fr\)\);/s);
-    expect(css).toMatch(/\.tagging-match-card\s*{[^}]*cursor:\s*pointer;[^}]*text-align:\s*left;/s);
+    expect(css).toMatch(/\.tagging-match-card\s*{[^}]*cursor:\s*default;[^}]*text-align:\s*left;/s);
+    expect(css).toMatch(/button\.tagging-match-card\s*{[^}]*cursor:\s*pointer;[^}]*}/s);
+    expect(css).toMatch(/\.tagging-match-edit-button\s*{[^}]*width:\s*30px;[^}]*cursor:\s*pointer;[^}]*}/s);
+    expect(css).toMatch(/\.tagging-match-card-actions \.btn\s*{[^}]*cursor:\s*pointer;[^}]*}/s);
     expect(css).toMatch(/\.tagging-match-card:focus,[\s\S]*\.tagging-match-card:focus-visible\s*{[^}]*outline:\s*none;/s);
   });
 });

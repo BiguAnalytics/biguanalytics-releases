@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   calculateMatchStats,
+  getMatchStats,
   identifyBiguaTeam,
 } from '../analytics.js';
 
@@ -77,21 +78,46 @@ function buildFixtureMatch(overrides = {}) {
 }
 
 describe('analytics.js', () => {
+  it('rejects malicious match ids before calculating persisted stats', async () => {
+    await expect(getMatchStats('../escape')).rejects.toThrow(/match id/i);
+    await expect(getMatchStats('bad/id')).rejects.toThrow(/match id/i);
+  });
+
   it('identifies Bigua by team name and falls back to home', () => {
     expect(identifyBiguaTeam({ homeTeam: 'Los Cardos', awayTeam: 'Bigua M16' })).toBe('away');
     expect(identifyBiguaTeam({ homeTeam: 'Local', awayTeam: 'Rival' })).toBe('home');
   });
 
-  it('calculates score from point events with manual score fallback only when point tags are absent', () => {
+  it('calculates score from point events plus explicit manual adjustments', () => {
     const stats = calculateMatchStats(buildFixtureMatch());
-    const fallback = calculateMatchStats(buildFixtureMatch({
+    const legacy = calculateMatchStats(buildFixtureMatch({
       homeScore: 14,
       awayScore: 12,
       events: [],
     }));
+    const ignoredPersistedScore = calculateMatchStats(buildFixtureMatch({
+      homeScore: 99,
+      awayScore: 88,
+    }));
+    const adjustment = calculateMatchStats(buildFixtureMatch({
+      scoreAdjustment: {
+        homeDelta: 2,
+        awayDelta: 1,
+        updatedAt: '2026-05-24T00:00:00.000Z',
+      },
+    }));
+    const legacyOverride = calculateMatchStats(buildFixtureMatch({
+      scoreOverride: {
+        enabled: true,
+        homeScore: 21,
+        awayScore: 17,
+        updatedAt: '2026-05-24T00:00:00.000Z',
+      },
+    }));
 
     expect(stats.score.home.total).toBe(10);
     expect(stats.score.away.total).toBe(10);
+    expect(stats.score.source).toBe('events');
     expect(stats.score.home.breakdown).toEqual({
       tries: 1,
       conversions: 1,
@@ -106,9 +132,34 @@ describe('analytics.js', () => {
       drops: 0,
       penaltyTries: 1,
     });
-    expect(fallback.score.home.total).toBe(14);
-    expect(fallback.score.away.total).toBe(12);
-    expect(fallback.score.source).toBe('manual');
+    expect(ignoredPersistedScore.score.home.total).toBe(10);
+    expect(ignoredPersistedScore.score.away.total).toBe(10);
+    expect(legacy.score.home.total).toBe(14);
+    expect(legacy.score.away.total).toBe(12);
+    expect(legacy.score.source).toBe('legacy-manual');
+    expect(adjustment.score.home.total).toBe(12);
+    expect(adjustment.score.away.total).toBe(11);
+    expect(adjustment.score.manualAdjustment).toEqual({ home: 2, away: 1 });
+    expect(adjustment.score.source).toBe('events-manual');
+    expect(legacyOverride.score.home.total).toBe(21);
+    expect(legacyOverride.score.away.total).toBe(17);
+    expect(legacyOverride.score.source).toBe('events-manual');
+  });
+
+  it('does not count unknown-team point events as home score', () => {
+    const stats = calculateMatchStats(buildFixtureMatch({
+      events: [
+        { type: 'points', result: 'try', timestamp: 120 },
+        { type: 'ruck', result: 'ganado', timestamp: 180, zone: 'Z1' },
+        { type: 'penal', result: 'defensa', subtype: 'offside', timestamp: 240 },
+      ],
+    }));
+
+    expect(stats.score.home.total).toBe(0);
+    expect(stats.score.away.total).toBe(0);
+    expect(stats.rucks.home.total).toBe(0);
+    expect(stats.discipline.home.penalties.total).toBe(0);
+    expect(stats.heatmap.available).toBe(false);
   });
 
   it('uses real possession intervals first and estimates from events when intervals are missing', () => {
@@ -221,6 +272,59 @@ describe('analytics.js', () => {
       { metrica: '% Scrums ganados', valor: 33, umbral: 50, equipo: 'Bigua' },
       { metrica: 'Break Lines concedidas', valor: 1, umbral: 0, equipo: 'Bigua' },
     ]));
+  });
+
+  it('applies dashboard filters by time band, team and zone before calculating metrics', () => {
+    const timeFiltered = calculateMatchStats(buildFixtureMatch(), {}, { timeBand: '0-20' });
+    const teamFiltered = calculateMatchStats(buildFixtureMatch(), {}, { team: 'bigua' });
+    const zoneFiltered = calculateMatchStats(buildFixtureMatch(), {}, { zone: 'Z13' });
+
+    expect(timeFiltered.match.eventCount).toBe(13);
+    expect(timeFiltered.score.home.total).toBe(7);
+    expect(timeFiltered.score.away.total).toBe(3);
+    expect(timeFiltered.bip.bands[0].count).toBe(13);
+    expect(timeFiltered.bip.bands.slice(1).every(band => band.count === 0)).toBe(true);
+
+    expect(teamFiltered.match.eventCount).toBeGreaterThan(0);
+    expect(teamFiltered.totals.away).toEqual({ turnovers: 0, penalties: 0, breakLines: 0, kicks: 0 });
+    expect(teamFiltered.score.away.total).toBe(0);
+
+    expect(zoneFiltered.match.eventCount).toBe(2);
+    expect(Object.keys(zoneFiltered.heatmap.zones)).toEqual(['Z13']);
+    expect(zoneFiltered.breakLines.home.total).toBe(1);
+  });
+
+  it('aggregates configured custom hotkey events for the dashboard custom chart', () => {
+    const stats = calculateMatchStats(buildFixtureMatch({
+      events: [
+        { type: 'custom:line-speed', team: 'home', result: 'buena', timestamp: 120, zone: 'Z4' },
+        { type: 'custom:line-speed', team: 'away', result: 'mala', timestamp: 240, zone: 'Z5' },
+        { type: 'custom:defensive-read', team: 'home', result: 'alto', timestamp: 360, zone: 'Z6' },
+      ],
+    }), {
+      tagging: {
+        customHotkeys: [
+          { id: 'line-speed', hotkey: 'J', label: 'Salida rapida', resultOptions: ['buena', 'mala'] },
+          { id: 'defensive-read', hotkey: 'Y', label: 'Lectura defensiva', resultOptions: ['alto', 'bajo'] },
+        ],
+      },
+    });
+
+    expect(stats.customEvents).toBeTruthy();
+    expect(stats.customEvents.total).toBe(3);
+    expect(stats.customEvents.definitions).toEqual([
+      { id: 'line-speed', type: 'custom:line-speed', label: 'Salida rapida', hotkey: 'J', resultOptions: ['buena', 'mala'] },
+      { id: 'defensive-read', type: 'custom:defensive-read', label: 'Lectura defensiva', hotkey: 'Y', resultOptions: ['alto', 'bajo'] },
+    ]);
+    expect(stats.customEvents.byType['custom:line-speed']).toEqual({
+      id: 'line-speed',
+      label: 'Salida rapida',
+      hotkey: 'J',
+      total: 2,
+      home: 1,
+      away: 1,
+      results: { buena: 1, mala: 1 },
+    });
   });
 
   it('keeps the analytics pass under the dashboard budget for a 200-event match', () => {

@@ -22,7 +22,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  padding: 18px;
+  position: relative;
+  padding: 18px 18px 28px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 12px;
   background:
@@ -33,6 +34,16 @@ body {
 
 .print-page:last-child {
   page-break-after: auto;
+}
+
+.print-license-watermark {
+  position: absolute;
+  right: 18px;
+  bottom: 8px;
+  left: 18px;
+  color: rgba(138, 155, 176, 0.72);
+  font-size: 9px;
+  text-align: center;
 }
 
 .print-brand {
@@ -211,6 +222,17 @@ body {
   font-size: 11px;
 }
 
+.print-frame-limit-warning {
+  margin: 0 0 8mm;
+  padding: 4mm 5mm;
+  border: 1px solid rgba(200, 16, 46, 0.24);
+  border-radius: 4px;
+  background: rgba(200, 16, 46, 0.08);
+  color: #fecdd3;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .print-notes {
   color: #F0F4F8;
   font-size: 14px;
@@ -223,4 +245,74 @@ body {
 
 .print-notes li {
   margin-left: 18px;
+}
+
+.print-ai-page {
+  gap: 12px;
+}
+
+.print-ai-meta {
+  margin: 4px 0 0;
+  color: #8A9BB0;
+  font-size: 12px;
+}
+
+.print-ai-badge {
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 12px;
+  border: 1px solid rgba(29, 185, 84, 0.36);
+  border-radius: 999px;
+  color: #56C568;
+  background: rgba(29, 185, 84, 0.10);
+  font: 900 10px 'Arial Black', Arial, sans-serif;
+  text-transform: uppercase;
+}
+
+.print-ai-summary,
+.print-ai-block {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(13, 24, 41, 0.82);
+  padding: 14px;
+}
+
+.print-ai-summary p,
+.print-ai-block p {
+  margin: 0 0 8px;
+  color: #C7D2E1;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.print-ai-block h3 {
+  margin: 0 0 10px;
+  color: #F0F4F8;
+  font: 900 13px 'Arial Black', Arial, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.print-ai-block article {
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.print-ai-block article:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.print-ai-block strong {
+  display: block;
+  color: #F0F4F8;
+  font-size: 12px;
+}
+
+.print-ai-block small {
+  display: block;
+  color: #8A9BB0;
+  font-size: 10px;
+  line-height: 1.4;
 }

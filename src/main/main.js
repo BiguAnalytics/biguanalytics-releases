@@ -1,9 +1,22 @@
 const { app, BrowserWindow, ipcMain, session } = require('electron');
 const path = require('path');
+const { createStartupTimer, setStartupTimer } = require('./modules/startup-timing');
 const { registerIpcHandlers } = require('./ipc');
-const { buildYouTubeRequestHeaders } = require('./modules/media');
 
+const startupTimer = createStartupTimer({ app });
+setStartupTimer(startupTimer);
+startupTimer.mark('main:start');
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+app.commandLine.appendSwitch('enable-features', 'WebSpeechAPI');
+
+const devIconPath = path.join(__dirname, '../../build/icon.ico');
+const packagedIconPath = path.join(process.resourcesPath, 'icon.ico');
+const appIconPath = app.isPackaged ? packagedIconPath : devIconPath;
+const appUserModelId = 'com.biguanalytics.app';
+
+if (process.platform === 'win32') {
+  app.setAppUserModelId(appUserModelId);
+}
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -13,6 +26,7 @@ if (require('electron-squirrel-startup')) {
 let mainWindow;
 
 function configureYouTubeEmbeds() {
+  const { buildYouTubeRequestHeaders } = require('./modules/media');
   const filter = {
     urls: [
       '*://www.youtube.com/*',
@@ -31,39 +45,92 @@ function configureYouTubeEmbeds() {
   });
 }
 
+function configureMediaPermissions() {
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback, details = {}) => {
+    if (permission === 'media') {
+      const mediaTypes = Array.isArray(details.mediaTypes) ? details.mediaTypes : [];
+      callback(mediaTypes.includes('audio') && !mediaTypes.includes('video'));
+      return;
+    }
+    callback(false);
+  });
+}
+
 const createWindow = () => {
-  // Create the browser window.
+  startupTimer.mark('browser-window:create:start');
   mainWindow = new BrowserWindow({
     width: 1280,
     height: 800,
     minWidth: 1024,
     minHeight: 768,
     frame: false, // Custom frame
+    show: false,
+    icon: appIconPath,
     backgroundColor: '#080E1A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       webviewTag: false,
+      sandbox: true,
+      webSecurity: true,
+      allowRunningInsecureContent: false,
     },
   });
+  startupTimer.mark('browser-window:create:end');
 
-  // Load the index.html of the app.
-  mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return { action: 'deny' };
+  });
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    if (url !== mainWindow.webContents.getURL()) {
+      event.preventDefault();
+    }
+  });
 
-  // Open the DevTools if --dev flag is passed.
+  function showMainWindow() {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow.isVisible()) return;
+    mainWindow.maximize();
+    mainWindow.show();
+    startupTimer.mark('browser-window:show');
+  }
+
+  mainWindow.once('ready-to-show', () => {
+    startupTimer.mark('browser-window:ready-to-show');
+    showMainWindow();
+  });
+  mainWindow.webContents.once('dom-ready', () => {
+    startupTimer.mark('renderer:dom-ready');
+  });
+  mainWindow.webContents.once('did-finish-load', () => {
+    startupTimer.mark('browser-window:did-finish-load');
+  });
+
+  startupTimer.timeAsync('browser-window:loadFile', () => mainWindow.loadFile(path.join(__dirname, '../renderer/index.html')))
+    .catch(() => {});
+
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
 };
 
 app.whenReady().then(() => {
-  configureYouTubeEmbeds();
+  startupTimer.mark('electron:ready');
 
-  // Register all IPC handlers for data and window management
+  ipcMain.handle('startup:mark', async (e, label, detail = {}) => {
+    startupTimer.mark(String(label || 'renderer:mark'), {
+      source: 'renderer',
+      detail: detail && typeof detail === 'object' ? detail : {},
+    });
+    return true;
+  });
+
+  createWindow();
+
+  startupTimer.mark('ipc:register:start');
   registerIpcHandlers();
+  startupTimer.mark('ipc:register:end');
 
-  // Window handlers
   ipcMain.on('window:minimize', () => {
     if (mainWindow) mainWindow.minimize();
   });
@@ -82,7 +149,10 @@ app.whenReady().then(() => {
     if (mainWindow) mainWindow.close();
   });
 
-  createWindow();
+  configureYouTubeEmbeds();
+  startupTimer.mark('youtube-embeds:configured');
+  configureMediaPermissions();
+  startupTimer.mark('media-permissions:configured');
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

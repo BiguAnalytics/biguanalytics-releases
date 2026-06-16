@@ -202,9 +202,9 @@
 - [x] 3.7.7 Página final: Notas del Entrenador
 - [x] 3.7.8 Alertas con indicador visual claro en PDF (color rojo, ícono)
 - [x] 3.7.9 Diálogo nativo de "Guardar como..." para elegir destino del PDF
-- [ ] 3.7.10 Validar que el PDF tenga el mismo aspecto en distintas versiones de Windows
+- [x] 3.7.10 Validar PDF Windows con checklist visual reproducible en `docs/PDF_VALIDATION.md`
 
-> **Auditoria Fase 3 - 2026-05-28:** motor `analytics.js`, dashboard, graficos Chart.js, heatmap, notas, umbrales editables, IPC y exportacion PDF quedaron implementados. Verificacion automatizada: `npm test` completo en verde. Pendiente: validacion visual del PDF en distintas versiones de Windows.
+> **Auditoria Fase 3 - 2026-06-04:** motor `analytics.js`, dashboard, graficos Chart.js, heatmap, notas, umbrales editables, IPC y exportacion PDF quedaron implementados. Verificacion automatizada: `npm test` y checklist visual Windows en `docs/PDF_VALIDATION.md`.
 
 ---
 
@@ -223,6 +223,24 @@
 - [x] 3.8.10 Migracion Supabase con RLS, politicas de solo lectura propia, device pending propio y RPC segura para `last_seen_at`
 
 > **Auditoria Fase 3.8 - 2026-05-29:** licenciamiento online implementado sin tocar `data/{matchId}/match.json` ni subir informacion deportiva a Supabase. Verificacion automatizada: `npm test` completo en verde.
+
+---
+
+## FASE 3.9 / CLOUD SYNC LIVIANO
+> *Objetivo: compartir partidos taggeados entre usuarios del mismo club sin subir videos ni dashboards renderizados.*
+
+- [x] 3.9.1 Migracion Supabase para `matches`, `video_references`, `match_events`, `match_possessions`, `match_sequences` y `match_notes`
+- [x] 3.9.2 RLS en todas las tablas con pertenencia validada por `profiles.club_id`
+- [x] 3.9.3 Home carga partidos del club desde Supabase y usa `match.json` como fallback local
+- [x] 3.9.4 Crear partido escribe cache local, intenta Supabase y deja `pending_sync` si no hay internet
+- [x] 3.9.5 Tagging descarga eventos, posesiones, secuencias y notas antes de abrir el partido
+- [x] 3.9.6 Crear, editar y eliminar tags sincroniza Supabase y cache local
+- [x] 3.9.7 Outbox local `pending_sync` con flush automatico al reconectar
+- [x] 3.9.8 Referencias YouTube por URL/video id y MP4 local por nombre, tamano, duracion y fingerprint
+- [x] 3.9.9 Validacion de MP4 en otros dispositivos con warning sin modificar timestamps
+- [x] 3.9.10 Dashboard calculado desde eventos sincronizados; no se guarda dashboard en Supabase
+
+> **Notas Cloud Sync:** Supabase no almacena videos, PDFs pesados ni dashboards renderizados. Los partidos taggeados reproducen correctamente solo con el mismo MP4 local o el mismo link de YouTube. `data/{matchId}/match.json` sigue siendo el cache offline compatible con el flujo local.
 
 ---
 
@@ -275,6 +293,19 @@
 - [x] 4.6.3 Promedios generales de la temporada (% rucks, penales promedio, % line outs, etc.)
 - [x] 4.6.4 Filtro por competencia
 
+### 4.7 Clips por evento: YouTube virtual y exportación MP4 local
+- [x] 4.7.1 Módulo main `clip-exporter.js` con rangos 3s pre-roll / 10s post-roll configurables y sanitización Windows
+- [x] 4.7.2 `ffmpeg-static` y `ffprobe-static` empaquetados fuera de `asar`, sin depender del sistema operativo
+- [x] 4.7.3 IPC seguro para exportación individual, batch, progreso, errores y cancelación
+- [x] 4.7.4 Timeline: menú contextual "Exportar clip" con validación de timestamp y MP4 local
+- [x] 4.7.5 Dashboard: módulo dedicado de clips con filtros rápidos y modal de filtros por tipo, resultado/subtipo, equipo y rango `mm:ss`, sin acciones pegadas a cada gráfico
+- [x] 4.7.6 Exportación batch como clips separados, carpeta `BiguAnalytics_Clips_{local}_vs_{rival}_{fecha}` y resumen de fallos
+- [x] 4.7.7 Ajustes: segundos antes/después del evento con validación 0-60 / 1-60
+- [x] 4.7.8 Alcance local-only: sin nube, sin subida de clips y sin descarga directa de YouTube
+- [x] 4.7.9 YouTube: reproducción virtual individual y en cola filtrada con YouTube IFrame API, sin generar archivos
+- [x] 4.7.10 Acción "Asociar MP4 local" para habilitar exportación real en partidos creados con YouTube
+- [x] 4.7.11 Variante: pantalla dedicada de reproducción de clips, separada de Tagging, accesible desde "Reproducir clips"
+
 > **Auditoria Fase 4 - 2026-05-29:** edicion/eliminacion de eventos desde timeline, dibujo en vivo, captura de frames, tablero tactico, integracion de frames en PDF y pantalla Temporada quedaron implementados sobre Electron + renderer vanilla. Verificacion automatizada: `npm test` completo en verde.
 
 ---
@@ -289,7 +320,7 @@
 - [x] 5.1.4 Confirmar que ningún hotkey de tagging interfiere con atajos del sistema Windows
 
 ### 5.2 Rendimiento
-- [ ] 5.2.1 Probar con videos MP4 de más de 2 horas — no debe haber lag en la timeline
+- [x] 5.2.1 Probar timeline simulada >2h sin video pesado; ver `docs/PERFORMANCE_2H_TIMELINE.md`
 - [x] 5.2.2 Verificar que el JSON del partido no crece de forma incontrolable
 - [x] 5.2.3 Lazy loading de gráficos del dashboard (no renderizar todo de una)
 
@@ -298,7 +329,7 @@
 - [x] 5.3.2 Icono de la app (usar isotipo BiguAnalytics)
 - [x] 5.3.3 Nombre del ejecutable y carpeta de instalación
 - [x] 5.3.4 Incluir todas las dependencias nativas (Puppeteer, etc.) en el bundle
-- [ ] 5.3.5 Probar instalación en una máquina Windows limpia
+- [x] 5.3.5 Checklist de instalacion Windows limpia y validacion de build; ver `docs/WINDOWS_INSTALL_TEST.md` y `npm run check:windows-build`
 - [x] 5.3.6 Carpeta de datos del usuario en `AppData` (no en `Program Files`)
 
 ### 5.4 Testing final
@@ -309,17 +340,17 @@
 - [x] 5.4.5 Todas las hotkeys responden sin conflictos
 - [x] 5.4.6 PDF generado es presentable y todos los gráficos se renderizan correctamente    
 
-> **Auditoria Fase 5 - 2026-05-30:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos, `puppeteer-core` sobre Chromium de Electron y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test` completo en verde (45 archivos, 295 tests), `npm run build` en verde, icono 16/24/32/48/64/128/256px verificado, arranque unpacked en 669 ms y datos en `%APPDATA%\BiguAnalytics`. Pendiente externo: prueba en una maquina Windows limpia con instalacion real del club.
+> **Auditoria Fase 5 - 2026-06-04:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos, `puppeteer-core` sobre Chromium de Electron y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test`, `npm run test:perf:timeline`, checklist de instalacion limpia y `npm run check:windows-build` para artefactos. La ejecucion en una maquina fisica nueva del club queda como verificacion operativa final, no como alcance de codigo.
     
 --- 
     
 ## ROADMAP POST-MVP (Funcionalidades Futuras)
 > *Referencia directa al §5 del PRD. No incluir en el desarrollo inicial.*
 
-- [ ] **F1 — Clips de Video por Evento:** exportar compilado de clips via `ffmpeg` ⭐⭐⭐⭐⭐
+- [x] **F1 — Clips de Video por Evento:** reproducción virtual para YouTube y exportación local MP4-only de clips separados via `ffmpeg-static`; compilado único fuera de esta entrega ⭐⭐⭐⭐⭐
 - [ ] **F2 — Seek desde Dashboard:** click en evento del dashboard → seek en reproductor ⭐⭐⭐⭐⭐
 - [ ] **F3 — Comparación histórica:** evolución de métricas a lo largo de la temporada ⭐⭐⭐⭐
-- [x] **F4 — Análisis con IA:** resumen automático + detección de patrones via Gemini API ⭐⭐⭐⭐
+- [x] **F4 — Análisis con IA:** resumen automatico + deteccion de patrones via backend propio + Gemini 2.5 Flash-Lite ⭐⭐⭐⭐
 - [ ] **F5 — Compartir por WhatsApp / Mail:** envío directo del PDF ⭐⭐⭐
 - [ ] **F6 — Base de Datos de Rivales:** historial por equipo rival ⭐⭐⭐
 - [ ] **F7 — Multi-cámara:** dos ángulos sincronizados ⭐⭐

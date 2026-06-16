@@ -1,16 +1,54 @@
 // @ts-check
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
+import { buildWalkthroughResetSettings } from '../components/walkthrough.js';
+import { getAccessState } from '../auth/access-guard.js';
 import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
 
 const DEFAULT_AUTO_CLOSE_MS = 8000;
+const DEFAULT_CLIP_PRE_ROLL_SECONDS = 3;
+const DEFAULT_CLIP_POST_ROLL_SECONDS = 10;
+const DEFAULT_MICROPHONE_SETTINGS = {
+  deviceId: '',
+  label: 'Microfono predeterminado',
+  language: 'es-AR',
+};
+const HOTKEY_CAPTURE_PROMPT = 'Pulse una tecla';
 const ALERT_THRESHOLD_FIELDS = [
   { key: 'ruckWinPctMin', label: '% Rucks ganados', comparator: '<', defaultValue: 50, suffix: '%' },
   { key: 'penaltiesMax', label: 'Penales totales', comparator: '>', defaultValue: 15, suffix: '' },
   { key: 'lineoutWinPctMin', label: '% Line Outs ganados', comparator: '<', defaultValue: 40, suffix: '%' },
   { key: 'scrumWinPctMin', label: '% Scrums ganados', comparator: '<', defaultValue: 50, suffix: '%' },
   { key: 'breakLinesConcededMax', label: 'Break Lines concedidas', comparator: '>', defaultValue: 5, suffix: '' },
+];
+
+const DEFAULT_TAGGING_HOTKEYS = {
+  ruck: 'R',
+  scrum: 'S',
+  lineout: 'L',
+  penal: 'P',
+  points: 'T',
+  'break-line': 'B',
+  kick: 'K',
+  maul: 'M',
+  turnover: 'V',
+  card: 'A',
+  note: 'N',
+};
+
+const DEFAULT_HOTKEY_FIELDS = [
+  { key: 'ruck', label: 'Ruck', original: 'R' },
+  { key: 'scrum', label: 'Scrum', original: 'S' },
+  { key: 'lineout', label: 'Line Out', original: 'L' },
+  { key: 'penal', label: 'Penal / Free Kick', original: 'P' },
+  { key: 'points', label: 'Try y puntos', original: 'T' },
+  { key: 'break-line', label: 'Break Line', original: 'B' },
+  { key: 'kick', label: 'Kick', original: 'K' },
+  { key: 'maul', label: 'Maul', original: 'M' },
+  { key: 'turnover', label: 'Turnover', original: 'V' },
+  { key: 'card', label: 'Tarjeta', original: 'A' },
+  { key: 'note', label: 'Nota libre', original: 'N' },
 ];
 
 /**
@@ -55,6 +93,464 @@ export function getAlertThresholdPayload(container) {
 }
 
 /**
+ * @param {string|number|null|undefined} value
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+function normalizeHotkeyInput(value) {
+  const match = String(value || '').trim().toUpperCase().match(/[A-Z0-9]/);
+  return match ? match[0] : '';
+}
+
+/**
+ * @param {{key?: string, ctrlKey?: boolean, metaKey?: boolean, altKey?: boolean}} event
+ * @returns {string}
+ */
+export function getRecordedHotkeyValue(event) {
+  if (event.ctrlKey || event.metaKey || event.altKey) return '';
+  const key = String(event.key || '');
+  if (key.length !== 1) return '';
+  return normalizeHotkeyInput(key);
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+function normalizeCustomHotkeyId(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {Array<string>}
+ */
+function parseResultOptions(value) {
+  return String(value || '')
+    .split(',')
+    .map(option => option.trim())
+    .filter(Boolean);
+}
+
+/**
+ * @param {Array<object>} hotkeys
+ * @returns {string}
+ */
+function buildCustomHotkeyRows(hotkeys = []) {
+  const rows = Array.isArray(hotkeys) && hotkeys.length > 0 ? hotkeys : [{ id: '', hotkey: '', label: '', resultOptions: [] }];
+  return rows.map((hotkey) => `
+    <div class="settings-custom-hotkey-row" data-custom-hotkey-row data-custom-hotkey-id="${escapeHtml(hotkey.id || '')}">
+      <div class="settings-hotkey-capture">
+        <span>Tecla</span>
+        <div class="settings-hotkey-capture-control">
+          <input class="form-input settings-hotkey-input" type="text" maxlength="1" readonly data-custom-hotkey-key value="${escapeHtml(hotkey.hotkey || '')}" aria-label="Tecla del atajo personalizado" />
+          <button class="settings-hotkey-record" type="button" data-hotkey-record aria-pressed="false">Cambiar</button>
+        </div>
+      </div>
+      <label>
+        <span>Nombre</span>
+        <input class="form-input" type="text" data-custom-hotkey-label value="${escapeHtml(hotkey.label || '')}" placeholder="Ej: Salida rapida" />
+      </label>
+      <label>
+        <span>Opciones</span>
+        <input class="form-input" type="text" data-custom-hotkey-options value="${escapeHtml((hotkey.resultOptions || []).join(', '))}" placeholder="buena, mala" />
+      </label>
+      <button class="settings-hotkey-remove" type="button" data-custom-hotkey-remove aria-label="Eliminar atajo">x</button>
+    </div>
+  `).join('');
+}
+
+let activeHotkeyRecording = null;
+
+function finishHotkeyRecording() {
+  if (!activeHotkeyRecording) return;
+  document.removeEventListener('keydown', activeHotkeyRecording.handleKeydown, true);
+  activeHotkeyRecording.button.textContent = activeHotkeyRecording.idleLabel;
+  activeHotkeyRecording.button.classList.remove('is-recording');
+  activeHotkeyRecording.button.setAttribute('aria-pressed', 'false');
+  activeHotkeyRecording.input.classList.remove('is-recording');
+  activeHotkeyRecording = null;
+}
+
+/**
+ * @param {HTMLInputElement} input
+ * @param {HTMLButtonElement} button
+ */
+function beginHotkeyRecording(input, button) {
+  finishHotkeyRecording();
+  const idleLabel = button.dataset.idleLabel || button.textContent || 'Cambiar';
+  button.dataset.idleLabel = idleLabel;
+
+  const handleKeydown = (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      finishHotkeyRecording();
+      return;
+    }
+    event.preventDefault();
+    event.stopPropagation();
+    const nextHotkey = getRecordedHotkeyValue(event);
+    if (!nextHotkey) return;
+    input.value = nextHotkey;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    finishHotkeyRecording();
+  };
+
+  activeHotkeyRecording = { input, button, idleLabel, handleKeydown };
+  button.textContent = HOTKEY_CAPTURE_PROMPT;
+  button.classList.add('is-recording');
+  button.setAttribute('aria-pressed', 'true');
+  input.classList.add('is-recording');
+  input.focus();
+  document.addEventListener('keydown', handleKeydown, true);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {HTMLElement|null} customHotkeyList
+ */
+function resetHotkeyDefaults(container, customHotkeyList) {
+  DEFAULT_HOTKEY_FIELDS.forEach((field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
+    if (input) input.value = DEFAULT_TAGGING_HOTKEYS[field.key] || field.original;
+  });
+  if (customHotkeyList) customHotkeyList.innerHTML = buildCustomHotkeyRows([]);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} settings
+ * @returns {Record<string, string>}
+ */
+export function getDefaultHotkeyPayload(container, settings = {}) {
+  return DEFAULT_HOTKEY_FIELDS.reduce((payload, field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
+    payload[field.key] = normalizeHotkeyInput(input?.value) || settings.tagging?.hotkeys?.[field.key] || field.original;
+    return payload;
+  }, {});
+}
+
+/**
+ * @param {HTMLElement} container
+ * @returns {Array<object>}
+ */
+export function getCustomHotkeyPayload(container) {
+  return Array.from(container.querySelectorAll('[data-custom-hotkey-row]'))
+    .map((row) => {
+      const element = /** @type {HTMLElement} */ (row);
+      const label = /** @type {HTMLInputElement|null} */ (element.querySelector('[data-custom-hotkey-label]'))?.value.trim() || '';
+      const hotkey = normalizeHotkeyInput(/** @type {HTMLInputElement|null} */ (element.querySelector('[data-custom-hotkey-key]'))?.value);
+      const id = normalizeCustomHotkeyId(element.dataset.customHotkeyId || label);
+      const resultOptions = parseResultOptions(/** @type {HTMLInputElement|null} */ (element.querySelector('[data-custom-hotkey-options]'))?.value);
+      return { id, hotkey, label, resultOptions };
+    })
+    .filter(hotkey => hotkey.id && hotkey.hotkey && hotkey.label);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} settings
+ * @returns {{hotkeys: Record<string, string>, customHotkeys: Array<object>}}
+ */
+export function getHotkeySettingsPayload(container, settings = {}) {
+  return {
+    hotkeys: getDefaultHotkeyPayload(container, settings),
+    customHotkeys: getCustomHotkeyPayload(container),
+  };
+}
+
+/**
+ * @param {string|number|null|undefined} value
+ * @param {number} fallback
+ * @param {number} min
+ * @returns {number}
+ */
+function normalizeClipSecondsInput(value, fallback, min) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < min) return fallback;
+  return Math.min(60, Math.round(numeric));
+}
+
+/**
+ * @param {HTMLElement|{querySelector: function(string): {value?: string}|null}} container
+ * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipOutputModeDefault: 'separate', clipExportQuality: 'copy'}}
+ */
+export function getClipExportSettingsPayload(container) {
+  const preRoll = /** @type {{value?: string}|null} */ (container.querySelector('#clip-pre-roll'));
+  const postRoll = /** @type {{value?: string}|null} */ (container.querySelector('#clip-post-roll'));
+  return {
+    clipPreRollSeconds: normalizeClipSecondsInput(preRoll?.value, DEFAULT_CLIP_PRE_ROLL_SECONDS, 0),
+    clipPostRollSeconds: normalizeClipSecondsInput(postRoll?.value, DEFAULT_CLIP_POST_ROLL_SECONDS, 1),
+    clipOutputModeDefault: 'separate',
+    clipExportQuality: 'copy',
+  };
+}
+
+/**
+ * @param {HTMLElement|{querySelector: function(string): {value?: string, selectedOptions?: Array<{textContent?: string, dataset?: object}>}|null}} container
+ * @returns {{deviceId: string, label: string, language: 'es-AR'}}
+ */
+export function getMicrophoneSettingsPayload(container) {
+  const select = /** @type {{value?: string, selectedOptions?: Array<{textContent?: string, dataset?: {deviceLabel?: string}}>}|null} */ (container.querySelector('[data-microphone-select]'));
+  const selected = select?.selectedOptions?.[0];
+  const label = selected?.dataset?.deviceLabel || selected?.textContent?.trim() || DEFAULT_MICROPHONE_SETTINGS.label;
+  return {
+    deviceId: String(select?.value || ''),
+    label: label || DEFAULT_MICROPHONE_SETTINGS.label,
+    language: 'es-AR',
+  };
+}
+
+/**
+ * @param {HTMLElement|{querySelector: function(string): {value?: string}|null}} container
+ * @returns {{}}
+ */
+export function getAISettingsPayload(container) {
+  return {};
+}
+
+/**
+ * @param {number} rms
+ * @returns {number}
+ */
+export function getDecibelsFromRms(rms) {
+  const value = Number(rms);
+  if (!Number.isFinite(value) || value <= 0) return -100;
+  return Math.max(-100, Math.min(0, Math.round(20 * Math.log10(value))));
+}
+
+/**
+ * @param {number} db
+ * @returns {'green'|'yellow'|'red'}
+ */
+export function getMicrophoneLevelTone(db) {
+  if (db >= -10) return 'red';
+  if (db >= -24) return 'yellow';
+  return 'green';
+}
+
+/**
+ * @param {{deviceId?: string}|null|undefined} microphone
+ * @returns {MediaStreamConstraints}
+ */
+function getMicrophoneMediaConstraints(microphone) {
+  const deviceId = String(microphone?.deviceId || '');
+  return {
+    audio: deviceId ? { deviceId: { exact: deviceId } } : true,
+  };
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function getMicrophoneErrorMessage(error) {
+  const name = error?.name || '';
+  if (name === 'NotAllowedError' || name === 'SecurityError') return 'Permiso de microfono denegado.';
+  if (name === 'NotFoundError' || name === 'DevicesNotFoundError') return 'No se detecto un microfono disponible.';
+  if (name === 'NotReadableError' || name === 'TrackStartError') return 'El microfono esta ocupado por otra aplicacion.';
+  if (name === 'OverconstrainedError' || name === 'ConstraintNotSatisfiedError') return 'El microfono seleccionado no esta disponible.';
+  return 'No se pudo iniciar el microfono.';
+}
+
+/**
+ * @param {MediaStream|null} stream
+ */
+function stopMediaStream(stream) {
+  stream?.getTracks?.().forEach(track => track.stop());
+}
+
+/**
+ * @param {HTMLSelectElement} select
+ * @param {Array<MediaDeviceInfo>} devices
+ * @param {object} microphone
+ */
+function renderMicrophoneDeviceOptions(select, devices, microphone = {}) {
+  const savedDeviceId = String(microphone.deviceId || '');
+  const hasSavedDevice = savedDeviceId && devices.some(device => device.deviceId === savedDeviceId);
+  const selectedDeviceId = hasSavedDevice ? savedDeviceId : '';
+  const options = [
+    { deviceId: '', label: DEFAULT_MICROPHONE_SETTINGS.label },
+    ...devices.map((device, index) => ({
+      deviceId: device.deviceId,
+      label: device.label || `Microfono ${index + 1}`,
+    })),
+  ];
+
+  select.innerHTML = options.map(option => `
+    <option value="${escapeHtml(option.deviceId)}" data-device-label="${escapeHtml(option.label)}">${escapeHtml(option.label)}</option>
+  `).join('');
+  select.value = selectedDeviceId;
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} settings
+ * @param {HTMLElement|null} feedback
+ * @returns {function}
+ */
+function setupMicrophoneSettings(container, settings, feedback) {
+  const select = /** @type {HTMLSelectElement|null} */ (container.querySelector('[data-microphone-select]'));
+  const status = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-status]'));
+  const level = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-level]'));
+  const dbText = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-db]'));
+  const testButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-microphone-test]'));
+  const testHint = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-test-hint]'));
+
+  let stream = null;
+  let audioContext = null;
+  let source = null;
+  /** @type {AnalyserNode|null} */
+  let analyser = null;
+  let animationFrame = 0;
+  let isTesting = false;
+
+  const setStatus = (message, tone = 'neutral') => {
+    if (!status) return;
+    status.textContent = message;
+    status.dataset.tone = tone;
+  };
+
+  const setMeter = (db = -100) => {
+    if (!level || !dbText) return;
+    const normalized = Math.max(0, Math.min(1, (db + 60) / 60));
+    const tone = getMicrophoneLevelTone(db);
+    level.style.transform = `scaleX(${normalized})`;
+    level.dataset.tone = tone;
+    dbText.textContent = `${db} dB`;
+  };
+
+  const stopMonitor = () => {
+    if (animationFrame) window.cancelAnimationFrame(animationFrame);
+    animationFrame = 0;
+    try {
+      source?.disconnect?.();
+      analyser?.disconnect?.();
+    } catch {
+      // Already disconnected.
+    }
+    stopMediaStream(stream);
+    stream = null;
+    source = null;
+    analyser = null;
+    if (audioContext?.state !== 'closed') {
+      audioContext?.close?.();
+    }
+    audioContext = null;
+    setMeter(-100);
+  };
+
+  const updateTestState = () => {
+    if (!testButton || !testHint) return;
+    testButton.textContent = isTesting ? 'Detener prueba' : 'Probar microfono';
+    testButton.setAttribute('aria-pressed', isTesting ? 'true' : 'false');
+    testHint.hidden = !isTesting;
+  };
+
+  const updateMeter = () => {
+    if (!analyser) return;
+    const samples = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(samples);
+    const rms = Math.sqrt(samples.reduce((total, sample) => total + (sample * sample), 0) / samples.length);
+    setMeter(getDecibelsFromRms(rms));
+    animationFrame = window.requestAnimationFrame(updateMeter);
+  };
+
+  const refreshDevices = async () => {
+    if (!navigator.mediaDevices?.enumerateDevices || !select) {
+      setStatus('La configuracion de microfono no esta disponible en este entorno.', 'error');
+      if (testButton) testButton.disabled = true;
+      return [];
+    }
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(device => device.kind === 'audioinput');
+    renderMicrophoneDeviceOptions(select, audioInputs, settings.microphone || DEFAULT_MICROPHONE_SETTINGS);
+    if (audioInputs.length === 0) {
+      setStatus('No se detecto un microfono disponible.', 'error');
+      if (testButton) testButton.disabled = true;
+    }
+    return audioInputs;
+  };
+
+  const startMonitor = async (allowFallback = true) => {
+    stopMonitor();
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setStatus('La configuracion de microfono no esta disponible en este entorno.', 'error');
+      if (testButton) testButton.disabled = true;
+      return;
+    }
+
+    const microphone = getMicrophoneSettingsPayload(container);
+    try {
+      stream = await navigator.mediaDevices.getUserMedia(getMicrophoneMediaConstraints(microphone));
+      const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
+      if (!AudioContextConstructor) throw new Error('AudioContext no disponible.');
+      audioContext = new AudioContextConstructor();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 1024;
+      source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      if (isTesting) source.connect(audioContext.destination);
+      setStatus(`Entrada activa: ${microphone.label || DEFAULT_MICROPHONE_SETTINGS.label}`, 'ok');
+      updateMeter();
+    } catch (error) {
+      if (allowFallback && microphone.deviceId && select) {
+        select.value = '';
+        settings.microphone = getMicrophoneSettingsPayload(container);
+        setStatus('Microfono predeterminado', 'neutral');
+        await startMonitor(false);
+        return;
+      }
+      setStatus(getMicrophoneErrorMessage(error), 'error');
+      stopMonitor();
+    }
+  };
+
+  refreshDevices()
+    .then(() => startMonitor())
+    .then(refreshDevices)
+    .catch(error => setStatus(getMicrophoneErrorMessage(error), 'error'));
+
+  select?.addEventListener('change', async () => {
+    settings.microphone = getMicrophoneSettingsPayload(container);
+    await window.api.settings.set({ microphone: settings.microphone });
+    if (feedback) feedback.textContent = 'Microfono guardado.';
+    await startMonitor();
+  });
+
+  testButton?.addEventListener('click', async () => {
+    isTesting = !isTesting;
+    updateTestState();
+    await startMonitor();
+  });
+
+  navigator.mediaDevices?.addEventListener?.('devicechange', refreshDevices);
+  updateTestState();
+
+  return () => {
+    navigator.mediaDevices?.removeEventListener?.('devicechange', refreshDevices);
+    stopMonitor();
+  };
+}
+
+/**
  * @param {HTMLElement} container
  */
 export async function renderSettings(container) {
@@ -90,6 +586,66 @@ export async function renderSettings(container) {
               </label>
             </div>
           </fieldset>
+          <fieldset class="settings-microphone-section">
+            <legend class="form-label">Audio / Microfono</legend>
+            <div class="settings-microphone-card">
+              <label class="settings-microphone-select-row">
+                <span>
+                  <strong>Microfono</strong>
+                  <small>Se usa para dictar notas en el popup de tagging.</small>
+                </span>
+                <select class="form-select settings-microphone-select" data-microphone-select aria-label="Seleccionar microfono">
+                  <option value="">Microfono predeterminado</option>
+                </select>
+              </label>
+              <div class="settings-microphone-meter" aria-label="Volumen del microfono">
+                <div class="settings-microphone-meter-track">
+                  <span class="settings-microphone-meter-fill" data-microphone-level data-tone="green"></span>
+                </div>
+                <span class="settings-microphone-db tabular-nums" data-microphone-db>-100 dB</span>
+              </div>
+              <div class="settings-microphone-actions">
+                <button class="settings-microphone-test" type="button" data-microphone-test aria-pressed="false">Probar microfono</button>
+                <span class="settings-microphone-test-hint" data-microphone-test-hint hidden>Usa auriculares para evitar acople.</span>
+              </div>
+              <p class="settings-microphone-status" data-microphone-status role="status">Microfono predeterminado</p>
+            </div>
+          </fieldset>
+          <fieldset class="settings-ai-section">
+            <legend class="form-label">Configuracion IA</legend>
+            <div class="settings-ai-card">
+              <div class="settings-ai-row" data-ai-backend-status>
+                <span>
+                  <strong>Backend IA seguro</strong>
+                  <small>Conexion administrada por BiguAnalytics Cloud Run.</small>
+                </span>
+                <p class="settings-ai-status" data-ai-status role="status" data-tone="neutral">No disponible</p>
+              </div>
+              <div class="settings-ai-actions">
+                <button class="settings-ai-test" type="button" data-ai-test-connection>Probar conexion</button>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="settings-onboarding-section">
+            <legend class="form-label">Primer uso</legend>
+            <div class="settings-onboarding-card">
+              <span>
+                <strong>Walkthrough interno</strong>
+                <small>Reinicia el tutorial guiado para este usuario y dispositivo.</small>
+              </span>
+              <button class="settings-onboarding-restart" type="button" data-walkthrough-restart>Ver tutorial de nuevo</button>
+            </div>
+          </fieldset>
+          <fieldset class="settings-onboarding-section">
+            <legend class="form-label">Backup local</legend>
+            <div class="settings-onboarding-card">
+              <span>
+                <strong>Exportar backup local</strong>
+                <small>Incluye partidos locales y ajustes no sensibles. No exporta sesiones, tokens ni secretos.</small>
+              </span>
+              <button class="settings-onboarding-restart" type="button" data-local-backup-export>Exportar backup local</button>
+            </div>
+          </fieldset>
           <label class="settings-toggle">
             <input type="checkbox" id="stats-only-mode" />
             <span>
@@ -101,6 +657,38 @@ export async function renderSettings(container) {
             <span class="form-label">Auto-cierre de popup (segundos)</span>
             <input class="form-input" type="number" id="tagging-auto-close" min="1" step="0.5" />
           </label>
+          <fieldset class="settings-hotkeys-section">
+            <legend class="form-label">Atajos de tagging</legend>
+            <div class="settings-hotkey-list">
+              ${DEFAULT_HOTKEY_FIELDS.map(field => `
+                <div class="settings-hotkey-row" data-hotkey-row>
+                  <span>
+                    <strong>${field.label}</strong>
+                    <small>Original ${field.original}</small>
+                  </span>
+                  <div class="settings-hotkey-capture-control">
+                    <input
+                      class="form-input settings-hotkey-input"
+                      type="text"
+                      maxlength="1"
+                      readonly
+                      data-default-hotkey="${field.key}"
+                      aria-label="Atajo para ${field.label}"
+                    />
+                    <button class="settings-hotkey-record" type="button" data-hotkey-record aria-label="Cambiar atajo para ${field.label}" aria-pressed="false">Cambiar</button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </fieldset>
+          <fieldset class="settings-hotkeys-section">
+            <legend class="form-label">Atajos personalizados</legend>
+            <div class="settings-custom-hotkey-list" id="custom-hotkeys-list" aria-label="Atajos personalizados"></div>
+            <button class="settings-hotkey-add" type="button" data-custom-hotkey-add>Agregar atajo</button>
+          </fieldset>
+          <div class="settings-hotkey-actions">
+            <button class="settings-hotkey-reset" type="button" data-hotkey-reset>Restablecer predeterminados</button>
+          </div>
           <fieldset class="settings-alert-thresholds">
             <legend class="form-label">Umbrales de alerta</legend>
             <div class="settings-alert-list">
@@ -122,6 +710,25 @@ export async function renderSettings(container) {
               `).join('')}
             </div>
           </fieldset>
+          <fieldset class="settings-alert-thresholds settings-clip-export-section">
+            <legend class="form-label">Exportación de clips</legend>
+            <div class="settings-alert-list">
+              <label class="settings-alert-row">
+                <span>
+                  <strong>Segundos antes del evento</strong>
+                  <small>Pre-roll aplicado a cada clip exportado.</small>
+                </span>
+                <input class="form-input" type="number" id="clip-pre-roll" min="0" max="60" step="1" aria-label="Segundos antes del evento" />
+              </label>
+              <label class="settings-alert-row">
+                <span>
+                  <strong>Segundos después del evento</strong>
+                  <small>Post-roll aplicado a cada clip exportado.</small>
+                </span>
+                <input class="form-input" type="number" id="clip-post-roll" min="1" max="60" step="1" aria-label="Segundos después del evento" />
+              </label>
+            </div>
+          </fieldset>
           <button class="btn btn-primary" type="submit">Guardar ajustes</button>
           <p class="settings-feedback" id="settings-feedback" role="status"></p>
         </form>
@@ -132,15 +739,27 @@ export async function renderSettings(container) {
   const settings = await window.api.settings.get();
   const statsOnly = /** @type {HTMLInputElement} */ (container.querySelector('#stats-only-mode'));
   const autoClose = /** @type {HTMLInputElement} */ (container.querySelector('#tagging-auto-close'));
+  const clipPreRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-pre-roll'));
+  const clipPostRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-post-roll'));
+  const aiStatus = /** @type {HTMLElement|null} */ (container.querySelector('[data-ai-status]'));
   const feedback = container.querySelector('#settings-feedback');
   const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
   if (themeInput) themeInput.checked = true;
   statsOnly.checked = Boolean(settings.statsOnlyMode);
   autoClose.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
+  if (clipPreRoll) clipPreRoll.value = String(settings.clipPreRollSeconds ?? DEFAULT_CLIP_PRE_ROLL_SECONDS);
+  if (clipPostRoll) clipPostRoll.value = String(settings.clipPostRollSeconds ?? DEFAULT_CLIP_POST_ROLL_SECONDS);
+  DEFAULT_HOTKEY_FIELDS.forEach((field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
+    if (input) input.value = settings.tagging?.hotkeys?.[field.key] || field.original;
+  });
+  const customHotkeyList = /** @type {HTMLElement|null} */ (container.querySelector('#custom-hotkeys-list'));
+  if (customHotkeyList) customHotkeyList.innerHTML = buildCustomHotkeyRows(settings.tagging?.customHotkeys || []);
   ALERT_THRESHOLD_FIELDS.forEach((field) => {
     const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-alert-threshold="${field.key}"]`));
     if (input) input.value = String(settings.alerts?.[field.key] ?? field.defaultValue);
   });
+  const cleanupMicrophoneSettings = setupMicrophoneSettings(container, settings, feedback);
 
   let thresholdSaveTimer = null;
   const saveThresholds = () => {
@@ -158,18 +777,129 @@ export async function renderSettings(container) {
     input.addEventListener('change', saveThresholds);
   });
 
+  container.querySelector('[data-ai-test-connection]')?.addEventListener('click', async () => {
+    if (!window.biguAIConfig?.testConnection) return;
+    if (aiStatus) {
+      aiStatus.textContent = 'Verificando...';
+      aiStatus.dataset.tone = 'neutral';
+    }
+    try {
+      const result = await window.biguAIConfig.testConnection();
+      if (aiStatus) {
+        aiStatus.textContent = result?.ok
+          ? 'Conectado'
+          : result?.message || 'Backend IA no disponible. Revisá tu conexión e intentá nuevamente.';
+        aiStatus.dataset.tone = result?.ok ? 'ok' : 'error';
+      }
+    } catch {
+      if (aiStatus) {
+        aiStatus.textContent = 'Backend IA no disponible. Revisá tu conexión e intentá nuevamente.';
+        aiStatus.dataset.tone = 'error';
+      }
+    }
+  });
+
+  container.querySelector('[data-walkthrough-restart]')?.addEventListener('click', async (event) => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    const idleLabel = button.textContent || 'Ver tutorial de nuevo';
+    button.disabled = true;
+    button.textContent = 'Preparando...';
+    try {
+      const currentSettings = await window.api.settings.get();
+      const updatedSettings = await window.api.settings.set(buildWalkthroughResetSettings(currentSettings, getAccessState()));
+      window.dispatchEvent(new CustomEvent('bigu:walkthrough-restart', {
+        detail: { settings: updatedSettings },
+      }));
+      if (feedback) feedback.textContent = 'Tutorial reiniciado.';
+      navigate('home');
+    } catch {
+      if (feedback) feedback.textContent = 'No se pudo reiniciar el tutorial.';
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }
+  });
+
+  container.querySelector('[data-local-backup-export]')?.addEventListener('click', async (event) => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    const idleLabel = button.textContent || 'Exportar backup local';
+    button.disabled = true;
+    button.textContent = 'Exportando...';
+    try {
+      const result = await window.api.backup.exportLocal();
+      if (!result?.canceled && feedback) {
+        feedback.textContent = `Backup exportado: ${result.fileName || 'archivo ZIP'}.`;
+      }
+    } catch {
+      if (feedback) feedback.textContent = 'No se pudo exportar el backup local.';
+    } finally {
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }
+  });
+
+  container.querySelectorAll('[data-default-hotkey]').forEach((input) => {
+    input.addEventListener('input', () => {
+      const field = DEFAULT_HOTKEY_FIELDS.find(item => item.key === input.dataset.defaultHotkey);
+      input.value = normalizeHotkeyInput(input.value) || field?.original || '';
+    });
+  });
+
+  container.querySelector('[data-custom-hotkey-add]')?.addEventListener('click', () => {
+    customHotkeyList?.insertAdjacentHTML('beforeend', buildCustomHotkeyRows([{ id: '', hotkey: '', label: '', resultOptions: [] }]));
+  });
+
+  container.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const button = /** @type {HTMLButtonElement|null} */ (target?.closest('[data-hotkey-record]') || null);
+    if (!button || !container.contains(button)) return;
+    const row = button.closest('[data-hotkey-row], [data-custom-hotkey-row]');
+    const input = /** @type {HTMLInputElement|null} */ (row?.querySelector('[data-default-hotkey], [data-custom-hotkey-key]'));
+    if (input) beginHotkeyRecording(input, button);
+  });
+
+  container.querySelector('[data-hotkey-reset]')?.addEventListener('click', () => {
+    finishHotkeyRecording();
+    resetHotkeyDefaults(container, customHotkeyList);
+    if (feedback) feedback.textContent = 'Atajos restablecidos. Guarda ajustes para aplicar.';
+  });
+
+  customHotkeyList?.addEventListener('input', (event) => {
+    const target = /** @type {HTMLInputElement|null} */ (event.target);
+    if (target?.matches('[data-custom-hotkey-key]')) {
+      target.value = normalizeHotkeyInput(target.value);
+    }
+  });
+
+  customHotkeyList?.addEventListener('click', (event) => {
+    const button = /** @type {HTMLElement|null} */ (event.target);
+    if (!button?.matches('[data-custom-hotkey-remove]')) return;
+    const row = button.closest('[data-custom-hotkey-row]');
+    row?.remove();
+    if (customHotkeyList.querySelectorAll('[data-custom-hotkey-row]').length === 0) {
+      customHotkeyList.innerHTML = buildCustomHotkeyRows([{ id: '', hotkey: '', label: '', resultOptions: [] }]);
+    }
+  });
+
   container.querySelector('#settings-form')?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const selectedTheme = getSelectedThemeValue(container);
     await window.api.settings.set({
       theme: selectedTheme,
       statsOnlyMode: statsOnly.checked,
+      microphone: getMicrophoneSettingsPayload(container),
+      ...getClipExportSettingsPayload(container),
       alerts: getAlertThresholdPayload(container),
       tagging: {
         autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value),
+        ...getHotkeySettingsPayload(container, settings),
       },
     });
     applyAppTheme(selectedTheme);
     if (feedback) feedback.textContent = 'Ajustes guardados.';
   });
+
+  return () => {
+    finishHotkeyRecording();
+    cleanupMicrophoneSettings();
+  };
 }

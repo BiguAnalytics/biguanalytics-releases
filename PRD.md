@@ -132,10 +132,24 @@ Todos los gráficos son interactivos (hover para ver valores exactos). El dashbo
 - Formato similar al informe de HLR (referencia: informe adjunto analizado)
 - Incluye logo de BiguAnalytics y datos del partido en el encabezado
 
-### 4.7 Almacenamiento Local
-- Todos los datos se guardan localmente en archivos `.json` por partido
-- No requiere internet para funcionar (excepto para videos de YouTube)
-- Sin base de datos externa ni servidor
+### 4.7 Almacenamiento Local y servicios opcionales
+- El cache local `data/{matchId}/match.json` es la fuente offline compatible por partido
+- El flujo de tagging, dashboard y PDF funciona localmente sin subir videos, PDFs ni dashboards renderizados
+- Cloud Sync liviano con Supabase es opcional para compartir metadata deportiva entre usuarios del club: partidos, eventos, posesiones, secuencias, notas y referencias de video
+- La IA es un modulo opcional post-partido: Electron llama por IPC al main process, el main process llama a un backend propio y el backend llama al proveedor IA
+- Sin internet, la app conserva el trabajo local y deja cambios pendientes de sincronizacion cuando Cloud Sync esta configurado
+
+### 4.16 Clips por Evento: YouTube virtual y exportación MP4 local
+- Desde la timeline, click derecho sobre un evento taggeado permite "Reproducir clip" si el partido usa YouTube o "Exportar clip" si tiene MP4 local.
+- En el dashboard, clips aparece como un módulo propio con protagonismo, separado de los gráficos. Desde ese módulo el usuario puede abrir una pantalla dedicada "Reproducir clips" para YouTube o "Exportar clips" para MP4 local, usar filtros rápidos o filtrar por tipo de evento, resultado/subtipo, equipo y rango temporal `mm:ss`.
+- La reproducción de clips YouTube ocurre en una pantalla separada del panel de Tagging para no mezclar revisión de clips con el flujo de anotación.
+- Cada clip usa por defecto 3 segundos antes y 10 segundos después del timestamp del evento. Ambos valores son configurables en Ajustes con límite de 0-60s para pre-roll y 1-60s para post-roll.
+- La exportación usa `ffmpeg-static` empaquetado con la app y `ffprobe-static` para duración cuando hace falta. No depende de ffmpeg instalado globalmente.
+- La exportación de archivos `.mp4` funciona solo con MP4 local. Si el partido usa YouTube, la app reproduce clips virtuales dentro del YouTube IFrame API y muestra que para exportar archivos reales se debe asociar un MP4 local.
+- Los clips virtuales de YouTube no generan archivos, no descargan video, no usan `youtube-dl`/`yt-dlp`, no usan scrapers y requieren conexión a internet.
+- La acción "Asociar MP4 local" permite seleccionar un `.mp4` del disco para el mismo partido y habilitar la exportación real.
+- Los clips se generan exclusivamente en la máquina del usuario. No se sube ningún video ni clip a la nube.
+- En exportación masiva se muestra progreso, nombre del clip actual, cancelación de cola y resumen final de clips exportados/fallidos.
 
 ---
 
@@ -144,6 +158,7 @@ Todos los gráficos son interactivos (hover para ver valores exactos). El dashbo
 - El analista hace click en la zona donde ocurrió el evento (no es obligatorio, es opcional por evento)
 - En el dashboard, se muestra un heatmap superpuesto sobre el campo: zonas donde se pierden más rucks, donde se cometen penales, donde se originan los tries, etc.
 - Cada tipo de evento tiene su propio heatmap filtrable
+- Existe una ruta/pantalla Heatmap dedicada que reutiliza el calculo del dashboard y mantiene filtros por tipo de evento y equipo
 
 ## 4.9 Tiempo de Posesión Real
 - Dos hotkeys dedicadas: `1` para posesión equipo local, `2` para posesión equipo visitante
@@ -236,7 +251,7 @@ Inspirada en la funcionalidad de drawing tool de LongoMatch, pero con dos modos 
 Ordenadas por valor percibido:
 
 ### F1 — Clips de Video por Evento ⭐⭐⭐⭐⭐
-Desde el dashboard o el timeline, seleccionar un evento o un conjunto de eventos (ej: "todos los rucks perdidos") y exportar un video compilado con esos clips. Requiere integración con `ffmpeg` (open source, sin costo).
+Implementado con reproducción virtual para YouTube y exportación local MP4-only de clips separados desde timeline y dashboard (ver §4.16). El compilado único queda fuera de alcance hasta que exista una necesidad operativa concreta.
 
 ### F2 — Ir al Clip en el Video ⭐⭐⭐⭐⭐
 Click en cualquier evento del dashboard o timeline → el reproductor hace seek instantáneo al timestamp. Ya previsto en el MVP (timeline), se extiende al dashboard.
@@ -245,13 +260,13 @@ Click en cualquier evento del dashboard o timeline → el reproductor hace seek 
 No comparación lado a lado de dos partidos, sino una vista histórica: ver cómo evolucionan las métricas del equipo a lo largo de la temporada. Ej: "% rucks ganados en los últimos 5 partidos".
 
 ### F4 — Análisis con IA ⭐⭐⭐⭐
-Integración con Claude API (Anthropic) o GPT-4 para:
-- Resumen automático del partido en lenguaje natural
-- Detección de patrones (ej: "el equipo pierde el 70% de los rucks en el segundo tiempo")
-- Sugerencias tácticas basadas en los datos
-- Generación automática del texto del informe PDF
+Implementado como modulo opcional con backend propio y Gemini 2.5 Flash-Lite para:
+- Resumen automatico del partido en lenguaje natural
+- Deteccion de patrones (ej: "el equipo pierde el 70% de los rucks en el segundo tiempo")
+- Sugerencias tacticas basadas en los datos
+- Texto base para el informe PDF cuando el backend IA esta configurado
 
-Costo estimado: muy bajo (< USD 1 por partido con Claude Haiku).
+Costo operativo: variable segun hosting del backend, Supabase y uso del proveedor Gemini. La app de escritorio no incluye ni expone `GEMINI_API_KEY`.
 
 ### F5 — Compartir por WhatsApp / Mail ⭐⭐⭐
 Desde la app, enviar el PDF exportado directamente por WhatsApp (enlace de API) o por mail (SMTP simple) al grupo del plantel o al cuerpo técnico.
@@ -267,15 +282,15 @@ App de iOS/Android para tagging en vivo desde el costado del campo, sincronizada
 
 ---
 
-## 6. Fuera de Alcance (MVP)
+## 6. Fuera de Alcance del nucleo local/offline
 
-- Autenticación / login (es de uso interno, una sola máquina)
-- Almacenamiento en la nube
-- Soporte multi-usuario simultáneo
-- Análisis automático de video con computer vision
+- Subida de videos MP4, clips, PDFs pesados o dashboards renderizados a la nube
+- Analisis automatico de video con computer vision
+- Backend IA embebido dentro de Electron o API keys de proveedor en renderer/main/preload
 - Soporte para otros deportes
-- Versión web o mobile (MVP)
-- Tracking de jugadores individuales (estadísticas por jugador)
+- Version web o mobile (MVP)
+- Tracking de jugadores individuales (estadisticas por jugador)
+- Edicion simultanea en tiempo real; Cloud Sync es liviano y con cache local
 
 ---
 
@@ -292,8 +307,8 @@ App de iOS/Android para tagging en vivo desde el costado del campo, sincronizada
 
 - **Sistema operativo:** Windows únicamente (MVP)
 - **Distribución:** Un solo ejecutable `.exe` instalado en una máquina
-- **Costo operativo:** USD 0 mensuales (todo local, sin suscripciones)
-- **Presupuesto de desarrollo:** < USD 100 (solo APIs opcionales futuras)
+- **Costo operativo:** el nucleo local no requiere suscripcion obligatoria; Supabase, licenciamiento online, hosting del backend IA y Gemini pueden generar costo si se activan
+- **Presupuesto de desarrollo:** < USD 100 para el nucleo local; APIs/hosting opcionales se presupuestan aparte
 - **Tiempo de desarrollo:** 3-4 semanas, ~5 horas/día, asistido por IA (Antigravity)
 
 ---
@@ -307,7 +322,7 @@ App de iOS/Android para tagging en vivo desde el costado del campo, sincronizada
 | Reproductor YouTube | YouTube IFrame API | Control programático del video, manejo de foco |
 | Gráficos del dashboard | Chart.js o Recharts | Gráficos interactivos, open source |
 | Exportación PDF | Puppeteer (headless Chromium) | Renderiza el dashboard como PDF de alta calidad |
-| Exportación de clips | ffmpeg (via fluent-ffmpeg) | Corte de video sin recodificación, open source |
-| Storage local | JSON files + electron-store | Simple, sin base de datos, sin servidor |
-| IA (futuro) | Anthropic Claude API | Análisis de texto de bajo costo |
-
+| Exportación de clips | ffmpeg-static + ffprobe-static | Corte local de MP4 sin recodificación por defecto; sin nube, sin descarga de YouTube |
+| Storage local | JSON files + electron-store | Cache offline y compatibilidad con `data/{matchId}/match.json` |
+| Cloud Sync opcional | Supabase | Sincroniza datos livianos; no sube videos, PDFs ni dashboards renderizados |
+| IA opcional | Backend propio + Gemini 2.5 Flash-Lite | Mantiene `GEMINI_API_KEY` fuera de Electron y usa token de cliente revocable |

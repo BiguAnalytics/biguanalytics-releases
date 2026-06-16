@@ -1,9 +1,14 @@
 // @ts-check
 import { getPrintLicensePayload, refreshAccessState } from '../auth/access-guard.js';
+import { cloudMatchService } from '../cloud/cloud-match-service.js';
 import { createKpiCard } from '../components/kpi-card.js';
+import { MATCH_EDIT_ICON, getMatchSelectionItems } from '../components/match-selection.js';
+import { openModal } from '../components/modal.js';
+import { openEditMatchModal } from '../components/new-match-form.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { navigate } from '../router.js';
+import { ensureChartJs } from '../vendor-loader.js';
 
 const VIEW_OPTIONS = [
   { id: 'bigua', label: 'Bigua' },
@@ -26,6 +31,7 @@ const SECTION_ORDER = [
   ['discipline', 'Disciplina'],
   ['kicks', 'Kicks'],
   ['break-lines', 'Break Lines'],
+  ['custom-events', 'Custom'],
   ['possession', 'Posesion'],
   ['bip', 'BIP'],
   ['sequences', 'Secuencias'],
@@ -45,6 +51,70 @@ const TIME_FILTERS = [
   { id: '60-80', label: '60-80' },
   { id: '+80', label: '+80' },
 ];
+
+const CLIP_EXPORT_EVENT_TYPES = [
+  { id: 'all', label: 'Todos' },
+  { id: 'ruck', label: 'Ruck' },
+  { id: 'scrum', label: 'Scrum' },
+  { id: 'lineout', label: 'Line Out' },
+  { id: 'penal', label: 'Penal' },
+  { id: 'points', label: 'Try/Puntos' },
+  { id: 'break-line', label: 'Break Line' },
+  { id: 'kick', label: 'Kick' },
+  { id: 'maul', label: 'Maul' },
+  { id: 'turnover', label: 'Turnover' },
+  { id: 'card', label: 'Tarjeta' },
+  { id: 'note', label: 'Nota' },
+];
+
+const CLIP_EXPORT_RESULTS = [
+  { id: 'all', label: 'Todos' },
+  { id: 'ganado', label: 'Ganado' },
+  { id: 'perdido', label: 'Perdido' },
+  { id: 'ganado-sucio', label: 'Ganado sucio' },
+  { id: 'ataque', label: 'Ataque' },
+  { id: 'defensa', label: 'Defensa' },
+  { id: 'try', label: 'Try' },
+  { id: 'touch', label: 'Touch' },
+  { id: 'recuperado', label: 'Recuperado' },
+  { id: 'contestado', label: 'Contestado' },
+];
+
+const DASHBOARD_SECTION_CLIP_TYPES = {
+  'set-pieces': 'scrum',
+  rucks: 'ruck',
+  discipline: 'penal',
+  kicks: 'kick',
+  'break-lines': 'break-line',
+  'custom-events': 'all',
+};
+
+const DASHBOARD_SECTION_EVENT_TYPES = {
+  'set-pieces': ['scrum', 'lineout', 'maul'],
+  rucks: ['ruck'],
+  discipline: ['penal', 'card'],
+  kicks: ['kick'],
+  'break-lines': ['break-line'],
+  'custom-events': ['custom:'],
+  possession: [],
+  bip: [],
+  heatmap: [],
+};
+
+const CLIP_MODULE_PRESETS = [
+  { type: 'all', label: 'Todos' },
+  { type: 'ruck', label: 'Rucks' },
+  { type: 'penal', label: 'Penales' },
+  { type: 'kick', label: 'Kicks' },
+  { type: 'points', label: 'Try/Puntos' },
+  { type: 'break-line', label: 'Break Lines' },
+];
+
+const CLIP_EXPORT_YOUTUBE_MESSAGE = 'La exportación de clips requiere tener cargado el archivo MP4 local del partido.';
+const CLIP_EXPORT_MISSING_VIDEO_MESSAGE = 'No se encontró el video original. Volvé a cargar el MP4 del partido.';
+const CLIP_EXPORT_EMPTY_MESSAGE = 'No hay clips para exportar con estos filtros';
+const YOUTUBE_CLIP_NOTICE = 'Este partido usa video de YouTube. Podés reproducir clips dentro de BiguAnalytics, pero para exportarlos como archivos MP4 necesitás asociar un video local. Requiere conexión a internet.';
+const YOUTUBE_MP4_EXPORT_HELPER = 'La exportación MP4 requiere video local.';
 
 const PDF_TEMPLATES = [
   { id: 'complete', label: 'Completo' },
@@ -177,6 +247,125 @@ function formatLabel(value) {
     .filter(Boolean)
     .map(part => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ') || 'Sin dato';
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {number|null}
+ */
+function parseClipTimeInput(value) {
+  const trimmed = String(value || '').trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split(':').map(part => Number(part));
+  if (parts.length === 2 && parts.every(Number.isFinite)) {
+    return Math.max(0, (parts[0] * 60) + parts[1]);
+  }
+  if (parts.length === 3 && parts.every(Number.isFinite)) {
+    return Math.max(0, (parts[0] * 3600) + (parts[1] * 60) + parts[2]);
+  }
+  const numeric = Number(trimmed);
+  return Number.isFinite(numeric) ? Math.max(0, numeric) : null;
+}
+
+/**
+ * @param {number|null|undefined} seconds
+ * @returns {string}
+ */
+function formatClipTimeInput(seconds) {
+  if (seconds === null || seconds === undefined || seconds === '') return '';
+  const totalSeconds = Number(seconds);
+  if (!Number.isFinite(totalSeconds) || totalSeconds < 0) return '';
+  const rounded = Math.floor(totalSeconds);
+  const hours = Math.floor(rounded / 3600);
+  const minutes = Math.floor((rounded % 3600) / 60);
+  const remainingSeconds = rounded % 60;
+  if (hours > 0) return `${hours}:${String(minutes).padStart(2, '0')}:${String(remainingSeconds).padStart(2, '0')}`;
+  return `${minutes}:${String(remainingSeconds).padStart(2, '0')}`;
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+function normalizeClipFilterKey(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, '-');
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function hasValidClipTimestamp(value) {
+  if (value === null || value === undefined) return false;
+  if (typeof value === 'string' && value.trim() === '') return false;
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp >= 0;
+}
+
+/**
+ * @param {object} match
+ * @returns {'home'|'away'}
+ */
+function identifyDashboardBiguaTeam(match = {}) {
+  if (String(match.homeTeam || '').toLowerCase().includes('bigua')) return 'home';
+  if (String(match.awayTeam || '').toLowerCase().includes('bigua')) return 'away';
+  return 'home';
+}
+
+/**
+ * @param {string|null|undefined} team
+ * @param {object} match
+ * @returns {'home'|'away'|null}
+ */
+function resolveClipTeamFilter(team, match = {}) {
+  const normalized = normalizeClipFilterKey(team || 'all');
+  if (!normalized || normalized === 'all') return null;
+  if (normalized === 'home' || normalized === 'away') return normalized;
+  const bigua = identifyDashboardBiguaTeam(match);
+  if (normalized === 'bigua') return bigua;
+  if (normalized === 'rival') return bigua === 'home' ? 'away' : 'home';
+  return null;
+}
+
+/**
+ * @param {Array<object>} events
+ * @param {object} filters
+ * @param {object} match
+ * @returns {Array<object>}
+ */
+function filterDashboardClipEvents(events = [], filters = {}, match = {}) {
+  const type = normalizeClipFilterKey(filters.type || 'all');
+  const result = normalizeClipFilterKey(filters.result || 'all');
+  const team = resolveClipTeamFilter(filters.team, match);
+  const fromSeconds = Number(filters.fromSeconds);
+  const toSeconds = Number(filters.toSeconds);
+  const hasFrom = Number.isFinite(fromSeconds);
+  const hasTo = Number.isFinite(toSeconds);
+
+  return (Array.isArray(events) ? events : [])
+    .filter((event) => {
+      if (!hasValidClipTimestamp(event?.timestamp)) return false;
+      const timestamp = Number(event.timestamp);
+      if (type !== 'all' && normalizeClipFilterKey(event.type) !== type) return false;
+      if (result !== 'all') {
+        const resultMatches = [
+          event.result,
+          event.outcome,
+          event.subtype,
+        ].some(value => normalizeClipFilterKey(value) === result);
+        if (!resultMatches) return false;
+      }
+      if (team && event.team !== team) return false;
+      if (hasFrom && timestamp < fromSeconds) return false;
+      if (hasTo && timestamp > toSeconds) return false;
+      return true;
+    })
+    .sort((a, b) => Number(a.timestamp) - Number(b.timestamp));
 }
 
 /**
@@ -376,33 +565,49 @@ function animateDashboardKpis(container) {
 /**
  * @param {HTMLElement} container
  * @param {Array<object>} matches
+ * @param {'dashboard'|'heatmap'} [targetRoute]
  */
-function renderDashboardSelection(container, matches) {
+function renderDashboardSelection(container, matches, targetRoute = 'dashboard') {
   setSidebarExpanded(false);
-  updateTopbarContext('Dashboard');
+  const heatmapMode = targetRoute === 'heatmap';
+  updateTopbarContext(heatmapMode ? 'Heatmap' : 'Dashboard');
   setTopbarActions([{ id: 'home', label: 'Inicio' }], () => navigate('home'));
 
-  const sorted = [...matches].sort((a, b) => new Date(b.updatedAt || b.createdAt || 0).getTime() - new Date(a.updatedAt || a.createdAt || 0).getTime());
+  const items = getMatchSelectionItems(matches);
   container.innerHTML = `
-    <section class="dashboard-view dashboard-select-view view-enter">
-      <header class="dashboard-empty-header">
-        <span>Dashboard</span>
-        <h1>Elegir partido para analizar</h1>
-        <p>${matches.length === 0 ? 'Todavia no hay partidos para analizar. Crea uno desde Inicio.' : 'Selecciona un partido con eventos taggeados para abrir el tablero.'}</p>
+    <section class="tagging-match-select-view dashboard-select-view view-enter">
+      <header class="tagging-match-select-header">
+        <span>${heatmapMode ? 'Heatmap' : 'Dashboard'}</span>
+        <h1>${heatmapMode ? 'Elegir partido para ver heatmap' : 'Elegir partido para analizar'}</h1>
+        <p>${matches.length === 0 ? 'Todavia no hay partidos para analizar. Crea uno desde Inicio.' : heatmapMode ? 'Selecciona un partido con zonas taggeadas para abrir el heatmap.' : 'Selecciona un partido con eventos taggeados para abrir el tablero.'}</p>
       </header>
-      <div class="dashboard-match-grid">
-        ${sorted.length === 0 ? `
-          <button class="dashboard-match-option" type="button" data-dashboard-home>
-            <span>Sin partidos</span>
-            <strong>Crear primer partido</strong>
-            <em>Inicio abre el modal de Nuevo partido</em>
+      <div class="tagging-match-select-grid" aria-label="Partidos disponibles para ${heatmapMode ? 'heatmap' : 'dashboard'}">
+        ${items.length === 0 ? `
+          <button class="tagging-match-card" type="button" data-dashboard-home aria-label="Crear primer partido">
+            <span class="tagging-match-card-kicker">Sin partidos</span>
+            <strong class="tagging-match-card-title">Crear primer partido</strong>
+            <span class="tagging-match-card-video">Inicio abre el modal de Nuevo partido</span>
+            <span class="tagging-match-card-footer">
+              <span>Inicio</span>
+              <span class="tabular-nums">0 - 0</span>
+            </span>
           </button>
-        ` : sorted.map(match => `
-          <button class="dashboard-match-option" type="button" data-dashboard-match-id="${escapeHtml(match.id)}">
-            <span>${escapeHtml(match.competition || 'Sin competencia')}</span>
-            <strong>${escapeHtml(match.homeTeam || 'Bigua')} vs ${escapeHtml(match.awayTeam || 'Rival')}</strong>
-            <em>${escapeHtml(match.date || 'Sin fecha')}</em>
-          </button>
+        ` : items.map(item => `
+          <article class="tagging-match-card" aria-label="${escapeHtml(item.title)}">
+            <button class="tagging-match-edit-button" type="button" data-dashboard-edit-match-id="${escapeHtml(item.id)}" aria-label="Editar partido ${escapeHtml(item.title)}" title="Editar partido">
+              ${MATCH_EDIT_ICON}
+            </button>
+            <span class="tagging-match-card-kicker">${escapeHtml(item.statusLabel)}</span>
+            <strong class="tagging-match-card-title">${escapeHtml(item.title)}</strong>
+            <span class="tagging-match-card-video">${escapeHtml(item.videoLabel)}</span>
+            <span class="tagging-match-card-footer">
+              <span>${escapeHtml(item.dateLabel)}</span>
+              <span class="tabular-nums">${escapeHtml(item.scoreLabel)}</span>
+            </span>
+            <span class="tagging-match-card-actions">
+              <button class="btn btn-primary btn-sm" type="button" data-dashboard-match-id="${escapeHtml(item.id)}" aria-label="${heatmapMode ? 'Ver heatmap de' : 'Analizar'} ${escapeHtml(item.title)}">${heatmapMode ? 'Ver heatmap' : 'Analizar'}</button>
+            </span>
+          </article>
         `).join('')}
       </div>
     </section>
@@ -410,7 +615,17 @@ function renderDashboardSelection(container, matches) {
 
   container.querySelector('[data-dashboard-home]')?.addEventListener('click', () => navigate('home'));
   container.querySelectorAll('[data-dashboard-match-id]').forEach(button => {
-    button.addEventListener('click', () => navigate('dashboard', { matchId: button.dataset.dashboardMatchId }));
+    button.addEventListener('click', () => navigate(targetRoute, { matchId: button.dataset.dashboardMatchId }));
+  });
+  container.querySelectorAll('[data-dashboard-edit-match-id]').forEach(button => {
+    button.addEventListener('click', () => {
+      const matchToEdit = matches.find(match => String(match.id) === String(button.dataset.dashboardEditMatchId));
+      if (!matchToEdit) return;
+      openEditMatchModal(matchToEdit, async () => {
+        const updatedMatches = await cloudMatchService.listMatches();
+        renderDashboardSelection(container, updatedMatches, targetRoute);
+      });
+    });
   });
 }
 
@@ -442,16 +657,45 @@ function scoreNumber(value) {
  * @returns {{home: number, away: number}}
  */
 function getDashboardScore(stats, match) {
-  const manual = {
-    home: scoreNumber(match?.homeScore),
-    away: scoreNumber(match?.awayScore),
-  };
-  const calculated = {
+  const statsScore = {
     home: scoreNumber(stats?.score?.home?.total),
     away: scoreNumber(stats?.score?.away?.total),
   };
-  const hasPersistedScore = manual.home > 0 || manual.away > 0 || stats?.score?.source === 'manual';
-  return hasPersistedScore ? manual : calculated;
+  if (statsScore.home > 0 || statsScore.away > 0) return statsScore;
+
+  const nestedScore = {
+    home: scoreNumber(match?.score?.local ?? match?.score?.home),
+    away: scoreNumber(match?.score?.rival ?? match?.score?.away),
+  };
+  if (nestedScore.home > 0 || nestedScore.away > 0 || ['win', 'loss', 'draw'].includes(match?.score?.resultForBigua)) return nestedScore;
+
+  const directScore = {
+    home: scoreNumber(match?.homeScore),
+    away: scoreNumber(match?.awayScore),
+  };
+  if (directScore.home > 0 || directScore.away > 0) return directScore;
+
+  const overrideScore = {
+    home: scoreNumber(match?.scoreOverride?.homeScore),
+    away: scoreNumber(match?.scoreOverride?.awayScore),
+  };
+  if (overrideScore.home > 0 || overrideScore.away > 0) return overrideScore;
+
+  return {
+    home: 0,
+    away: 0,
+  };
+}
+
+/**
+ * @param {string|null|undefined} source
+ * @returns {string}
+ */
+function getScoreSourceLabel(source) {
+  if (source === 'events-manual') return 'Eventos + ajuste manual';
+  if (source === 'manual') return 'Eventos + ajuste manual';
+  if (source === 'legacy-manual') return 'Score manual legacy';
+  return '';
 }
 
 /**
@@ -649,6 +893,15 @@ function normalizeNoteFormats(formats) {
 }
 
 /**
+ * @param {object|null|undefined} formats
+ * @returns {boolean}
+ */
+function hasActiveNoteFormat(formats) {
+  const normalized = normalizeNoteFormats(formats);
+  return normalized.bold || normalized.italic || normalized.underline;
+}
+
+/**
  * @param {HTMLElement} container
  * @param {object|null} noteFormats
  */
@@ -678,7 +931,12 @@ function getFormatSelector(command) {
  */
 function canSyncNoteFormatsFromSelection(editor) {
   const selection = window.getSelection();
-  return Boolean(selection?.anchorNode && selection.anchorNode !== editor && editor.contains(selection.anchorNode));
+  if (!selection?.anchorNode || !editor.contains(selection.anchorNode)) return false;
+  if (!selection.isCollapsed) return true;
+  const anchorElement = selection.anchorNode instanceof HTMLElement
+    ? selection.anchorNode
+    : selection.anchorNode.parentElement;
+  return Boolean(anchorElement?.closest('strong,b,em,i,u'));
 }
 
 /**
@@ -768,18 +1026,17 @@ function insertFormattedText(editor, text, noteFormats) {
 
   const range = activeSelection.getRangeAt(0);
   range.deleteContents();
-  const marker = document.createTextNode(ZERO_WIDTH_FORMAT_MARKER);
-  const fragment = document.createDocumentFragment();
-  fragment.append(createFormattedTextNode(text, noteFormats), marker);
-  range.insertNode(fragment);
-  mergeAdjacentInlineFormatting(editor);
+  const insertedNode = createFormattedTextNode(text, noteFormats);
+  range.insertNode(insertedNode);
 
   const nextRange = document.createRange();
-  nextRange.setStartBefore(marker);
-  nextRange.collapse(true);
-  activeSelection.removeAllRanges();
-  activeSelection.addRange(nextRange);
-  marker.remove();
+  if (insertedNode.parentNode) {
+    nextRange.setStartAfter(insertedNode);
+    nextRange.collapse(true);
+    activeSelection.removeAllRanges();
+    activeSelection.addRange(nextRange);
+  }
+  mergeAdjacentInlineFormatting(editor);
 }
 
 /**
@@ -789,6 +1046,7 @@ function insertFormattedText(editor, text, noteFormats) {
  * @returns {boolean}
  */
 function handleFormattedTextInput(editor, event, noteFormats) {
+  if (!hasActiveNoteFormat(noteFormats)) return false;
   if (event.inputType !== 'insertText' || typeof event.data !== 'string' || event.data.length === 0) return false;
   event.preventDefault();
   insertFormattedText(editor, event.data, noteFormats);
@@ -994,6 +1252,392 @@ function renderOptions(options, selected) {
 }
 
 /**
+ * @param {string} sectionId
+ * @returns {string}
+ */
+function getClipTypeForSection(sectionId) {
+  return DASHBOARD_SECTION_CLIP_TYPES[sectionId] || 'all';
+}
+
+/**
+ * @param {object} stateOrMatch
+ * @returns {'youtube'|'local'}
+ */
+function getClipSourceType(stateOrMatch) {
+  const match = stateOrMatch?.match || stateOrMatch;
+  return match?.video?.type === 'youtube' ? 'youtube' : 'local';
+}
+
+/**
+ * @param {object} filters
+ * @param {'youtube'|'local'} sourceType
+ * @returns {string}
+ */
+function buildClipExportModalBody(filters = {}, sourceType = 'local') {
+  const isYouTube = sourceType === 'youtube';
+  const hasCustomTime = filters.timePreset === 'custom'
+    || Boolean(filters.from)
+    || Boolean(filters.to)
+    || (filters.fromSeconds !== null && filters.fromSeconds !== undefined && Number.isFinite(Number(filters.fromSeconds)))
+    || (filters.toSeconds !== null && filters.toSeconds !== undefined && Number.isFinite(Number(filters.toSeconds)));
+  const timePreset = hasCustomTime ? 'custom' : 'all';
+  const fromValue = filters.from || formatClipTimeInput(filters.fromSeconds);
+  const toValue = filters.to || formatClipTimeInput(filters.toSeconds);
+  return `
+    <div class="clip-export-panel" data-clip-export-modal>
+      ${isYouTube ? `
+        <div class="clip-export-helper" data-clip-youtube-helper>
+          <strong>${escapeHtml(YOUTUBE_MP4_EXPORT_HELPER)}</strong>
+          <span>${escapeHtml(YOUTUBE_CLIP_NOTICE)}</span>
+        </div>
+      ` : ''}
+      <div class="clip-export-grid">
+        <label class="dashboard-control">
+          <span>Tipo de evento</span>
+          <select data-clip-filter-type>
+            ${renderOptions(CLIP_EXPORT_EVENT_TYPES, filters.type || 'all')}
+          </select>
+        </label>
+        <label class="dashboard-control">
+          <span>Resultado/subtipo</span>
+          <select data-clip-filter-result>
+            ${renderOptions(CLIP_EXPORT_RESULTS, filters.result || 'all')}
+          </select>
+        </label>
+        <label class="dashboard-control">
+          <span>Equipo</span>
+          <select data-clip-filter-team>
+            ${renderOptions([
+              { id: 'all', label: 'Todos' },
+              { id: 'bigua', label: 'Bigua' },
+              { id: 'rival', label: 'Rival' },
+            ], filters.team || 'all')}
+          </select>
+        </label>
+        <label class="dashboard-control">
+          <span>Tiempo</span>
+          <select data-clip-filter-time-preset>
+            ${renderOptions([
+              { id: 'all', label: 'Todo el partido' },
+              { id: 'custom', label: 'Personalizado' },
+            ], timePreset)}
+          </select>
+        </label>
+        <label class="dashboard-control" data-clip-custom-time-field ${timePreset === 'custom' ? '' : 'hidden'}>
+          <span>Desde</span>
+          <input class="form-input" type="text" inputmode="numeric" placeholder="mm:ss" data-clip-filter-from value="${escapeHtml(fromValue)}" ${timePreset === 'custom' ? '' : 'disabled'} />
+        </label>
+        <label class="dashboard-control" data-clip-custom-time-field ${timePreset === 'custom' ? '' : 'hidden'}>
+          <span>Hasta</span>
+          <input class="form-input" type="text" inputmode="numeric" placeholder="mm:ss" data-clip-filter-to value="${escapeHtml(toValue)}" ${timePreset === 'custom' ? '' : 'disabled'} />
+        </label>
+      </div>
+      <label class="clip-export-checkbox" ${isYouTube ? 'hidden' : ''}>
+        <input type="checkbox" checked data-clip-output-separate />
+        <span>Exportar como clips separados</span>
+      </label>
+      <div class="clip-export-preview" data-clip-export-preview>${isYouTube ? 'Se reproducirán' : 'Se exportarán'} 0 clips</div>
+      <div class="clip-export-empty" data-clip-export-empty hidden>No hay clips para ${isYouTube ? 'reproducir' : 'exportar'} con estos filtros</div>
+      <div class="clip-export-progress" data-clip-export-progress hidden>
+        <span data-clip-export-progress-text>Exportando 12 / 48 clips</span>
+        <strong data-clip-export-current></strong>
+        <div class="clip-export-progress-bar" aria-hidden="true"><span data-clip-export-progress-bar></span></div>
+      </div>
+      <div class="clip-export-error" data-clip-export-error role="alert" hidden></div>
+      <div class="clip-export-complete" data-clip-export-complete hidden></div>
+      <div class="clip-export-actions">
+        <button class="btn btn-secondary" type="button" data-clip-export-cancel>Cancelar</button>
+        ${isYouTube ? '<button class="btn btn-secondary" type="button" data-associate-local-mp4>Asociar MP4 local</button>' : ''}
+        <button class="btn btn-primary" type="button" data-clip-export-start>${isYouTube ? 'Reproducir clips' : 'Exportar clips'}</button>
+      </div>
+    </div>
+  `;
+}
+
+/**
+ * @param {HTMLElement} host
+ * @returns {{type: string, result: string, team: string, fromSeconds: number|null, toSeconds: number|null}}
+ */
+function readClipExportFilters(host) {
+  const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';
+  return {
+    type: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-type]'))?.value || 'all',
+    result: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-result]'))?.value || 'all',
+    team: /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-team]'))?.value || 'all',
+    fromSeconds: timePreset === 'custom'
+      ? parseClipTimeInput(/** @type {HTMLInputElement|null} */ (host.querySelector('[data-clip-filter-from]'))?.value)
+      : null,
+    toSeconds: timePreset === 'custom'
+      ? parseClipTimeInput(/** @type {HTMLInputElement|null} */ (host.querySelector('[data-clip-filter-to]'))?.value)
+      : null,
+  };
+}
+
+/**
+ * @param {HTMLElement} host
+ */
+function syncClipCustomTimeFields(host) {
+  const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';
+  const isCustom = timePreset === 'custom';
+  host.querySelectorAll('[data-clip-custom-time-field]').forEach((field) => {
+    if (field instanceof HTMLElement) field.hidden = !isCustom;
+    field.querySelectorAll('input').forEach((input) => {
+      input.disabled = !isCustom;
+    });
+  });
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {object} state
+ * @param {'youtube'|'local'} sourceType
+ * @returns {number}
+ */
+function updateClipExportPreview(host, state, sourceType = 'local') {
+  const count = filterDashboardClipEvents(state.match?.events || [], readClipExportFilters(host), state.match || {}).length;
+  const preview = host.querySelector('[data-clip-export-preview]');
+  const empty = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-empty]'));
+  const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
+  if (preview) preview.textContent = `${sourceType === 'youtube' ? 'Se reproducirán' : 'Se exportarán'} ${count} clips`;
+  if (empty) empty.textContent = `No hay clips para ${sourceType === 'youtube' ? 'reproducir' : 'exportar'} con estos filtros`;
+  if (empty) empty.hidden = count > 0;
+  if (startButton && startButton.dataset.exporting !== 'true') startButton.disabled = count === 0;
+  return count;
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {boolean} busy
+ * @param {'youtube'|'local'} sourceType
+ */
+function setClipExportBusy(host, busy, sourceType = 'local') {
+  host.querySelectorAll('input, select').forEach((control) => {
+    control.disabled = busy;
+  });
+  if (!busy) syncClipCustomTimeFields(host);
+  const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
+  const cancelButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-cancel]'));
+  if (startButton) {
+    startButton.dataset.exporting = busy ? 'true' : 'false';
+    startButton.disabled = busy;
+    startButton.textContent = busy ? 'Exportando...' : sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips';
+  }
+  if (cancelButton) {
+    cancelButton.disabled = false;
+  }
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {string} message
+ */
+function setClipExportError(host, message) {
+  const errorEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-error]'));
+  if (!errorEl) return;
+  errorEl.textContent = message;
+  errorEl.hidden = !message;
+}
+
+/**
+ * @param {HTMLElement} host
+ */
+function clearClipExportFeedback(host) {
+  setClipExportError(host, '');
+  const completeEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-complete]'));
+  if (completeEl) {
+    completeEl.hidden = true;
+    completeEl.innerHTML = '';
+  }
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {object} payload
+ */
+function renderClipExportProgress(host, payload = {}) {
+  const progress = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-progress]'));
+  const text = host.querySelector('[data-clip-export-progress-text]');
+  const currentClip = host.querySelector('[data-clip-export-current]');
+  const bar = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-progress-bar]'));
+  const total = Math.max(0, Number(payload.total) || 0);
+  const current = Math.max(0, Number(payload.current) || 0);
+  if (progress) progress.hidden = false;
+  if (text) text.textContent = payload.message || `Exportando ${current} / ${total} clips`;
+  if (currentClip) currentClip.textContent = payload.currentClipName || '';
+  if (bar) bar.style.width = `${total > 0 ? Math.min(100, Math.round((current / total) * 100)) : 0}%`;
+}
+
+/**
+ * @param {HTMLElement} host
+ * @param {object} result
+ */
+function renderClipExportComplete(host, result = {}) {
+  const completeEl = /** @type {HTMLElement|null} */ (host.querySelector('[data-clip-export-complete]'));
+  if (!completeEl) return;
+  const exported = Number(result.exported) || 0;
+  const failed = Number(result.failed) || 0;
+  const message = result.canceled
+    ? `Exportación cancelada. Exportados ${exported} clips.`
+    : failed > 0
+      ? `Exportados ${exported} clips. Fallaron ${failed}.`
+      : `Exportados ${exported} clips.`;
+  completeEl.hidden = false;
+  completeEl.innerHTML = `
+    <span>${escapeHtml(message)}</span>
+    ${result.outputDir ? '<button type="button" data-open-clip-folder>Abrir carpeta</button>' : ''}
+  `;
+  completeEl.querySelector('[data-open-clip-folder]')?.addEventListener('click', () => {
+    window.api.files.open(result.outputDir);
+  });
+}
+
+/**
+ * @param {object} state
+ * @returns {Promise<string|null>}
+ */
+async function getDashboardClipExportBlockedMessage(state) {
+  if (state.match?.video?.type !== 'local' || !state.match.video.path) {
+    return CLIP_EXPORT_YOUTUBE_MESSAGE;
+  }
+  const exists = await window.api.media.localVideoExists(state.match.video.path);
+  return exists ? null : CLIP_EXPORT_MISSING_VIDEO_MESSAGE;
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} state
+ * @param {{close?: function}|null} [modal]
+ */
+async function associateLocalMp4FromDashboard(container, state, modal = null) {
+  const selected = await window.api.media.selectLocalVideo();
+  if (!selected || !state.match?.id) return;
+  state.match = await cloudMatchService.updateMatch(state.match.id, { video: selected, status: state.match.status === 'created' ? 'tagging' : state.match.status });
+  modal?.close?.();
+  showToast(container, 'MP4 local asociado. Ya podés exportar clips reales.');
+  renderLoadedDashboard(container, state);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} state
+ * @param {object} [initialFilters]
+ */
+function openClipExportModal(container, state, initialFilters = {}) {
+  let modal;
+  const cleanup = [];
+  const sourceType = getClipSourceType(state);
+  let completeRendered = false;
+  modal = openModal({
+    title: sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips',
+    body: buildClipExportModalBody(initialFilters, sourceType),
+    allowHtml: true,
+    buttons: [],
+    className: 'clip-export-modal',
+    onClose: () => cleanup.forEach(remove => remove?.()),
+  });
+
+  const host = /** @type {HTMLElement|null} */ (document.querySelector('[data-clip-export-modal]'));
+  if (!host) {
+    modal.close();
+    return;
+  }
+
+  const refreshPreview = () => {
+    clearClipExportFeedback(host);
+    updateClipExportPreview(host, state, sourceType);
+  };
+  const refreshTimePreset = () => {
+    syncClipCustomTimeFields(host);
+    refreshPreview();
+  };
+  syncClipCustomTimeFields(host);
+  host.querySelectorAll('[data-clip-filter-type], [data-clip-filter-result], [data-clip-filter-team]').forEach((control) => {
+    control.addEventListener('change', refreshPreview);
+  });
+  host.querySelector('[data-clip-filter-time-preset]')?.addEventListener('change', refreshTimePreset);
+  host.querySelectorAll('[data-clip-filter-from], [data-clip-filter-to]').forEach((control) => {
+    control.addEventListener('input', refreshPreview);
+  });
+
+  const handleComplete = (result) => {
+    completeRendered = true;
+    setClipExportBusy(host, false, sourceType);
+    renderClipExportComplete(host, result);
+    updateClipExportPreview(host, state, sourceType);
+    if (result?.outputDir) showToast(container, result.failed > 0 ? `Exportados ${result.exported} clips. Fallaron ${result.failed}.` : 'Clips exportados correctamente.', result.outputDir, 'Abrir carpeta');
+  };
+
+  cleanup.push(window.api.clips.onProgress?.(payload => renderClipExportProgress(host, payload)));
+  cleanup.push(window.api.clips.onComplete?.(handleComplete));
+  cleanup.push(window.api.clips.onError?.(payload => setClipExportError(host, payload?.message || 'No se pudieron exportar los clips.')));
+
+  host.querySelector('[data-clip-export-cancel]')?.addEventListener('click', async (event) => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
+    if (startButton?.dataset.exporting !== 'true') {
+      modal.close();
+      return;
+    }
+    button.disabled = true;
+    await window.api.clips.cancelExport();
+  });
+
+  host.querySelector('[data-associate-local-mp4]')?.addEventListener('click', async () => {
+    await associateLocalMp4FromDashboard(container, state, modal);
+  });
+
+  host.querySelector('[data-clip-export-start]')?.addEventListener('click', async () => {
+    clearClipExportFeedback(host);
+    const total = updateClipExportPreview(host, state, sourceType);
+    if (total === 0) {
+      setClipExportError(host, sourceType === 'youtube' ? 'No hay clips para reproducir con estos filtros' : CLIP_EXPORT_EMPTY_MESSAGE);
+      return;
+    }
+    const filters = readClipExportFilters(host);
+    if (sourceType === 'youtube') {
+      modal.close();
+      navigate('clips', {
+        matchId: state.match.id,
+        clipType: filters.type,
+        clipResult: filters.result,
+        clipTeam: filters.team,
+        clipFrom: filters.fromSeconds ?? '',
+        clipTo: filters.toSeconds ?? '',
+      });
+      return;
+    }
+    const blockedMessage = await getDashboardClipExportBlockedMessage(state);
+    if (blockedMessage) {
+      setClipExportError(host, blockedMessage);
+      return;
+    }
+    setClipExportBusy(host, true, sourceType);
+    completeRendered = false;
+    renderClipExportProgress(host, { total, current: 0, currentClipName: '', message: `Exportando 0 / ${total} clips` });
+    try {
+      const result = await window.api.clips.exportBatch({ matchId: state.match.id, filters, outputMode: 'separate' });
+      if (!completeRendered) handleComplete(result);
+    } catch (error) {
+      setClipExportBusy(host, false, sourceType);
+      updateClipExportPreview(host, state, sourceType);
+      setClipExportError(host, error instanceof Error ? error.message : 'No se pudieron exportar los clips.');
+    }
+  });
+
+  updateClipExportPreview(host, state, sourceType);
+  if (sourceType === 'local') {
+    getDashboardClipExportBlockedMessage(state).then((message) => {
+      if (!message) return;
+      setClipExportError(host, message);
+      const startButton = /** @type {HTMLButtonElement|null} */ (host.querySelector('[data-clip-export-start]'));
+      if (startButton) startButton.disabled = true;
+    }).catch((error) => {
+      setClipExportError(host, error instanceof Error ? error.message : 'No se pudo validar el MP4 local del partido.');
+    });
+  }
+}
+
+/**
  * @param {object} stats
  * @param {object} match
  * @param {object} preferences
@@ -1091,14 +1735,129 @@ function buildKpis(stats, selectedKpis = DEFAULT_DASHBOARD_PREFERENCES.selectedK
     });
 }
 
+const AI_SECTION_EMPTY_TEXT = 'No hay datos suficientes para esta sección.';
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function cleanAIText(value) {
+  return String(value || '').trim();
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeAITextKey(value) {
+  return cleanAIText(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Array<object>}
+ */
+function filterAIItemsForDisplay(value) {
+  const genericTitles = new Set(['hallazgo', 'sin titulo', 'area']);
+  return (Array.isArray(value) ? value : [])
+    .map((item) => {
+      const source = item && typeof item === 'object' ? item : {};
+      const drills = Array.isArray(source.drills) ? source.drills.map(cleanAIText).filter(Boolean) : [];
+      return {
+        title: cleanAIText(source.title || source.area || source.objective),
+        detail: cleanAIText(source.detail || source.reason || source.objective || drills.join(' ')),
+        metricRef: cleanAIText(source.metricRef || source.metric || source.metric_ref) || null,
+        priority: cleanAIText(source.priority || 'medium'),
+      };
+    })
+    .filter(item => item.title && item.detail && !genericTitles.has(normalizeAITextKey(item.title)));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Array<{title: string, detail: string}>}
+ */
+function filterAIWarningsForDisplay(value) {
+  return (Array.isArray(value) ? value : [])
+    .map((item) => {
+      const source = item && typeof item === 'object' ? item : {};
+      return {
+        title: cleanAIText(source.title || 'Limitacion de datos'),
+        detail: cleanAIText(source.detail || source.description || source.interpretation || item),
+      };
+    })
+    .filter(item => item.title && item.detail);
+}
+
+/**
+ * @param {object|null|undefined} result
+ * @returns {object}
+ */
+function normalizeAIAnalysisResultForDisplay(result = {}) {
+  const source = result || {};
+  return {
+    summary: cleanAIText(source.summary),
+    scoreContext: source.scoreContext || null,
+    keyFindings: filterAIItemsForDisplay(source.keyFindings || source.key_findings),
+    strengths: filterAIItemsForDisplay(source.strengths),
+    weaknesses: filterAIItemsForDisplay(source.weaknesses),
+    trainingRecommendations: filterAIItemsForDisplay(source.trainingRecommendations || source.training_recommendations),
+    dataQualityWarnings: filterAIWarningsForDisplay(source.dataQualityWarnings || source.data_quality_warnings || source.missing_data),
+    confidence: Number.isFinite(Number(source.confidence)) ? Math.max(0, Math.min(1, Number(source.confidence))) : 0,
+  };
+}
+
+/**
+ * @param {object|null|undefined} scoreContext
+ * @returns {string}
+ */
+function getBiguaResultLabel(scoreContext) {
+  if (scoreContext?.resultForBigua === 'win') return 'Ganó';
+  if (scoreContext?.resultForBigua === 'loss') return 'Perdió';
+  if (scoreContext?.resultForBigua === 'draw') return 'Empató';
+  return 'Sin dato';
+}
+
+/**
+ * @param {object|null|undefined} scoreContext
+ * @returns {string}
+ */
+function renderAIScoreContext(scoreContext) {
+  if (!scoreContext) return '';
+  return `
+    <div class="dashboard-ai-score-context" aria-label="Marcador IA validado">
+      <span>Marcador <strong>${escapeHtml(scoreContext.scoreLabel || '')}</strong></span>
+      <span>Resultado Bigua <strong>${escapeHtml(getBiguaResultLabel(scoreContext))}</strong></span>
+    </div>
+  `;
+}
+
+/**
+ * @param {Array<object>} warnings
+ * @returns {string}
+ */
+function renderAIDataQualityWarnings(warnings) {
+  const rows = Array.isArray(warnings) ? warnings : [];
+  if (rows.length === 0) return '';
+  return `
+    <section class="dashboard-ai-warning dashboard-ai-data-quality">
+      <strong>Advertencias de calidad de datos</strong>
+      ${rows.map(warning => `<p><b>${escapeHtml(warning.title)}</b>: ${escapeHtml(warning.detail)}</p>`).join('')}
+    </section>
+  `;
+}
+
 /**
  * @param {Array<object>} items
  * @param {string} title
  * @param {string} emptyText
  * @returns {string}
  */
-function renderAIEvidenceList(items, title, emptyText = 'Sin datos suficientes.') {
-  const rows = Array.isArray(items) ? items : [];
+function renderAIEvidenceList(items, title, emptyText = AI_SECTION_EMPTY_TEXT) {
+  const rows = filterAIItemsForDisplay(items);
   return `
     <section class="dashboard-ai-block">
       <h3>${escapeHtml(title)}</h3>
@@ -1106,8 +1865,8 @@ function renderAIEvidenceList(items, title, emptyText = 'Sin datos suficientes.'
         <div class="dashboard-ai-list">
           ${rows.map(item => `
             <article>
-              <strong>${escapeHtml(item.title || item.area || 'Sin titulo')}</strong>
-              <p>${escapeHtml(item.detail || item.objective || item.reason || '')}</p>
+              <strong>${escapeHtml(item.title)}</strong>
+              <p>${escapeHtml(item.detail)}</p>
               ${Array.isArray(item.evidence) && item.evidence.length > 0 ? `
                 <ul class="dashboard-ai-evidence">
                   ${item.evidence.map(evidence => `<li>${escapeHtml(evidence)}</li>`).join('')}
@@ -1126,7 +1885,7 @@ function renderAIEvidenceList(items, title, emptyText = 'Sin datos suficientes.'
  * @returns {string}
  */
 function renderAIRecommendations(items) {
-  const rows = Array.isArray(items) ? items : [];
+  const rows = filterAIItemsForDisplay(items);
   return `
     <section class="dashboard-ai-block dashboard-ai-wide">
       <h3>Recomendaciones de entrenamiento</h3>
@@ -1135,8 +1894,8 @@ function renderAIRecommendations(items) {
           ${rows.map(item => `
             <article>
               <span class="dashboard-ai-priority ${escapeHtml(item.priority || 'medium')}">${escapeHtml(item.priority || 'medium')}</span>
-              <strong>${escapeHtml(item.area || 'Area')}</strong>
-              <p>${escapeHtml(item.objective || item.reason || '')}</p>
+              <strong>${escapeHtml(item.title)}</strong>
+              <p>${escapeHtml(item.detail)}</p>
               ${Array.isArray(item.drills) && item.drills.length > 0 ? `
                 <ul>
                   ${item.drills.map(drill => `<li>${escapeHtml(drill)}</li>`).join('')}
@@ -1145,7 +1904,7 @@ function renderAIRecommendations(items) {
             </article>
           `).join('')}
         </div>
-      ` : '<p class="dashboard-ai-muted">Sin recomendaciones disponibles.</p>'}
+      ` : `<p class="dashboard-ai-muted">${escapeHtml(AI_SECTION_EMPTY_TEXT)}</p>`}
     </section>
   `;
 }
@@ -1161,12 +1920,14 @@ function getAIAnalysisEntry(aiState) {
 /**
  * @param {object|null|undefined} aiState
  * @param {boolean} aiLoading
+ * @param {boolean} collapsed
  * @returns {string}
  */
-function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
+function buildAIAnalysisPanel(aiState = {}, aiLoading = false, collapsed = false) {
   const status = aiLoading ? 'loading' : (aiState?.status || 'missing');
   const analysis = getAIAnalysisEntry(aiState);
   const result = analysis?.result || aiState?.result || null;
+  const displayResult = normalizeAIAnalysisResultForDisplay(result);
   const generatedAt = analysis?.generatedAt || aiState?.generatedAt || '';
   const model = analysis?.model || aiState?.model || '';
   const staleWarning = 'Los hitos, eventos, notas, metadatos o métricas cambiaron desde el último análisis.';
@@ -1179,15 +1940,21 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
   }[status] || 'Pendiente';
 
   return `
-    <section class="dashboard-ai-panel" data-ai-panel data-ai-status="${escapeHtml(status)}">
+    <section class="dashboard-ai-panel${collapsed ? ' collapsed' : ''}" data-ai-panel data-tour-id="ai-panel" data-ai-status="${escapeHtml(status)}">
       <header class="dashboard-ai-header">
         <div>
           <span>Análisis IA</span>
           <h2>Lectura post-partido</h2>
         </div>
-        <strong class="dashboard-ai-badge ${escapeHtml(status)}">${escapeHtml(badgeLabel)}</strong>
+        <div class="dashboard-panel-header-actions">
+          <strong class="dashboard-ai-badge ${escapeHtml(status)}">${escapeHtml(badgeLabel)}</strong>
+          <button class="dashboard-panel-toggle" type="button" data-ai-panel-toggle aria-expanded="${collapsed ? 'false' : 'true'}">
+            ${collapsed ? 'Expandir' : 'Contraer'}
+          </button>
+        </div>
       </header>
 
+      <div class="dashboard-ai-panel-body">
       ${status === 'loading' ? `
         <div class="dashboard-ai-empty">
           <strong>Analizando datos del partido...</strong>
@@ -1198,7 +1965,7 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
       ${status === 'missing' ? `
         <div class="dashboard-ai-empty">
           <strong>Todavía no se generó un análisis para este partido.</strong>
-          <p>El botón consume una llamada a Gemini sólo cuando no existe un análisis guardado válido.</p>
+          <p>El botón consulta el backend IA sólo cuando no existe un análisis guardado válido.</p>
         </div>
       ` : ''}
 
@@ -1218,25 +1985,89 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
 
       ${result ? `
         <div class="dashboard-ai-summary">
-          <p>${escapeHtml(result.summary || 'Sin resumen disponible.')}</p>
-          ${result.score_context ? `<p>${escapeHtml(result.score_context)}</p>` : ''}
+          <p>${escapeHtml(displayResult.summary || 'Sin resumen disponible.')}</p>
+          ${renderAIScoreContext(displayResult.scoreContext)}
         </div>
         <div class="dashboard-ai-grid">
-          ${renderAIEvidenceList(result.key_findings, 'Hallazgos clave')}
-          ${renderAIEvidenceList(result.strengths, 'Fortalezas')}
-          ${renderAIEvidenceList(result.weaknesses, 'Debilidades')}
-          ${renderAIRecommendations(result.training_recommendations)}
+          ${renderAIEvidenceList(displayResult.keyFindings, 'Hallazgos clave')}
+          ${renderAIEvidenceList(displayResult.strengths, 'Fortalezas')}
+          ${renderAIEvidenceList(displayResult.weaknesses, 'Debilidades')}
+          ${renderAIRecommendations(displayResult.trainingRecommendations)}
         </div>
+        ${renderAIDataQualityWarnings(displayResult.dataQualityWarnings)}
         <footer class="dashboard-ai-meta">
           ${generatedAt ? `<span>Generado ${escapeHtml(new Date(generatedAt).toLocaleString())}</span>` : ''}
           ${model ? `<span>Modelo ${escapeHtml(model)}</span>` : ''}
-          <span>Confianza ${formatPct((Number(result.confidence) || 0) * 100)}</span>
+          <span>Confianza ${formatPct(displayResult.confidence * 100)}</span>
         </footer>
       ` : ''}
+      </div>
 
       <div class="dashboard-ai-actions">
         <button class="dashboard-ai-button primary" type="button" data-ai-generate ${aiLoading ? 'disabled' : ''}>Generar Análisis</button>
         ${status === 'stale' ? `<button class="dashboard-ai-button secondary" type="button" data-ai-regenerate ${aiLoading ? 'disabled' : ''}>Volver a generar análisis</button>` : ''}
+      </div>
+    </section>
+  `;
+}
+
+/**
+ * @param {object} match
+ * @param {boolean} collapsed
+ * @returns {string}
+ */
+function buildClipModule(match, collapsed = false) {
+  const sourceType = getClipSourceType(match);
+  const isYouTube = sourceType === 'youtube';
+  const primaryLabel = isYouTube ? 'Reproducir clips' : 'Exportar clips';
+  const sourceLabel = isYouTube ? 'YouTube virtual' : 'MP4 local';
+  const helper = isYouTube
+    ? 'Reproduce segmentos filtrados dentro del player. Para generar archivos MP4, asociá un video local.'
+    : 'Exporta clips MP4 separados con pre-roll y post-roll configurables desde Ajustes.';
+  const validEvents = filterDashboardClipEvents(match.events || [], {}, match);
+  const presets = CLIP_MODULE_PRESETS.map(preset => ({
+    ...preset,
+    count: filterDashboardClipEvents(match.events || [], { type: preset.type }, match).length,
+  }));
+
+  return `
+    <section class="dashboard-clip-module${collapsed ? ' collapsed' : ''}" data-dashboard-clip-module aria-labelledby="dashboard-clip-module-title">
+      <div class="dashboard-clip-module-head">
+      <div class="dashboard-clip-module-copy">
+        <span>Herramienta de clips</span>
+        <h2 id="dashboard-clip-module-title">Módulo de clips</h2>
+        <p>${escapeHtml(helper)}</p>
+      </div>
+        <div class="dashboard-clip-module-head-actions">
+          <button class="dashboard-panel-toggle" type="button" data-clip-module-toggle aria-expanded="${collapsed ? 'false' : 'true'}">
+            ${collapsed ? 'Expandir' : 'Contraer'}
+          </button>
+          <button class="btn btn-primary dashboard-clip-primary" type="button" data-open-clip-module>${escapeHtml(primaryLabel)}</button>
+          ${isYouTube ? '<button class="btn btn-secondary dashboard-clip-secondary" type="button" data-dashboard-associate-mp4>Asociar MP4 local</button>' : ''}
+        </div>
+      </div>
+      <div class="dashboard-clip-module-body">
+      <div class="dashboard-clip-module-summary" aria-label="Estado del módulo de clips">
+        <div>
+          <span>Fuente</span>
+          <strong>${escapeHtml(sourceLabel)}</strong>
+        </div>
+        <div>
+          <span>Eventos con timestamp</span>
+          <strong>${validEvents.length}</strong>
+        </div>
+      </div>
+      <div class="dashboard-clip-presets" aria-label="Filtros rápidos de clips">
+        <span>Filtros rápidos</span>
+        <div>
+          ${presets.map(preset => `
+            <button type="button" data-clip-module-preset="${escapeHtml(preset.type)}" aria-label="${escapeHtml(`${primaryLabel}: ${preset.label}`)}">
+              <strong>${escapeHtml(preset.label)}</strong>
+              <em>${preset.count}</em>
+            </button>
+          `).join('')}
+        </div>
+      </div>
       </div>
     </section>
   `;
@@ -1251,10 +2082,13 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false) {
  * @param {boolean} customizerOpen
  * @param {object} aiState
  * @param {boolean} aiLoading
+ * @param {boolean} clipModuleCollapsed
+ * @param {boolean} aiPanelCollapsed
  * @returns {string}
  */
-function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false) {
+function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, clipModuleCollapsed = false, aiPanelCollapsed = false) {
   const displayScore = getDashboardScore(stats, match);
+  const scoreSourceLabel = getScoreSourceLabel(stats?.score?.source);
   const badge = getResultBadge(stats, match);
   const normalized = normalizeDashboardPreferences(preferences);
   const kpis = buildKpis(stats, normalized.selectedKpis);
@@ -1269,6 +2103,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
         <div class="dashboard-scoreline" aria-label="Score final">
           <span>${escapeHtml(stats.match.homeTeam)}</span>
           <strong class="tabular-nums">${displayScore.home} - ${displayScore.away}</strong>
+          ${scoreSourceLabel ? `<span class="dashboard-score-source">${escapeHtml(scoreSourceLabel)}</span>` : ''}
           <span>${escapeHtml(stats.match.awayTeam)}</span>
         </div>
         <div class="badge ${badge}">${badge}</div>
@@ -1279,6 +2114,8 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
       </div>
 
       ${buildDashboardControls(stats, match, normalized, customizerOpen)}
+
+      ${buildClipModule(match, clipModuleCollapsed)}
 
       <div class="dashboard-view-toggle" role="tablist" aria-label="Vista dashboard">
         ${VIEW_OPTIONS.map(option => `
@@ -1297,47 +2134,167 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
         `).join('')}
       </div>
 
-      ${buildAIAnalysisPanel(aiState, aiLoading)}
+      ${buildAIAnalysisPanel(aiState, aiLoading, aiPanelCollapsed)}
 
       <div class="dashboard-sections">
-        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, selectedView, heatmapFilter)).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
+        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, match, selectedView, heatmapFilter)).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
       </div>
-
-      <button class="dashboard-notes-button${match.coachNotes ? ' has-notes' : ''}" type="button" data-notes-open aria-label="Notas del entrenador">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
-        <span></span>
-      </button>
-
-      <aside class="dashboard-notes-drawer" id="dashboard-notes-drawer" aria-hidden="true">
-        <div class="dashboard-notes-panel">
-          <header>
-            <div>
-              <span>Notas del Entrenador</span>
-              <h2>Conclusiones del partido</h2>
-            </div>
-            <button type="button" data-notes-close aria-label="Cerrar notas">x</button>
-          </header>
-          <div class="dashboard-note-toolbar" role="toolbar" aria-label="Formato de notas">
-            <button type="button" data-note-command="bold" aria-label="Negrita" aria-pressed="false"><strong>B</strong></button>
-            <button type="button" data-note-command="italic" aria-label="Italica" aria-pressed="false"><em>I</em></button>
-            <button type="button" data-note-command="underline" aria-label="Subrayado" aria-pressed="false"><u>U</u></button>
-          </div>
-          <div
-            id="coach-notes"
-            class="dashboard-notes-editor"
-            data-coach-notes-editor
-            contenteditable="true"
-            role="textbox"
-            aria-multiline="true"
-            spellcheck="true"
-            data-placeholder="Escribi conclusiones, decisiones tacticas o focos de entrenamiento."
-          >${markdownToNoteHtml(match.coachNotes || '')}</div>
-          <p>Ctrl+B negrita. Ctrl+I italica. Ctrl+U subrayado. Escribir "- " inicia una lista.</p>
-        </div>
-      </aside>
 
       <div class="dashboard-toast" id="dashboard-toast" role="status" hidden></div>
     </section>
+  `;
+}
+
+function removeDashboardFloatingActions() {
+  document.querySelector('[data-dashboard-floating-actions]')?.remove();
+}
+
+function removeDashboardNotesDrawer() {
+  document.body.classList.remove('has-dashboard-notes-open');
+  document.querySelector('[data-dashboard-notes-drawer]')?.remove();
+}
+
+/**
+ * @param {object} match
+ */
+function renderDashboardNotesDrawer(match) {
+  removeDashboardNotesDrawer();
+  const drawer = document.createElement('aside');
+  drawer.className = 'dashboard-notes-drawer';
+  drawer.id = 'dashboard-notes-drawer';
+  drawer.dataset.dashboardNotesDrawer = 'true';
+  drawer.setAttribute('aria-hidden', 'true');
+  drawer.innerHTML = `
+    <div class="dashboard-notes-panel">
+      <header>
+        <div>
+          <span>Notas del Entrenador</span>
+          <h2>Conclusiones del partido</h2>
+        </div>
+        <button type="button" data-notes-close aria-label="Cerrar notas">x</button>
+      </header>
+      <div class="dashboard-note-toolbar" role="toolbar" aria-label="Formato de notas">
+        <button type="button" data-note-command="bold" aria-label="Negrita" aria-pressed="false"><strong>B</strong></button>
+        <button type="button" data-note-command="italic" aria-label="Italica" aria-pressed="false"><em>I</em></button>
+        <button type="button" data-note-command="underline" aria-label="Subrayado" aria-pressed="false"><u>U</u></button>
+      </div>
+      <div
+        id="coach-notes"
+        class="dashboard-notes-editor"
+        data-coach-notes-editor
+        contenteditable="true"
+        tabindex="0"
+        role="textbox"
+        aria-multiline="true"
+        spellcheck="true"
+        data-placeholder="Escribi conclusiones, decisiones tacticas o focos de entrenamiento."
+      >${markdownToNoteHtml(match.coachNotes || '')}</div>
+      <p>Ctrl+B negrita. Ctrl+I italica. Ctrl+U subrayado. Escribir "- " inicia una lista.</p>
+    </div>
+  `;
+  document.body.appendChild(drawer);
+}
+
+/**
+ * @param {object} match
+ */
+function renderDashboardFloatingActions(match) {
+  removeDashboardFloatingActions();
+  const floatingActions = document.createElement('div');
+  floatingActions.className = 'dashboard-floating-actions';
+  floatingActions.dataset.dashboardFloatingActions = 'true';
+  floatingActions.setAttribute('aria-label', 'Acciones del dashboard');
+  floatingActions.innerHTML = `
+    <button class="dashboard-notes-button${match.coachNotes ? ' has-notes' : ''}" type="button" data-notes-open aria-label="Notas del entrenador">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M13.5 6.5l4 4" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      <span></span>
+    </button>
+  `;
+  document.body.appendChild(floatingActions);
+}
+
+/**
+ * @param {object} event
+ * @param {string} sectionId
+ * @returns {boolean}
+ */
+function eventBelongsToDashboardSection(event, sectionId) {
+  const types = DASHBOARD_SECTION_EVENT_TYPES[sectionId];
+  if (!Array.isArray(types)) return false;
+  if (types.length === 0) {
+    if (sectionId === 'bip') return hasValidClipTimestamp(event?.timestamp);
+    if (sectionId === 'heatmap') return Boolean(event?.zone);
+    return false;
+  }
+  const eventType = String(event?.type || '');
+  return types.some(type => (type.endsWith(':') ? eventType.startsWith(type) : eventType === type));
+}
+
+/**
+ * @param {object} event
+ * @param {object} stats
+ * @returns {string}
+ */
+function getDashboardEventTeamLabel(event, stats) {
+  if (event?.team === 'away') return stats?.teams?.away?.name || 'Rival';
+  if (event?.team === 'home') return stats?.teams?.home?.name || 'Bigua';
+  return 'Sin equipo';
+}
+
+/**
+ * @param {Array<object>} events
+ * @param {string} sectionId
+ * @returns {Array<object>}
+ */
+function getDashboardSectionEvents(events = [], sectionId) {
+  return (Array.isArray(events) ? events : [])
+    .filter(event => eventBelongsToDashboardSection(event, sectionId))
+    .sort((a, b) => {
+      const aTime = hasValidClipTimestamp(a.timestamp) ? Number(a.timestamp) : Number.POSITIVE_INFINITY;
+      const bTime = hasValidClipTimestamp(b.timestamp) ? Number(b.timestamp) : Number.POSITIVE_INFINITY;
+      return aTime - bTime;
+    });
+}
+
+/**
+ * @param {object} match
+ * @param {object} stats
+ * @param {string} sectionId
+ * @returns {string}
+ */
+function buildDashboardEventLinks(match, stats, sectionId) {
+  const events = getDashboardSectionEvents(match?.events || [], sectionId);
+  if (events.length === 0) return '';
+
+  return `
+    <div class="dashboard-event-links" aria-label="Eventos vinculados">
+      <header>
+        <strong>Eventos</strong>
+        <span>Click abre Tagging</span>
+      </header>
+      <div>
+        ${events.map((event, index) => {
+          const timestamp = hasValidClipTimestamp(event.timestamp) ? Number(event.timestamp) : null;
+          const eventId = event.id || `${event.type || 'event'}-${index}`;
+          const result = formatLabel(event.result || event.subtype || 'registrado');
+          const title = `${formatLabel(event.type || 'Evento')} - ${result} - ${timestamp === null ? 'sin timestamp' : formatClipTimeInput(timestamp)}`;
+          return `
+            <button
+              class="dashboard-event-link${timestamp === null ? ' is-untimed' : ''}"
+              type="button"
+              data-dashboard-seek-event="${escapeHtml(eventId)}"
+              data-dashboard-event-timestamp="${timestamp === null ? '' : timestamp}"
+              title="${escapeHtml(title)}"
+              aria-label="${escapeHtml(title)}"
+            >
+              <span>${timestamp === null ? 'Sin tiempo' : escapeHtml(formatClipTimeInput(timestamp))}</span>
+              <strong>${escapeHtml(formatLabel(event.type || 'Evento'))}</strong>
+              <em>${escapeHtml(result)} · ${escapeHtml(getDashboardEventTeamLabel(event, stats))}</em>
+            </button>
+          `;
+        }).join('')}
+      </div>
+    </div>
   `;
 }
 
@@ -1345,17 +2302,19 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
  * @param {string} id
  * @param {string} title
  * @param {object} stats
+ * @param {object} match
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {string} heatmapFilter
  * @returns {string}
  */
-function buildSection(id, title, stats, selectedView, heatmapFilter) {
+function buildSection(id, title, stats, match, selectedView, heatmapFilter) {
   const body = {
     'set-pieces': '<div class="chart-shell"><canvas id="chart-set-pieces" data-chart-key="setPieces"></canvas></div>',
     rucks: '<div class="chart-shell chart-shell-compact"><canvas id="chart-rucks" data-chart-key="rucks"></canvas></div>',
     discipline: '<div class="chart-shell"><canvas id="chart-discipline" data-chart-key="discipline"></canvas></div>',
     kicks: '<div class="chart-shell"><canvas id="chart-kicks" data-chart-key="kicks"></canvas></div>',
     'break-lines': '<div class="chart-shell"><canvas id="chart-break-lines" data-chart-key="breakLines"></canvas></div>',
+    'custom-events': buildCustomEventsBody(stats),
     possession: buildPossessionBody(stats),
     bip: '<div class="chart-shell"><canvas id="chart-bip" data-chart-key="bip"></canvas></div>',
     sequences: buildSequencesBody(stats),
@@ -1364,14 +2323,48 @@ function buildSection(id, title, stats, selectedView, heatmapFilter) {
 
   return `
     <section class="dashboard-section" data-dashboard-section="${id}">
-      <button class="dashboard-section-header" type="button" data-section-toggle>
-        <span class="dashboard-section-title">${title}</span>
-        <span class="dashboard-section-chevron">›</span>
-      </button>
+      <header class="dashboard-section-header">
+        <button class="dashboard-section-toggle" type="button" data-section-toggle>
+          <span class="dashboard-section-title">${title}</span>
+          <span class="dashboard-section-chevron">›</span>
+        </button>
+      </header>
       <div class="dashboard-section-body">
         ${body}
+        ${buildDashboardEventLinks(match, stats, id)}
       </div>
     </section>
+  `;
+}
+
+/**
+ * @param {object} stats
+ * @returns {string}
+ */
+function buildCustomEventsBody(stats) {
+  const items = Object.values(stats.customEvents?.byType || {})
+    .filter(item => item.total > 0)
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+
+  if (items.length === 0) {
+    return `
+      <div class="dashboard-empty-sections">
+        No hay atajos personalizados registrados en este partido.
+      </div>
+    `;
+  }
+
+  return `
+    <div class="dashboard-custom-events-summary">
+      ${items.slice(0, 4).map(item => `
+        <div>
+          <span>${escapeHtml(item.hotkey || 'Custom')}</span>
+          <strong class="tabular-nums">${formatNumber(item.total)}</strong>
+          <em>${escapeHtml(item.label)}</em>
+        </div>
+      `).join('')}
+    </div>
+    <div class="chart-shell"><canvas id="chart-custom-events" data-chart-key="customEvents"></canvas></div>
   `;
 }
 
@@ -1471,7 +2464,7 @@ function createChart(canvas, config, charts, key) {
   charts[key]?.destroy?.();
   const chart = new window.Chart(canvas, config);
   charts[key] = chart;
-  chart.update('active');
+  chart.update('none');
 }
 
 /**
@@ -1488,6 +2481,7 @@ function createLazyChartRenderer(stats, selectedView, colors, charts) {
     discipline: () => createDisciplineChart(stats, selectedView, colors, charts),
     kicks: () => createKicksChart(stats, selectedView, colors, charts),
     breakLines: () => createBreakLinesChart(stats, selectedView, colors, charts),
+    customEvents: () => createCustomEventsChart(stats, selectedView, colors, charts),
     possession: () => createPossessionChart(stats, colors, charts),
     bip: () => createBipChart(stats, colors, charts),
   };
@@ -1498,7 +2492,8 @@ function createLazyChartRenderer(stats, selectedView, colors, charts) {
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
  */
-function renderAllDashboardCharts(stats, selectedView, charts) {
+async function renderAllDashboardCharts(stats, selectedView, charts) {
+  await ensureChartJs();
   const colors = getChartColors();
   configureChartDefaults(colors);
   const renderers = createLazyChartRenderer(stats, selectedView, colors, charts);
@@ -1510,7 +2505,8 @@ function renderAllDashboardCharts(stats, selectedView, charts) {
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
  */
-function renderCharts(stats, selectedView, charts) {
+async function renderCharts(stats, selectedView, charts) {
+  await ensureChartJs();
   destroyCharts(charts);
   const colors = getChartColors();
   configureChartDefaults(colors);
@@ -1703,6 +2699,49 @@ function createBreakLinesChart(stats, selectedView, colors, charts) {
       scales: { x: { stacked: true }, y: { stacked: true } },
     },
   }, charts, 'breakLines');
+}
+
+/**
+ * @param {object} stats
+ * @param {'bigua'|'rival'|'compare'} selectedView
+ * @param {object} colors
+ * @param {Record<string, object>} charts
+ */
+function createCustomEventsChart(stats, selectedView, colors, charts) {
+  const items = Object.values(stats.customEvents?.byType || {})
+    .filter(item => item.total > 0)
+    .sort((a, b) => b.total - a.total || a.label.localeCompare(b.label));
+  const labels = items.map(item => item.label);
+  const selectedTeam = getSelectedTeam(stats, selectedView);
+  const datasets = selectedView === 'compare'
+    ? [
+      {
+        label: getTeamName(stats, 'home'),
+        data: items.map(item => item.home || 0),
+        backgroundColor: colors.local,
+      },
+      {
+        label: getTeamName(stats, 'away'),
+        data: items.map(item => item.away || 0),
+        backgroundColor: colors.rival,
+      },
+    ]
+    : [{
+      label: getTeamName(stats, selectedTeam),
+      data: items.map(item => item[selectedTeam] || 0),
+      backgroundColor: colors.local,
+    }];
+
+  createChart(document.getElementById('chart-custom-events'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: 'y',
+      scales: { x: { beginAtZero: true, ticks: { precision: 0 } } },
+    },
+  }, charts, 'customEvents');
 }
 
 /**
@@ -2028,6 +3067,36 @@ function wireDashboard(container, state) {
     });
   });
 
+  container.querySelectorAll('[data-dashboard-seek-event]').forEach(button => {
+    button.addEventListener('click', () => {
+      const timestamp = Number(button.dataset.dashboardEventTimestamp);
+      if (!Number.isFinite(timestamp) || timestamp < 0) {
+        showToast(container, 'El evento no tiene timestamp para navegar al video.');
+        return;
+      }
+      navigate('tagging', { matchId: state.match.id, seekTo: timestamp });
+    });
+  });
+
+  container.querySelector('[data-open-clip-module]')?.addEventListener('click', () => {
+    openClipExportModal(container, state);
+  });
+
+  container.querySelector('[data-clip-module-toggle]')?.addEventListener('click', () => {
+    state.clipModuleCollapsed = !state.clipModuleCollapsed;
+    renderLoadedDashboard(container, state);
+  });
+
+  container.querySelector('[data-dashboard-associate-mp4]')?.addEventListener('click', () => {
+    associateLocalMp4FromDashboard(container, state);
+  });
+
+  container.querySelectorAll('[data-clip-module-preset]').forEach(button => {
+    button.addEventListener('click', () => {
+      openClipExportModal(container, state, { type: button.dataset.clipModulePreset || 'all' });
+    });
+  });
+
   container.querySelectorAll('[data-dashboard-view]').forEach(button => {
     button.addEventListener('click', () => {
       const view = button.dataset.dashboardView || 'bigua';
@@ -2127,12 +3196,23 @@ function wireDashboard(container, state) {
     runAIAnalysisAction(container, state, 'regenerate');
   });
 
-  const drawer = container.querySelector('#dashboard-notes-drawer');
-  const editor = /** @type {HTMLElement|null} */ (container.querySelector('[data-coach-notes-editor]'));
+  container.querySelector('[data-ai-panel-toggle]')?.addEventListener('click', () => {
+    state.aiPanelCollapsed = !state.aiPanelCollapsed;
+    renderLoadedDashboard(container, state);
+  });
+
+  const drawer = document.querySelector('[data-dashboard-notes-drawer]');
+  const editor = /** @type {HTMLElement|null} */ (drawer?.querySelector('[data-coach-notes-editor]') || null);
   state.noteFormats = normalizeNoteFormats(state.noteFormats);
   let lastNoteRange = null;
   const scheduleToolbarState = () => {
-    window.requestAnimationFrame(() => updateNoteToolbarState(container, state.noteFormats));
+    window.requestAnimationFrame(() => {
+      if (drawer) updateNoteToolbarState(/** @type {HTMLElement} */ (drawer), state.noteFormats);
+    });
+  };
+  const closeNotesDrawer = () => {
+    drawer?.setAttribute('aria-hidden', 'true');
+    document.body.classList.remove('has-dashboard-notes-open');
   };
   const captureToolbarSelection = () => {
     if (!editor) return;
@@ -2141,30 +3221,55 @@ function wireDashboard(container, state) {
     if (canSyncNoteFormatsFromSelection(editor)) {
       Object.assign(state.noteFormats, getNoteFormatsAtSelection(editor));
     }
-    updateNoteToolbarState(container, state.noteFormats);
+    if (drawer) updateNoteToolbarState(/** @type {HTMLElement} */ (drawer), state.noteFormats);
   };
   state.noteToolbarCleanup?.();
   document.addEventListener('selectionchange', captureToolbarSelection);
   state.noteToolbarCleanup = () => document.removeEventListener('selectionchange', captureToolbarSelection);
 
-  container.querySelector('[data-notes-open]')?.addEventListener('click', () => {
+  document.querySelector('[data-dashboard-floating-actions] [data-notes-open]')?.addEventListener('click', () => {
     drawer?.setAttribute('aria-hidden', 'false');
-    editor?.focus();
-    if (editor) placeCaretAtEnd(editor);
-    lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
-    scheduleToolbarState();
-  });
-  container.querySelector('[data-notes-close]')?.addEventListener('click', () => {
-    drawer?.setAttribute('aria-hidden', 'true');
-  });
-  container.querySelectorAll('[data-note-command]').forEach(button => {
-    button.addEventListener('mousedown', event => event.preventDefault());
-    button.addEventListener('click', () => {
-      const command = button.dataset.noteCommand;
-      if (!command) return;
-      toggleNoteCommand(command, editor, lastNoteRange, state.noteFormats);
+    document.body.classList.add('has-dashboard-notes-open');
+    window.requestAnimationFrame(() => {
+      editor?.focus();
+      if (editor) placeCaretAtEnd(editor);
       lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
       scheduleToolbarState();
+    });
+  });
+  drawer?.querySelector('[data-notes-close]')?.addEventListener('click', closeNotesDrawer);
+  const runNoteToolbarCommand = (button) => {
+    const command = button.dataset.noteCommand;
+    if (!command) return;
+    toggleNoteCommand(command, editor, lastNoteRange, state.noteFormats);
+    lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
+    scheduleToolbarState();
+  };
+  drawer?.querySelectorAll('[data-note-command]').forEach(button => {
+    const clearNotePointerHandled = () => {
+      window.setTimeout(() => {
+        delete button.dataset.notePointerHandled;
+      }, 0);
+    };
+    button.addEventListener('pointerdown', (event) => {
+      if (event.pointerType === 'mouse' && event.button !== 0) return;
+      event.preventDefault();
+      button.dataset.notePointerHandled = 'true';
+      runNoteToolbarCommand(button);
+      window.setTimeout(() => {
+        delete button.dataset.notePointerHandled;
+      }, 2000);
+    });
+    button.addEventListener('pointerup', clearNotePointerHandled);
+    button.addEventListener('pointercancel', clearNotePointerHandled);
+    button.addEventListener('mousedown', event => event.preventDefault());
+    button.addEventListener('click', (event) => {
+      event.preventDefault();
+      if (button.dataset.notePointerHandled === 'true') {
+        delete button.dataset.notePointerHandled;
+        return;
+      }
+      runNoteToolbarCommand(button);
     });
   });
   editor?.addEventListener('keydown', (event) => {
@@ -2199,9 +3304,10 @@ function wireDashboard(container, state) {
   editor?.addEventListener('blur', async () => {
     const coachNotes = serializeCoachNotes(editor);
     const notesChanged = coachNotes !== (state.match.coachNotes || '');
-    state.match = await window.api.matches.update(state.match.id, { coachNotes });
-    const noteButton = container.querySelector('[data-notes-open]');
+    state.match = await cloudMatchService.updateMatch(state.match.id, { coachNotes });
+    const noteButton = document.querySelector('[data-dashboard-floating-actions] [data-notes-open]');
     noteButton?.classList.toggle('has-notes', Boolean(coachNotes.trim()));
+    closeNotesDrawer();
     if (notesChanged) {
       await refreshAIAnalysis(state);
       renderLoadedDashboard(container, state);
@@ -2213,8 +3319,9 @@ function wireDashboard(container, state) {
  * @param {HTMLElement} container
  * @param {string} message
  * @param {string|null} filePath
+ * @param {string} actionLabel
  */
-function showToast(container, message, filePath = null) {
+function showToast(container, message, filePath = null, actionLabel = 'Abrir archivo') {
   const toast = container.querySelector('#dashboard-toast');
   if (!toast) return;
   window.clearTimeout(Number(toast.dataset.timer || 0));
@@ -2223,7 +3330,7 @@ function showToast(container, message, filePath = null) {
   toast.classList.remove('closing');
   toast.innerHTML = `
     <span>${escapeHtml(message)}</span>
-    ${filePath ? '<button type="button" data-open-export>Abrir archivo</button>' : ''}
+    ${filePath ? `<button type="button" data-open-export>${escapeHtml(actionLabel)}</button>` : ''}
     <span class="dashboard-toast-progress" aria-hidden="true"></span>
   `;
   toast.querySelector('[data-open-export]')?.addEventListener('click', () => {
@@ -2285,7 +3392,7 @@ async function exportPdf(container, state) {
       showToast(container, 'No se pudo verificar la licencia para exportar.');
       return;
     }
-    renderAllDashboardCharts(state.stats, state.selectedView, state.charts);
+    await renderAllDashboardCharts(state.stats, state.selectedView, state.charts);
     const result = await window.api.analytics.exportPdf(state.match.id, collectPrintPayload(state, access));
     if (!result?.canceled) {
       showToast(container, 'PDF generado correctamente.', result.filePath);
@@ -2302,19 +3409,48 @@ async function exportPdf(container, state) {
  * @param {HTMLElement} container
  * @param {object} state
  */
+async function exportMatchArchive(container, state) {
+  const exportButton = document.querySelector('[data-action="export-match"]');
+  exportButton?.classList.add('exporting');
+  if (exportButton) exportButton.textContent = 'Exportando...';
+
+  try {
+    const result = await window.api.matches.exportArchive(state.match.id);
+    if (!result?.canceled) {
+      showToast(container, result.videoWarning || 'Partido exportado correctamente.', result.filePath);
+    }
+  } catch (error) {
+    showToast(container, error.message || 'No se pudo exportar el partido.');
+  } finally {
+    exportButton?.classList.remove('exporting');
+    if (exportButton) exportButton.textContent = 'Exportar partido';
+  }
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} state
+ */
 function renderLoadedDashboard(container, state) {
+  const clipActionLabel = getClipSourceType(state) === 'youtube' ? 'Reproducir clips' : 'Exportar clips';
   updateTopbarContext(`${state.match.homeTeam || 'Bigua'} vs ${state.match.awayTeam || 'Rival'}`);
   setTopbarActions([
     { id: 'tagging', label: '← Volver al tagging' },
+    { id: 'clips', label: clipActionLabel },
+    { id: 'export-match', label: 'Exportar partido' },
     { id: 'export', label: 'Exportar PDF' },
   ], (id) => {
     if (id === 'tagging') navigate('tagging', { matchId: state.match.id });
+    if (id === 'clips') openClipExportModal(container, state);
+    if (id === 'export-match') exportMatchArchive(container, state);
     if (id === 'export') exportPdf(container, state);
   });
 
-  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading);
+  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.clipModuleCollapsed, state.aiPanelCollapsed);
+  renderDashboardFloatingActions(state.match);
+  renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
-  renderCharts(state.stats, state.selectedView, state.charts);
+  renderCharts(state.stats, state.selectedView, state.charts).catch(() => {});
   renderHeatmap(
     /** @type {SVGSVGElement|null} */ (container.querySelector('#dashboard-heatmap')),
     container.querySelector('#dashboard-heatmap-empty'),
@@ -2325,12 +3461,27 @@ function renderLoadedDashboard(container, state) {
     state.preferences.filters
   );
   animateDashboardKpis(container);
+  focusDashboardSection(container, state.focusSection);
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {string|null|undefined} sectionId
+ */
+function focusDashboardSection(container, sectionId) {
+  if (!sectionId) return;
+  const section = container.querySelector(`[data-dashboard-section="${sectionId}"]`);
+  if (!section) return;
+  section.classList.remove('collapsed');
+  section.setAttribute('tabindex', '-1');
+  section.scrollIntoView?.({ block: 'start', behavior: 'smooth' });
+  section.focus?.({ preventScroll: true });
 }
 
 /**
  * Renders the Dashboard view.
  * @param {HTMLElement} container
- * @param {{matchId?: string}} params
+ * @param {{matchId?: string, focusSection?: string}} params
  */
 export function renderDashboard(container, params = {}) {
   if (cleanupDashboard) cleanupDashboard();
@@ -2344,12 +3495,15 @@ export function renderDashboard(container, params = {}) {
     heatmapFilter: 'all',
     preferences: normalizeDashboardPreferences(DEFAULT_DASHBOARD_PREFERENCES),
     customizerOpen: false,
+    clipModuleCollapsed: false,
+    aiPanelCollapsed: false,
     charts: {},
     ai: { status: 'missing', hasAnalysis: false },
     aiLoading: false,
     noteFormats: createEmptyNoteFormats(),
     settingsCleanup: null,
     noteToolbarCleanup: null,
+    focusSection: params.focusSection === 'heatmap' ? 'heatmap' : null,
   };
 
   cleanupDashboard = () => {
@@ -2360,6 +3514,8 @@ export function renderDashboard(container, params = {}) {
     state.settingsCleanup = null;
     state.noteToolbarCleanup?.();
     state.noteToolbarCleanup = null;
+    removeDashboardFloatingActions();
+    removeDashboardNotesDrawer();
   };
 
   setSidebarExpanded(false);
@@ -2377,13 +3533,13 @@ export function renderDashboard(container, params = {}) {
   async function load() {
     try {
       if (!params.matchId) {
-        const matches = await window.api.matches.getAll();
-        if (!disposed) renderDashboardSelection(container, matches);
+        const matches = await cloudMatchService.listMatches();
+        if (!disposed) renderDashboardSelection(container, matches, state.focusSection === 'heatmap' ? 'heatmap' : 'dashboard');
         return;
       }
 
       const [match, settings] = await Promise.all([
-        window.api.matches.getById(params.matchId),
+        cloudMatchService.getMatchById(params.matchId),
         window.api.settings.get(),
       ]);
       if (disposed) return;

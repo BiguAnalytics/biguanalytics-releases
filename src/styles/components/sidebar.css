@@ -252,6 +252,21 @@
     linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
     rgba(8, 14, 26, 0.32);
   overflow: hidden;
+  cursor: pointer;
+  transition: background 160ms, border-color 160ms, transform 180ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.sidebar-profile:hover,
+.sidebar-profile:focus-visible {
+  border-color: var(--color-border-strong);
+  background:
+    linear-gradient(135deg, rgba(200, 16, 46, 0.11), rgba(15, 35, 64, 0.12)),
+    rgba(8, 14, 26, 0.42);
+  outline: none;
+}
+
+.sidebar.expanded .sidebar-profile:hover {
+  transform: translateX(1px);
 }
 
 .sidebar-profile-avatar {
@@ -310,6 +325,168 @@
   align-self: center;
   margin-left: 0;
   margin-right: 0;
+}
+
+.account-profile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: grid;
+  place-items: center;
+  padding: var(--space-5);
+  background: rgba(4, 8, 15, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+.account-profile-dialog {
+  width: min(520px, calc(100vw - 40px));
+  padding: var(--space-6);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.045), transparent 42%),
+    var(--color-bg-elevated);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+}
+
+.account-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.account-profile-header span {
+  color: var(--color-text-muted);
+  font: 900 11px var(--font-brand);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.account-profile-header h2 {
+  margin: var(--space-1) 0 0;
+  color: var(--color-text-primary);
+  font: 900 24px var(--font-brand);
+  letter-spacing: 0;
+}
+
+.account-profile-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.account-profile-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.account-profile-grid.compact {
+  grid-template-columns: 130px 1fr;
+}
+
+.account-profile-row {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.account-profile-form label {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font: 900 11px var(--font-brand);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.account-profile-form input,
+.account-profile-form select {
+  min-height: 44px;
+  width: 100%;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font: 400 14px var(--font-ui);
+  outline: none;
+}
+
+.account-profile-form select,
+.account-profile-primary,
+.account-profile-secondary {
+  cursor: pointer;
+}
+
+.account-profile-form input:focus,
+.account-profile-form select:focus {
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.account-profile-meta {
+  display: grid;
+  gap: 4px;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+}
+
+.account-profile-error {
+  min-height: 18px;
+  margin: 0;
+  color: var(--color-accent-hover);
+  font: 400 12px var(--font-ui);
+}
+
+.account-profile-primary,
+.account-profile-secondary {
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  font: 900 12px var(--font-brand);
+  text-transform: uppercase;
+  transition: transform 150ms, background 150ms, border-color 150ms, color 150ms;
+}
+
+.account-profile-primary {
+  border: 1px solid var(--color-border-accent);
+  background: var(--color-accent);
+  color: var(--color-brand-white);
+}
+
+.account-profile-primary:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.account-profile-primary:disabled {
+  cursor: default;
+  opacity: 0.62;
+  transform: none;
+}
+
+.account-profile-secondary {
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.account-profile-secondary:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+@media (max-width: 560px) {
+  .account-profile-grid,
+  .account-profile-grid.compact {
+    grid-template-columns: 1fr;
+  }
 }
 
 @keyframes sidebar-active-rail-in {

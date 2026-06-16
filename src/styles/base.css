@@ -298,42 +298,29 @@ body[data-route="dashboard"] .ambient-glow-blue {
 
 /* Screen transitions */
 .view-enter {
-  animation: view-fade-in 150ms ease-out;
+  opacity: 1;
 }
 
-.route-transition-enter {
-  animation: route-enter 200ms cubic-bezier(0.4, 0, 0.2, 1);
+.route-transition-layer {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  contain: paint;
+  will-change: opacity, transform;
+  transition:
+    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.route-transition-exit {
-  animation: route-exit 200ms cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.route-transition-enter.is-route-entering {
+  opacity: 0;
+  transform: translate3d(0, 12px, 0);
 }
 
-@keyframes view-fade-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
-@keyframes route-enter {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes route-exit {
-  from {
-    opacity: 1;
-    transform: translateY(0);
-  }
-  to {
-    opacity: 0;
-    transform: translateY(-8px);
-  }
+.route-transition-exit.is-route-exiting {
+  opacity: 0;
+  transform: translate3d(0, -8px, 0);
+  pointer-events: none;
 }
 
 .btn-primary {
@@ -377,65 +364,55 @@ body[data-route="dashboard"] .ambient-glow-blue {
   animation: bigu-button-spinner 650ms linear infinite, button-spinner-fade 150ms ease-out;
 }
 
-.bigu-splash {
+.bigu-startup-splash {
   position: fixed;
   inset: 0;
-  z-index: 5000;
+  z-index: 6000;
   display: grid;
   place-items: center;
-  background: #080E1A;
-  color: var(--color-brand-white);
-  animation: bigu-splash-fade-out 360ms ease-in 2140ms forwards;
+  background:
+    radial-gradient(ellipse at 50% 20%, rgba(15, 35, 64, 0.72), transparent 48%),
+    radial-gradient(ellipse at 72% 68%, rgba(200, 16, 46, 0.12), transparent 42%),
+    var(--color-bg-base);
+  color: var(--color-text-primary);
+  opacity: 1;
+  transition: opacity 180ms ease-out, visibility 180ms ease-out;
 }
 
-.bigu-splash-mark {
-  width: min(340px, 70vw);
+.bigu-startup-splash.is-hiding {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.bigu-startup-brand {
   display: grid;
   justify-items: center;
-  gap: 18px;
+  gap: var(--space-3);
+  text-align: center;
 }
 
-.bigu-splash-icon {
-  width: 126px;
-  height: 126px;
-  display: grid;
-  place-items: center;
-  animation: bigu-bird-flight 600ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
-  transform-origin: center;
+.bigu-startup-logo {
+  width: 78px;
+  height: 78px;
+  object-fit: contain;
+  filter: drop-shadow(0 22px 48px rgba(0, 0, 0, 0.42));
 }
 
-.bigu-splash-icon svg {
-  width: 100%;
-  height: 100%;
-  filter: drop-shadow(0 22px 42px rgba(200, 16, 46, 0.18));
-}
-
-.bigu-splash-line {
-  width: 220px;
-  height: 12px;
-  overflow: visible;
-}
-
-.bigu-splash-line line {
-  stroke: rgba(240, 244, 248, 0.78);
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-dasharray: 216;
-  stroke-dashoffset: 216;
-  animation: bigu-logo-line-draw 400ms cubic-bezier(0.4, 0, 0.2, 1) 600ms forwards;
-}
-
-.bigu-splash-wordmark {
-  opacity: 0;
-  transform: translateY(8px);
+.bigu-startup-wordmark {
+  font: 900 28px var(--font-brand);
   color: var(--color-brand-white);
-  font: 900 30px var(--font-brand);
   letter-spacing: 0;
-  animation: bigu-logo-wordmark-in 300ms ease-out 1000ms forwards;
 }
 
-.bigu-splash-wordmark span {
+.bigu-startup-wordmark span {
   color: var(--color-accent);
+}
+
+.bigu-startup-status {
+  font: 700 12px var(--font-ui);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
 }
 
 /* Utility classes */
@@ -470,35 +447,6 @@ body[data-route="dashboard"] .ambient-glow-blue {
 @keyframes button-spinner-fade {
   from { opacity: 0; }
   to { opacity: 1; }
-}
-
-@keyframes bigu-bird-flight {
-  from {
-    opacity: 0;
-    transform: translate(-54vw, 34vh) rotate(-18deg) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-}
-
-@keyframes bigu-logo-line-draw {
-  to { stroke-dashoffset: 0; }
-}
-
-@keyframes bigu-logo-wordmark-in {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes bigu-splash-fade-out {
-  to {
-    opacity: 0;
-    visibility: hidden;
-  }
 }
 
 @keyframes toast-slide-in {
@@ -547,24 +495,13 @@ body[data-route="dashboard"] .ambient-glow-blue {
     animation: none;
   }
 
-  .route-transition-enter {
-    animation: view-fade-in 120ms ease-out;
+  .route-transition-layer {
+    transition: opacity 120ms ease-out !important;
   }
 
-  .route-transition-exit {
-    animation: view-fade-in 120ms ease-out reverse forwards;
-  }
-
-  .bigu-splash {
-    animation: bigu-splash-fade-out 180ms ease-in 120ms forwards;
-  }
-
-  .bigu-splash-icon,
-  .bigu-splash-line line,
-  .bigu-splash-wordmark {
-    animation: none !important;
-    opacity: 1;
+  .route-transition-enter.is-route-entering,
+  .route-transition-exit.is-route-exiting {
     transform: none;
-    stroke-dashoffset: 0;
   }
+
 }

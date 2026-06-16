@@ -41,12 +41,58 @@ const BIP_BANDS = [
   { label: '+80', start: 80 * 60, end: null },
 ];
 
+const DASHBOARD_TIME_BANDS = {
+  all: null,
+  'first-half': { start: 0, end: 40 * 60 },
+  'second-half': { start: 40 * 60, end: null },
+  '0-20': { start: 0, end: 20 * 60 },
+  '20-40': { start: 20 * 60, end: 40 * 60 },
+  '40-60': { start: 40 * 60, end: 60 * 60 },
+  '60-80': { start: 60 * 60, end: 80 * 60 },
+  '+80': { start: 80 * 60, end: null },
+};
+
 /**
  * @param {string|null|undefined} value
  * @returns {string}
  */
 function normalizeKey(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+/**
+ * @param {string|null|undefined} value
+ * @returns {string}
+ */
+function normalizeCustomEventId(value) {
+  return normalizeKey(value)
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+/**
+ * @param {object} settings
+ * @returns {Array<{id: string, type: string, label: string, hotkey: string, resultOptions: Array<string>}>}
+ */
+function getCustomHotkeyDefinitions(settings = {}) {
+  return (Array.isArray(settings.tagging?.customHotkeys) ? settings.tagging.customHotkeys : [])
+    .map((hotkey) => {
+      const label = String(hotkey?.label || '').trim();
+      const id = normalizeCustomEventId(hotkey?.id || label);
+      const key = String(hotkey?.hotkey || '').trim().toUpperCase();
+      const resultOptions = Array.isArray(hotkey?.resultOptions)
+        ? hotkey.resultOptions.map(option => String(option || '').trim()).filter(Boolean)
+        : [];
+      if (!id || !label || !key) return null;
+      return {
+        id,
+        type: `custom:${id}`,
+        label,
+        hotkey: key,
+        resultOptions,
+      };
+    })
+    .filter(Boolean);
 }
 
 /**
@@ -66,6 +112,88 @@ function pct(value, total) {
 function round(value, digits = 2) {
   const factor = 10 ** digits;
   return Math.round(value * factor) / factor;
+}
+
+/**
+ * @param {object} filters
+ * @param {object} teams
+ * @returns {{team: 'home'|'away'|null, timeBand: string, timeRange: {start: number, end: number|null}|null, zone: string, active: boolean}}
+ */
+function normalizeDashboardFilters(filters = {}, teams) {
+  const timeBand = Object.prototype.hasOwnProperty.call(DASHBOARD_TIME_BANDS, filters.timeBand)
+    ? filters.timeBand
+    : 'all';
+  const teamFilter = normalizeKey(filters.team || 'all');
+  const zone = String(filters.zone || 'all');
+  let team = null;
+
+  if (teamFilter === 'bigua') team = teams.biguaTeam;
+  if (teamFilter === 'rival') team = teams.rivalTeam;
+  if (teamFilter === 'home' || teamFilter === 'away') team = teamFilter;
+
+  const timeRange = DASHBOARD_TIME_BANDS[timeBand];
+  return {
+    team,
+    timeBand,
+    timeRange,
+    zone,
+    active: Boolean(team || timeRange || zone !== 'all'),
+  };
+}
+
+/**
+ * @param {number} timestamp
+ * @param {{start: number, end: number|null}|null} timeRange
+ * @returns {boolean}
+ */
+function timestampInRange(timestamp, timeRange) {
+  if (!timeRange) return true;
+  if (!Number.isFinite(timestamp)) return false;
+  return timestamp >= timeRange.start && (timeRange.end === null || timestamp < timeRange.end);
+}
+
+/**
+ * @param {object} event
+ * @param {{team: 'home'|'away'|null, timeRange: {start: number, end: number|null}|null, zone: string}} filters
+ * @returns {boolean}
+ */
+function eventMatchesDashboardFilters(event, filters) {
+  if (filters.team && event.team !== filters.team) return false;
+  if (!timestampInRange(Number(event.timestamp), filters.timeRange)) return false;
+  if (filters.zone !== 'all' && String(event.zone || '') !== filters.zone) return false;
+  return true;
+}
+
+/**
+ * @param {{team: 'home'|'away', start: number, end: number}} interval
+ * @param {{start: number, end: number|null}|null} timeRange
+ * @returns {{team: 'home'|'away', start: number, end: number}|null}
+ */
+function clipPossessionInterval(interval, timeRange) {
+  if (!timeRange) return interval;
+  const endLimit = timeRange.end ?? Number.POSITIVE_INFINITY;
+  const start = Math.max(interval.start, timeRange.start);
+  const end = Math.min(interval.end, endLimit);
+  if (end <= start) return null;
+  return { ...interval, start, end };
+}
+
+/**
+ * @param {object} sequence
+ * @param {{team: 'home'|'away'|null, timeRange: {start: number, end: number|null}|null, zone: string}} filters
+ * @returns {boolean}
+ */
+function sequenceMatchesDashboardFilters(sequence, filters) {
+  if (filters.team && sequence.team && sequence.team !== filters.team) return false;
+  const start = Number(sequence.start);
+  const end = Number(sequence.end);
+  const timestamp = Number.isFinite(start) ? start : end;
+  if (!timestampInRange(timestamp, filters.timeRange)) return false;
+  if (filters.zone !== 'all') {
+    const zones = [sequence.zone, sequence.zoneStart, sequence.zoneEnd].filter(Boolean).map(String);
+    if (!zones.includes(filters.zone)) return false;
+  }
+  return true;
 }
 
 /**
@@ -125,21 +253,113 @@ function emptyScoreBreakdown() {
 }
 
 /**
+ * @param {unknown} value
+ * @returns {'home'|'away'|null}
+ */
+function getEventTeam(value) {
+  return value === 'home' || value === 'away' ? value : null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function scoreDelta(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Math.trunc(numeric) : 0;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function scoreTotal(value) {
+  return Math.max(0, scoreDelta(value));
+}
+
+/**
+ * @param {{home: number, away: number}|null} adjustment
+ * @returns {boolean}
+ */
+function hasScoreAdjustment(adjustment) {
+  return Boolean(adjustment && (adjustment.home !== 0 || adjustment.away !== 0));
+}
+
+/**
+ * @param {object} match
+ * @returns {{enabled: boolean, homeScore: number, awayScore: number, source: 'events-manual'|'legacy-manual'}|null}
+ */
+function getScoreOverride(match) {
+  if (!match?.scoreOverride?.enabled) return null;
+  return {
+    enabled: true,
+    homeScore: scoreTotal(match.scoreOverride.homeScore),
+    awayScore: scoreTotal(match.scoreOverride.awayScore),
+    source: match.scoreOverride.legacy === true ? 'legacy-manual' : 'events-manual',
+  };
+}
+
+/**
+ * @param {object} match
+ * @param {{home: {total: number}, away: {total: number}}} eventScore
+ * @returns {{home: number, away: number, source: 'events-manual'|'legacy-manual'}|null}
+ */
+function getScoreAdjustment(match, eventScore) {
+  if (match?.scoreAdjustment && typeof match.scoreAdjustment === 'object') {
+    const adjustment = {
+      home: scoreDelta(match.scoreAdjustment.homeDelta),
+      away: scoreDelta(match.scoreAdjustment.awayDelta),
+      source: 'events-manual',
+    };
+    return hasScoreAdjustment(adjustment) ? adjustment : null;
+  }
+
+  const override = getScoreOverride(match);
+  if (!override) return null;
+
+  const adjustment = {
+    home: override.homeScore - scoreTotal(eventScore.home.total),
+    away: override.awayScore - scoreTotal(eventScore.away.total),
+    source: override.source === 'legacy-manual' && scoreTotal(eventScore.home.total) === 0 && scoreTotal(eventScore.away.total) === 0
+      ? 'legacy-manual'
+      : 'events-manual',
+  };
+  return hasScoreAdjustment(adjustment) ? adjustment : null;
+}
+
+/**
+ * @param {object} match
+ * @returns {{home: number, away: number, hasEvidence: boolean}|null}
+ */
+function getPersistedCanonicalScore(match = {}) {
+  if (!match?.score || typeof match.score !== 'object') return null;
+  const result = match.score.resultForBigua;
+  const home = scoreTotal(match.score.local ?? match.score.home);
+  const away = scoreTotal(match.score.rival ?? match.score.away);
+  const hasEvidence = home > 0 || away > 0 || result === 'win' || result === 'loss' || result === 'draw';
+  return hasEvidence ? { home, away, hasEvidence } : null;
+}
+
+/**
  * @param {object} match
  * @param {Array<object>} events
+ * @param {{disableManualFallback?: boolean}} [options]
  * @returns {object}
  */
-function calculateScore(match, events) {
+function calculateScore(match, events, options = {}) {
   const score = {
     home: { total: 0, breakdown: emptyScoreBreakdown() },
     away: { total: 0, breakdown: emptyScoreBreakdown() },
+    manualAdjustment: { home: 0, away: 0 },
     source: 'events',
   };
+
   let hasPointEvents = false;
 
   events.forEach((event) => {
     if (event.type !== 'points') return;
-    const team = event.team === 'away' ? 'away' : 'home';
+    const team = getEventTeam(event.team);
+    if (!team) return;
     const result = normalizeKey(event.result);
     const value = POINT_VALUES[result] || 0;
     const scoreKey = SCORE_KEYS[result];
@@ -149,10 +369,30 @@ function calculateScore(match, events) {
     score[team].breakdown[scoreKey] += 1;
   });
 
-  if (!hasPointEvents) {
-    score.source = 'manual';
-    score.home.total = Math.max(0, Number(match.homeScore) || 0);
-    score.away.total = Math.max(0, Number(match.awayScore) || 0);
+  const adjustment = options.disableManualFallback ? null : getScoreAdjustment(match, score);
+  if (adjustment) {
+    score.manualAdjustment = {
+      home: adjustment.home,
+      away: adjustment.away,
+    };
+    score.home.total = Math.max(0, score.home.total + adjustment.home);
+    score.away.total = Math.max(0, score.away.total + adjustment.away);
+    score.source = adjustment.source;
+  }
+
+  const persistedScore = !adjustment && !hasPointEvents && !options.disableManualFallback
+    ? getPersistedCanonicalScore(match)
+    : null;
+  if (persistedScore) {
+    score.source = 'persisted';
+    score.home.total = persistedScore.home;
+    score.away.total = persistedScore.away;
+  }
+
+  if (!persistedScore && !adjustment && !hasPointEvents && !options.disableManualFallback && (Number(match.homeScore) > 0 || Number(match.awayScore) > 0)) {
+    score.source = 'legacy-manual';
+    score.home.total = scoreTotal(match.homeScore);
+    score.away.total = scoreTotal(match.awayScore);
   }
 
   return score;
@@ -202,8 +442,10 @@ function getPossessionIntervals(possession) {
  * @param {Array<object>} events
  * @returns {object}
  */
-function calculatePossession(match, events) {
-  const intervals = getPossessionIntervals(match.possessionIntervals || match.possession);
+function calculatePossession(match, events, filters = { timeRange: null }) {
+  const intervals = getPossessionIntervals(match.possessionIntervals || match.possession)
+    .map(interval => clipPossessionInterval(interval, filters.timeRange))
+    .filter(Boolean);
   const seconds = { home: 0, away: 0, total: 0 };
   const counts = { home: 0, away: 0, total: 0 };
 
@@ -288,6 +530,66 @@ function calculateTotals(events) {
     if (event.type === 'kick') totals[event.team].kicks += 1;
   });
   return totals;
+}
+
+/**
+ * @param {Array<object>} events
+ * @param {object} settings
+ * @returns {{total: number, definitions: Array<object>, byType: Record<string, object>}}
+ */
+function calculateCustomEvents(events, settings = {}) {
+  const definitions = getCustomHotkeyDefinitions(settings);
+  const definitionMap = new Map(definitions.map(definition => [definition.type, definition]));
+  const byType = {};
+  let total = 0;
+
+  definitions.forEach((definition) => {
+    byType[definition.type] = {
+      id: definition.id,
+      label: definition.label,
+      hotkey: definition.hotkey,
+      total: 0,
+      home: 0,
+      away: 0,
+      results: {},
+    };
+  });
+
+  events.forEach((event) => {
+    const type = String(event.type || '');
+    if (!type.startsWith('custom:')) return;
+    const id = normalizeCustomEventId(type.replace(/^custom:/, ''));
+    const definition = definitionMap.get(type) || {
+      id,
+      type,
+      label: id ? id.split('-').map(part => part.charAt(0).toUpperCase() + part.slice(1)).join(' ') : 'Custom',
+      hotkey: '',
+      resultOptions: [],
+    };
+    if (!byType[type]) {
+      byType[type] = {
+        id: definition.id,
+        label: definition.label,
+        hotkey: definition.hotkey,
+        total: 0,
+        home: 0,
+        away: 0,
+        results: {},
+      };
+    }
+
+    total += 1;
+    byType[type].total += 1;
+    if (event.team === 'home' || event.team === 'away') byType[type][event.team] += 1;
+    const result = normalizeKey(event.result || 'registrado') || 'registrado';
+    byType[type].results[result] = (byType[type].results[result] || 0) + 1;
+  });
+
+  return {
+    total,
+    definitions,
+    byType,
+  };
 }
 
 /**
@@ -687,14 +989,18 @@ function buildKpis(stats, teams) {
 /**
  * @param {object} match
  * @param {object} [settings]
+ * @param {object} [filters]
  * @returns {object}
  */
-function calculateMatchStats(match, settings = {}) {
+function calculateMatchStats(match, settings = {}, filters = {}) {
   const safeMatch = match || {};
-  const events = Array.isArray(safeMatch.events) ? safeMatch.events : [];
-  const sequences = Array.isArray(safeMatch.sequences) ? safeMatch.sequences : [];
   const teams = buildTeams(safeMatch);
-  const possession = calculatePossession(safeMatch, events);
+  const dashboardFilters = normalizeDashboardFilters(filters, teams);
+  const sourceEvents = Array.isArray(safeMatch.events) ? safeMatch.events : [];
+  const sourceSequences = Array.isArray(safeMatch.sequences) ? safeMatch.sequences : [];
+  const events = sourceEvents.filter(event => eventMatchesDashboardFilters(event, dashboardFilters));
+  const sequences = sourceSequences.filter(sequence => sequenceMatchesDashboardFilters(sequence, dashboardFilters));
+  const possession = calculatePossession(safeMatch, events, dashboardFilters);
   const stats = {
     match: {
       id: safeMatch.id || '',
@@ -703,13 +1009,20 @@ function calculateMatchStats(match, settings = {}) {
       date: safeMatch.date || '',
       competition: safeMatch.competition || '',
       eventCount: events.length,
+      totalEventCount: sourceEvents.length,
       coachNotes: safeMatch.coachNotes || '',
+      filters: {
+        team: filters.team || 'all',
+        timeBand: dashboardFilters.timeBand,
+        zone: dashboardFilters.zone,
+      },
     },
     teams,
-    score: calculateScore(safeMatch, events),
+    score: calculateScore(safeMatch, events, { disableManualFallback: dashboardFilters.active }),
     possession,
     territory: calculateTerritory(events),
     totals: calculateTotals(events),
+    customEvents: calculateCustomEvents(events, settings),
     setPieces: calculateSetPieces(events),
     rucks: calculateRucks(events, possession),
     kicks: calculateKicks(events),
@@ -729,16 +1042,16 @@ function calculateMatchStats(match, settings = {}) {
 
 /**
  * @param {string} matchId
+ * @param {object} [filters]
  * @returns {Promise<object>}
  */
-async function getMatchStats(matchId) {
+async function getMatchStats(matchId, filters = {}) {
   const [match, settings] = await Promise.all([
     getMatchById(matchId),
     getSettings(),
   ]);
-  return calculateMatchStats(match, settings);
+  return calculateMatchStats(match, settings, filters);
 }
-
 
 /**
  * @param {string|null|undefined} value
@@ -772,17 +1085,17 @@ function average(values) {
 function buildSeasonMatchRow(match, stats) {
   const bigua = stats.teams.biguaTeam;
   const rival = stats.teams.rivalTeam;
-  const homeScore = Number.isFinite(Number(match.homeScore)) ? Number(match.homeScore) : stats.score.home.total;
-  const awayScore = Number.isFinite(Number(match.awayScore)) ? Number(match.awayScore) : stats.score.away.total;
+  const homeScore = Math.max(0, Number(stats.score.home.total) || 0);
+  const awayScore = Math.max(0, Number(stats.score.away.total) || 0);
   const rivalName = rival === 'home' ? match.homeTeam || 'Local' : match.awayTeam || 'Rival';
   const date = match.date || match.createdAt || '';
 
   return {
     id: match.id,
     date,
-    label: rivalName + ' ' + date,
+    label: `${rivalName} ${date}`,
     rival: rivalName,
-    score: homeScore + ' - ' + awayScore,
+    score: `${homeScore} - ${awayScore}`,
     competition: match.competition || 'Sin competencia',
     ruckWinPct: stats.rucks[bigua].wonPct,
     penalties: stats.discipline[bigua].penalties.total,

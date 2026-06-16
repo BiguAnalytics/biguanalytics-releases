@@ -1,7 +1,6 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs/promises');
-const puppeteer = require('puppeteer-core');
 const { calculateMatchStats } = require('./analytics');
 const { getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
@@ -40,6 +39,51 @@ function getElectronChromiumExecutablePath() {
 }
 
 /**
+ * @param {string} message
+ */
+function emitPdfExportWarning(message) {
+  if (typeof process?.emitWarning === 'function') {
+    process.emitWarning(message, { code: 'BIGU_PDF_EXPORT' });
+  }
+}
+
+function loadPuppeteerCore() {
+  return require('puppeteer-core');
+}
+
+/**
+ * @param {{
+ *   puppeteerImpl?: object,
+ *   executablePath?: string,
+ *   warn?: function(string): void,
+ * }} [options]
+ * @returns {Promise<object>}
+ */
+async function launchPdfBrowser(options = {}) {
+  const puppeteerImpl = options.puppeteerImpl || loadPuppeteerCore();
+  const executablePath = options.executablePath || getElectronChromiumExecutablePath();
+  const warn = options.warn || emitPdfExportWarning;
+  const baseOptions = {
+    headless: 'new',
+    executablePath: executablePath,
+  };
+
+  try {
+    return await puppeteerImpl.launch({
+      ...baseOptions,
+      args: [],
+    });
+  } catch (error) {
+    // Windows packaged Electron can fail Chromium sandbox initialization in locked-down installs.
+    warn(`PDF export falling back to --no-sandbox after Chromium sandbox launch failed: ${error?.message || 'unknown error'}`);
+    return puppeteerImpl.launch({
+      ...baseOptions,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    });
+  }
+}
+
+/**
  * @param {object} dialog
  * @param {object|null} browserWindow
  * @param {object} stats
@@ -64,21 +108,29 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
     getMatchById(matchId),
     getSettings(),
   ]);
-  const drawingFrames = await getAnnotatedFramesForPdf(matchId);
+  const drawingFramePayload = await getAnnotatedFramesForPdf(matchId);
+  const drawingFrames = Array.isArray(drawingFramePayload)
+    ? drawingFramePayload
+    : drawingFramePayload.frames || [];
   const stats = calculateMatchStats(match, settings, printPayload.filters || settings.dashboard?.filters || {});
   const saveResult = await choosePdfPath(options.dialog, options.browserWindow, stats);
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
   await fs.mkdir(path.dirname(saveResult.filePath), { recursive: true });
 
   const printFile = path.join(__dirname, '../../renderer/dashboard-print.html');
-  const browser = await puppeteer.launch({
-    headless: 'new',
-    executablePath: getElectronChromiumExecutablePath(),
-    args: ['--no-sandbox', '--disable-setuid-sandbox'],
-  });
+  const browser = await launchPdfBrowser();
 
   try {
     const page = await browser.newPage();
+    await page.setRequestInterception(true);
+    page.on('request', (request) => {
+      const url = request.url();
+      if (/^https?:\/\//i.test(url)) {
+        request.abort();
+        return;
+      }
+      request.continue();
+    });
     await page.goto(`file:///${printFile.replaceAll('\\', '/')}`, { waitUntil: 'networkidle0' });
     await page.evaluate(
       (payload) => window.renderDashboardPrint(payload),
@@ -90,6 +142,7 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
           coachNotes: match.coachNotes || '',
         },
         drawingFrames,
+        drawingFrameWarning: drawingFramePayload.warning || '',
       }
     );
     await page.pdf({
@@ -115,5 +168,7 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
 module.exports = {
   buildSuggestedFileName,
   getElectronChromiumExecutablePath,
+  loadPuppeteerCore,
+  launchPdfBrowser,
   exportDashboardPdf,
 };

@@ -6,8 +6,18 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
+    "server:install": "npm --prefix server ci --omit=dev",
+    "postinstall": "npm run server:install",
+    "pretest": "npm run server:install",
     "test": "vitest run",
+    "pretest:watch": "npm run server:install",
     "test:watch": "vitest",
+    "preserver": "npm run server:install",
+    "server": "npm --prefix server run server",
+    "test:perf:timeline": "vitest run src/renderer/components/__tests__/timeline.test.js",
+    "check:ai-secrets": "node scripts/check-ai-client-secrets.js",
+    "check:windows-build": "node scripts/check-windows-build.js",
+    "security:check": "node scripts/check-secrets.js && node scripts/check-ai-client-secrets.js",
     "build": "electron-builder"
   },
   "author": "Bigua Rugby Club",
@@ -21,8 +31,22 @@
     "directories": {
       "buildResources": "build"
     },
+    "asarUnpack": [
+      "node_modules/ffmpeg-static/**/*",
+      "node_modules/ffprobe-static/**/*"
+    ],
     "files": [
       "src/**/*",
+      "!src/**/__tests__/**",
+      "!src/**/*.test.js",
+      "!server/**",
+      "!backend/**",
+      "!docs/**",
+      "!supabase/**",
+      "!node_modules/supabase/**",
+      "!node_modules/@supabase/cli-*/**",
+      "!scripts/**",
+      "!.env*",
       "package.json",
       "build/**/*"
     ],
@@ -62,16 +86,20 @@
     }
   },
   "devDependencies": {
-    "electron": "^35.0.0",
+    "electron": "^42.3.3",
     "electron-builder": "^26.0.0",
-    "vitest": "^3.2.1"
+    "resedit": "^1.7.2",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
     "chart.js": "^4.5.1",
     "electron-squirrel-startup": "^1.0.1",
     "electron-store": "^8.2.0",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0",
     "puppeteer-core": "^25.1.0",
+    "supabase": "^2.105.0",
     "uuid": "^11.1.0"
   }
 }

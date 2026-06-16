@@ -1,8 +1,10 @@
 // @ts-check
 import { createKpiCard } from '../components/kpi-card.js';
+import { cloudMatchService } from '../cloud/cloud-match-service.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { navigate } from '../router.js';
+import { ensureChartJs } from '../vendor-loader.js';
 
 const METRICS = [
   { id: 'rucks', canvasId: 'chart-season-rucks', label: '% Rucks ganados', key: 'ruckWinPct', threshold: 'ruckWinPctMin', thresholdMode: 'min' },
@@ -119,7 +121,8 @@ function getSeasonChartColors() {
  * @param {HTMLElement} container
  * @param {object} state
  */
-function renderSeasonCharts(container, state) {
+async function renderSeasonCharts(container, state) {
+  await ensureChartJs();
   const colors = getSeasonChartColors();
   configureSeasonCharts(colors);
   state.charts.forEach(chart => chart.destroy());
@@ -206,6 +209,7 @@ export function renderSeason(container) {
 
   async function load() {
     try {
+      await cloudMatchService.listMatches();
       state.season = await window.api.analytics.getSeasonStats(year);
       applyFilters();
       render();
@@ -319,6 +323,6 @@ export function renderSeason(container) {
     container.querySelectorAll('[data-season-match-id]').forEach(row => {
       row.addEventListener('click', () => navigate('dashboard', { matchId: row.getAttribute('data-season-match-id') }));
     });
-    renderSeasonCharts(container, state);
+    renderSeasonCharts(container, state).catch(() => {});
   }
 }

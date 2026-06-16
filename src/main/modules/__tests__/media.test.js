@@ -1,13 +1,19 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { buildYouTubeRequestHeaders, localVideoExists, normalizeYouTubeSource, selectLocalVideo, toFileUrl } from '../media.js';
+import { buildYouTubeRequestHeaders, getLocalVideoMetadata, localVideoExists, normalizeYouTubeSource, selectLocalVideo, toFileUrl } from '../media.js';
 
 describe('media.js', () => {
   it('opens a native MP4 picker and returns a local file reference', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const filePath = path.join(process.cwd(), '.vitest-user-data', 'bigua-rival.mp4');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, Buffer.from('fake-mp4-content'));
+
     const dialog = {
       showOpenDialog: vi.fn(async () => ({
         canceled: false,
-        filePaths: ['C:\\Videos\\bigua-rival.mp4'],
+        filePaths: [filePath],
       })),
     };
 
@@ -17,12 +23,18 @@ describe('media.js', () => {
       properties: ['openFile'],
       filters: [{ name: 'Videos MP4', extensions: ['mp4'] }],
     }));
-    expect(selected).toEqual({
+    expect(selected).toEqual(expect.objectContaining({
       type: 'local',
-      path: 'C:\\Videos\\bigua-rival.mp4',
+      path: filePath,
       name: 'bigua-rival.mp4',
-      fileUrl: 'file:///C:/Videos/bigua-rival.mp4',
-    });
+      fileUrl: toFileUrl(filePath),
+      size: expect.any(Number),
+      fingerprintHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      duration: null,
+      durationStatus: 'pending',
+    }));
+
+    await fs.rm(path.dirname(filePath), { recursive: true, force: true });
   });
 
   it('returns null when local video selection is cancelled', async () => {
@@ -61,6 +73,26 @@ describe('media.js', () => {
 
   it('checks whether a saved local MP4 path still exists without throwing', async () => {
     await expect(localVideoExists('Z:\\Partidos\\no-existe.mp4')).resolves.toBe(false);
+  });
+
+  it('reads local MP4 metadata without exposing video bytes', async () => {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const filePath = path.join(process.cwd(), '.vitest-user-data', 'metadata-video.mp4');
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, Buffer.from('fake-mp4-content'));
+
+    const metadata = await getLocalVideoMetadata(filePath);
+
+    expect(metadata).toEqual({
+      name: 'metadata-video.mp4',
+      size: 16,
+      fingerprintHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      duration: null,
+      durationStatus: 'pending',
+    });
+
+    await fs.rm(path.dirname(filePath), { recursive: true, force: true });
   });
 
   it('rejects non-YouTube URLs with a user-facing message before iframe loading', () => {

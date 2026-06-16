@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
+import * as tagger from '../tagger.js';
 import {
   EVENT_DEFINITIONS,
   advancePossession,
@@ -8,6 +9,7 @@ import {
   closePopup,
   completePopup,
   createTaggerState,
+  closeActivePossession,
   finishSequence,
   enrichSequenceFromEvents,
   getPossessionTimelineSegments,
@@ -19,6 +21,8 @@ import {
   togglePossession,
   updatePopupNote,
 } from '../tagger.js';
+
+const { buildEventDefinitions, buildSpeechNoteValue, sanitizeNoteText } = tagger;
 
 describe('tagger engine', () => {
   it('defines the 11 phase 2 event hotkeys with their first popup step', () => {
@@ -39,13 +43,73 @@ describe('tagger engine', () => {
     expect(blocked.blockedHotkey).toBe('S');
   });
 
+  it('remaps built-in event hotkeys without changing their stored event type', () => {
+    expect(buildEventDefinitions).toBeTypeOf('function');
+    const definitions = buildEventDefinitions({
+      hotkeys: { ruck: 'H' },
+    });
+    const state = createTaggerState({ eventDefinitions: definitions });
+    const opened = openTagPopup(state, 'H', 12);
+    const missingOriginal = openTagPopup(state, 'R', 12);
+    const selected = selectPopupOption(opened, 'ganado');
+    const completed = selectPopupOption(selected.state, 'home');
+
+    expect(definitions.H).toEqual(expect.objectContaining({
+      hotkey: 'H',
+      defaultHotkey: 'R',
+      type: 'ruck',
+      label: 'Ruck',
+    }));
+    expect(definitions.R).toBeUndefined();
+    expect(opened.activePopup.hotkey).toBe('H');
+    expect(missingOriginal.activePopup).toBeNull();
+    expect(selected.completed).toBe(false);
+    expect(completed.event).toEqual(expect.objectContaining({
+      type: 'ruck',
+      team: 'home',
+      result: 'ganado',
+    }));
+  });
+
+  it('adds custom hotkeys as custom event definitions with configured result data', () => {
+    expect(buildEventDefinitions).toBeTypeOf('function');
+    const definitions = buildEventDefinitions({
+      customHotkeys: [
+        { id: 'line-speed', hotkey: 'J', label: 'Salida rapida', resultOptions: ['buena', 'mala'] },
+      ],
+    });
+    const opened = openTagPopup(createTaggerState({ eventDefinitions: definitions }), 'J', 33);
+    const selected = selectPopupOption(opened, 'buena');
+
+    expect(definitions.J).toEqual(expect.objectContaining({
+      custom: true,
+      type: 'custom:line-speed',
+      label: 'Salida rapida',
+      hotkey: 'J',
+    }));
+    expect(definitions.J.steps[0].options).toEqual([
+      { label: 'buena', value: 'buena' },
+      { label: 'mala', value: 'mala' },
+    ]);
+    expect(selected.event).toEqual(expect.objectContaining({
+      type: 'custom:line-speed',
+      result: 'buena',
+      team: null,
+      timestamp: 33,
+    }));
+  });
+
   it('builds a single-step event payload with note and selected zone', () => {
     const opened = openTagPopup(createTaggerState(), 'R', 15.5);
     const withZone = selectPopupZone(updatePopupNote(opened, 'dominante'), 'C4');
     const selected = selectPopupOption(withZone, 'ganado');
 
-    expect(selected.completed).toBe(true);
-    expect(selected.event).toEqual(expect.objectContaining({
+    expect(selected.completed).toBe(false);
+    expect(selected.state.activePopup.stepIndex).toBe(1);
+
+    const withTeam = selectPopupOption(selected.state, 'home');
+    expect(withTeam.completed).toBe(true);
+    expect(withTeam.event).toEqual(expect.objectContaining({
       timestamp: 15.5,
       type: 'ruck',
       team: 'home',
@@ -53,20 +117,48 @@ describe('tagger engine', () => {
       note: 'dominante',
       zone: 'C4',
     }));
+    expect(withTeam.state.activePopup).toBeNull();
+  });
+
+  it('infers the event team from active possession without adding a team step', () => {
+    const possession = togglePossession(createTaggerState(), 'away', 0);
+    const opened = openTagPopup(possession, 'T', 15.5);
+    const selected = selectPopupOption(opened, 'try');
+
+    expect(selected.completed).toBe(true);
+    expect(selected.event).toEqual(expect.objectContaining({
+      timestamp: 15.5,
+      type: 'points',
+      team: 'away',
+      result: 'try',
+    }));
     expect(selected.state.activePopup).toBeNull();
   });
 
-  it('keeps two-step popups open until the final step is selected', () => {
+  it('does not default direct event payloads to home when team is absent', () => {
+    expect(buildEventPayload({ type: 'points', result: 'try', timestamp: 4 })).toEqual(expect.objectContaining({
+      type: 'points',
+      team: null,
+      result: 'try',
+      timestamp: 4,
+    }));
+  });
+
+  it('keeps multi-step popups open until the final team step is selected', () => {
     const opened = openTagPopup(createTaggerState(), 'P', 44);
     const firstStep = selectPopupOption(opened, 'defensa');
     const secondStep = selectPopupOption(firstStep.state, 'offside');
+    const teamStep = selectPopupOption(secondStep.state, 'away');
 
     expect(firstStep.completed).toBe(false);
     expect(firstStep.state.activePopup.stepIndex).toBe(1);
     expect(firstStep.state.activePopup.values.phase).toBe('defensa');
-    expect(secondStep.completed).toBe(true);
-    expect(secondStep.event).toEqual(expect.objectContaining({
+    expect(secondStep.completed).toBe(false);
+    expect(secondStep.state.activePopup.stepIndex).toBe(2);
+    expect(teamStep.completed).toBe(true);
+    expect(teamStep.event).toEqual(expect.objectContaining({
       type: 'penal',
+      team: 'away',
       result: 'defensa',
       subtype: 'offside',
     }));
@@ -148,7 +240,7 @@ describe('tagger engine', () => {
     });
   });
 
-  it('counts only observed possession time and ignores skipped no-one time', () => {
+  it('advances active possession during normal playback without auto-closing on large gaps', () => {
     const homeStarted = togglePossession(createTaggerState(), 'home', 0);
     const homeObserved = advancePossession(homeStarted, 120, 180);
     const awayStarted = togglePossession(homeObserved, 'away', 120);
@@ -156,9 +248,22 @@ describe('tagger engine', () => {
     const skippedAhead = advancePossession(awayObserved, 600);
 
     expect(calculatePossessionPercentages(awayObserved.possession, 300)).toEqual({ home: 40, away: 60 });
-    expect(calculatePossessionPercentages(awayObserved.possession, 600)).toEqual({ home: 40, away: 60 });
-    expect(skippedAhead.possession.activeTeam).toBeNull();
-    expect(calculatePossessionPercentages(skippedAhead.possession, 600)).toEqual({ home: 40, away: 60 });
+    expect(skippedAhead.possession.activeTeam).toBe('away');
+    expect(skippedAhead.possession.activeEnd).toBe(600);
+    expect(calculatePossessionPercentages(skippedAhead.possession, 600)).toEqual({ home: 20, away: 80 });
+  });
+
+  it('closes active possession explicitly for cleanup or controlled transitions', () => {
+    const state = togglePossession(createTaggerState(), 'home', 10);
+    const observed = advancePossession(state, 25, 180);
+    const closed = closeActivePossession(observed, 40);
+
+    expect(closed.possession).toEqual({
+      activeTeam: null,
+      activeStart: null,
+      activeEnd: null,
+      intervals: [{ team: 'home', start: 10, end: 40 }],
+    });
   });
 
   it('exposes finite possession timeline segments without no-one gaps', () => {
@@ -222,15 +327,35 @@ describe('tagger engine', () => {
 
   it('records sequence duration and result', () => {
     const active = startSequence(createTaggerState(), 12);
-    const finished = finishSequence(active, 31.5, 'try');
+    const finished = finishSequence(active, 31.5, 'try', { zoneStart: 'Z1', zoneEnd: 'Z6', requireZones: true });
 
     expect(finished.sequence).toEqual(expect.objectContaining({
       start: 12,
       end: 31.5,
       duration: 19.5,
       result: 'try',
+      zoneStart: 'Z1',
+      zoneEnd: 'Z6',
     }));
     expect(finished.state.sequence.active).toBeNull();
+  });
+
+  it('rejects sequences with non-positive duration and keeps them active', () => {
+    const active = startSequence(createTaggerState(), 42);
+    const finished = finishSequence(active, 41, 'turnover', { zoneStart: 'Z1', zoneEnd: 'Z2', requireZones: true });
+
+    expect(finished.sequence).toBeNull();
+    expect(finished.error).toContain('posterior');
+    expect(finished.state.sequence.active).toEqual(active.sequence.active);
+  });
+
+  it('rejects sequences that require missing start or end zones', () => {
+    const active = startSequence(createTaggerState(), 12);
+    const finished = finishSequence(active, 24, 'penal', { zoneStart: 'Z1', requireZones: true });
+
+    expect(finished.sequence).toBeNull();
+    expect(finished.error).toContain('zona');
+    expect(finished.state.sequence.active).toEqual(active.sequence.active);
   });
 
   it('enriches sequences with phase count and first/last tagged zones', () => {
@@ -251,13 +376,34 @@ describe('tagger engine', () => {
 
   it('exposes an explicit payload builder for the active popup', () => {
     const state = selectPopupZone(updatePopupNote(openTagPopup(createTaggerState(), 'T', 80), 'pegado a la bandera'), 'R5');
-    const payload = buildEventPayload(selectPopupOption(state, 'try').event);
+    const afterResult = selectPopupOption(state, 'try');
+    const payload = buildEventPayload(selectPopupOption(afterResult.state, 'away').event);
 
     expect(payload).toEqual(expect.objectContaining({
       type: 'points',
+      team: 'away',
       result: 'try',
       note: 'pegado a la bandera',
       zone: 'R5',
     }));
+  });
+
+  it('composes speech dictation without duplicating interim text when it becomes final', () => {
+    expect(buildSpeechNoteValue).toBeTypeOf('function');
+    expect(buildSpeechNoteValue('Ruck dominante', 'salida rapida', 'por derecha')).toBe('Ruck dominante salida r\u00e1pida por derecha');
+    expect(buildSpeechNoteValue('Ruck dominante salida rapida', 'salida rapida', '')).toBe('Ruck dominante salida r\u00e1pida');
+    expect(buildSpeechNoteValue('', 'presion alta', '')).toBe('presión alta');
+  });
+
+  it('preserves valid Spanish accents in notes and removes corrupted replacement glyphs', () => {
+    expect(sanitizeNoteText).toBeTypeOf('function');
+    expect(sanitizeNoteText('presión, recepción, línea, ñandú, pingüino')).toBe('presión, recepción, línea, ñandú, pingüino');
+    expect(sanitizeNoteText('presi�n alta')).toBe('presin alta');
+  });
+
+  it('adds accents to common Spanish rugby speech terms', () => {
+    expect(buildSpeechNoteValue('', 'posesion despues de conversion en linea de veintidos', '')).toBe(
+      'posesión después de conversión en línea de veintidós',
+    );
   });
 });

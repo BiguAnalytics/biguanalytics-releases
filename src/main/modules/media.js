@@ -1,6 +1,7 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs/promises');
+const crypto = require('crypto');
 
 const YOUTUBE_EMBED_REFERER = 'https://biguanalytics.local/';
 const YOUTUBE_EMBED_ORIGIN = 'https://biguanalytics.local';
@@ -62,6 +63,49 @@ function isYouTubePlayerRequest(requestUrl) {
 function toFileUrl(filePath) {
   const normalized = filePath.replace(/\\/g, '/');
   return `file:///${encodeURI(normalized)}`;
+}
+
+/**
+ * Builds a stable lightweight fingerprint from file size and edge chunks.
+ * @param {string} filePath
+ * @returns {Promise<string>}
+ */
+async function createLocalVideoFingerprint(filePath) {
+  const handle = await fs.open(filePath, 'r');
+  try {
+    const stat = await handle.stat();
+    const chunkSize = Math.min(1024 * 1024, stat.size);
+    const first = Buffer.alloc(chunkSize);
+    const last = Buffer.alloc(chunkSize);
+    if (chunkSize > 0) {
+      await handle.read(first, 0, chunkSize, 0);
+      await handle.read(last, 0, chunkSize, Math.max(0, stat.size - chunkSize));
+    }
+    return crypto
+      .createHash('sha256')
+      .update(String(stat.size))
+      .update(first)
+      .update(last)
+      .digest('hex');
+  } finally {
+    await handle.close();
+  }
+}
+
+/**
+ * Reads local MP4 metadata safe to sync.
+ * @param {string} filePath
+ * @returns {Promise<{name: string, size: number, fingerprintHash: string, duration: null, durationStatus: 'pending'}>}
+ */
+async function getLocalVideoMetadata(filePath) {
+  const stat = await fs.stat(filePath);
+  return {
+    name: path.basename(filePath),
+    size: stat.size,
+    fingerprintHash: await createLocalVideoFingerprint(filePath),
+    duration: null,
+    durationStatus: 'pending',
+  };
 }
 
 /**
@@ -167,16 +211,23 @@ async function selectLocalVideo(dialog, browserWindow) {
   }
 
   const filePath = result.filePaths[0];
+  const metadata = await getLocalVideoMetadata(filePath);
   return {
     type: 'local',
     path: filePath,
-    name: path.basename(filePath),
+    name: metadata.name,
     fileUrl: toFileUrl(filePath),
+    size: metadata.size,
+    fingerprintHash: metadata.fingerprintHash,
+    duration: metadata.duration,
+    durationStatus: metadata.durationStatus,
   };
 }
 
 module.exports = {
   buildYouTubeRequestHeaders,
+  createLocalVideoFingerprint,
+  getLocalVideoMetadata,
   localVideoExists,
   normalizeYouTubeSource,
   selectLocalVideo,

@@ -1,0 +1,311 @@
+.access-shell {
+  min-height: calc(100dvh - var(--topbar-height));
+  display: grid;
+  place-items: center;
+  padding: var(--space-8);
+  background:
+    radial-gradient(ellipse at 20% 8%, rgba(15, 35, 64, 0.82), transparent 48%),
+    radial-gradient(ellipse at 82% 92%, rgba(200, 16, 46, 0.08), transparent 46%),
+    var(--color-bg-base);
+}
+
+.access-card {
+  width: min(480px, calc(100vw - 48px));
+  padding: var(--space-8);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-xl);
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 42%),
+    var(--color-bg-elevated);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
+}
+
+.access-brand {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-8);
+  text-align: center;
+}
+
+.access-brand-mark {
+  width: 112px;
+  height: 112px;
+  object-fit: contain;
+  filter: drop-shadow(0 18px 34px rgba(0, 0, 0, 0.34));
+}
+
+.access-brand-name {
+  color: var(--color-text-primary);
+  font: 900 28px var(--font-brand);
+  line-height: 1;
+  letter-spacing: 0;
+}
+
+.access-brand-name span {
+  color: var(--color-accent);
+}
+
+.access-copy h1 {
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-primary);
+  font: 900 22px var(--font-brand);
+}
+
+.access-copy p {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font: 400 14px var(--font-ui);
+  line-height: var(--leading-normal);
+}
+
+.access-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.access-auth-options {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-top: var(--space-6);
+}
+
+.access-auth-option {
+  min-height: 68px;
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 4px;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--color-text-secondary);
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms, color 150ms, transform 150ms;
+}
+
+.access-auth-option span {
+  color: inherit;
+  font: 900 12px var(--font-brand);
+  text-transform: uppercase;
+}
+
+.access-auth-option small {
+  color: var(--color-text-muted);
+  font: 400 12px var(--font-ui);
+}
+
+.access-auth-option:hover,
+.access-auth-option:focus-visible {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+  outline: none;
+  transform: translateY(-1px);
+}
+
+.access-auth-option.active {
+  border-color: var(--color-border-accent);
+  background:
+    linear-gradient(135deg, rgba(200, 16, 46, 0.24), rgba(15, 35, 64, 0.34)),
+    var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+.access-auth-option.active small {
+  color: var(--color-text-secondary);
+}
+
+.access-mode-copy {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+  line-height: var(--leading-normal);
+}
+
+.access-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.access-form-grid > div {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.access-form-grid.compact {
+  grid-template-columns: 120px 1fr;
+}
+
+.access-form-row {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.access-form label {
+  color: var(--color-text-secondary);
+  font: 900 11px var(--font-brand);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.access-form input,
+.access-form select {
+  min-height: 44px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  font: 400 14px var(--font-ui);
+  outline: none;
+}
+
+.access-form select {
+  cursor: pointer;
+}
+
+.access-form input:focus,
+.access-form select:focus {
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.access-form .access-otp-input {
+  width: 100%;
+  text-align: center;
+  font: 900 20px var(--font-brand);
+  letter-spacing: 0.18em;
+  font-variant-numeric: tabular-nums;
+}
+
+.access-primary-btn,
+.access-ghost-btn,
+.access-link-btn {
+  min-height: 44px;
+  border-radius: var(--radius-md);
+  font: 900 12px var(--font-brand);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 150ms, background 150ms, border-color 150ms, color 150ms;
+}
+
+.access-primary-btn {
+  border: 1px solid var(--color-border-accent);
+  background: var(--color-accent);
+  color: var(--color-brand-white);
+}
+
+.access-primary-btn:hover {
+  background: var(--color-accent-hover);
+  transform: translateY(-1px);
+}
+
+.access-ghost-btn {
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-secondary);
+}
+
+.access-ghost-btn:hover {
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  background: var(--color-bg-hover);
+}
+
+.access-link-btn {
+  min-height: 32px;
+  justify-self: center;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-text-muted);
+  text-transform: none;
+  font: 700 12px var(--font-ui);
+}
+
+.access-link-btn:hover,
+.access-link-btn:focus-visible {
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.access-primary-btn:disabled,
+.access-ghost-btn:disabled,
+.access-link-btn:disabled {
+  cursor: default;
+  opacity: 0.58;
+  transform: none;
+}
+
+.access-status {
+  min-height: 20px;
+  margin-top: var(--space-3);
+  color: var(--color-accent-hover);
+  font: 400 12px var(--font-ui);
+}
+
+.access-help {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font: 400 12px var(--font-ui);
+  line-height: var(--leading-normal);
+}
+
+.access-password-requirements {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--color-text-muted);
+  font: 400 12px var(--font-ui);
+}
+
+.access-password-requirements li {
+  min-height: 18px;
+}
+
+.access-password-requirements .is-met {
+  color: var(--color-text-secondary);
+}
+
+.access-password-requirements .is-missing {
+  color: var(--color-accent-hover);
+}
+
+@media (max-width: 560px) {
+  .access-auth-options,
+  .access-form-grid,
+  .access-form-grid.compact {
+    grid-template-columns: 1fr;
+  }
+}
+
+.access-context {
+  display: grid;
+  gap: var(--space-2);
+  margin: var(--space-5) 0;
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+}
+
+.access-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+
+.access-skeleton {
+  min-height: 80px;
+  display: grid;
+  place-items: center;
+  color: var(--color-text-secondary);
+  font: 900 12px var(--font-brand);
+  text-transform: uppercase;
+}

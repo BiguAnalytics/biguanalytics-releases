@@ -2,7 +2,16 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 
-import { createMatch, getAllMatches, getMatchById, updateMatch, deleteMatch } from '../storage.js';
+import {
+  createMatch,
+  deleteMatch,
+  getAllMatches,
+  getMatchById,
+  resolveMatchPath,
+  upsertMatchCache,
+  updateMatch,
+  validateMatchId,
+} from '../storage.js';
 
 const TEST_USER_DATA = path.join(process.cwd(), '.vitest-user-data');
 
@@ -45,6 +54,57 @@ describe('storage.js', () => {
       expect(match.sequences).toEqual([]);
       expect(match.possession).toEqual([]);
     });
+
+    it('initializes canonical score metadata for new matches', async () => {
+      const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+      const saved = await getMatchById(match.id);
+
+      expect(saved.homeScore).toBe(0);
+      expect(saved.awayScore).toBe(0);
+      expect(saved.score).toEqual(expect.objectContaining({
+        local: 0,
+        rival: 0,
+        bigua: 0,
+        opponent: 0,
+        winnerTeam: null,
+        resultForBigua: 'unknown',
+        updatedAt: expect.any(String),
+      }));
+      expect(saved.scoreContext).toEqual(expect.objectContaining({
+        localScore: 0,
+        rivalScore: 0,
+        biguaScore: 0,
+        opponentScore: 0,
+        winnerTeam: null,
+        resultForBigua: 'unknown',
+      }));
+    });
+
+    it('rejects unsafe caller-provided match ids before creating directories', async () => {
+      const outsidePath = path.join(TEST_USER_DATA, 'escape-check');
+
+      await expect(createMatch({ id: '../escape-check', homeTeam: 'Bigua' })).rejects.toThrow(/match id/i);
+      await expect(fs.stat(outsidePath)).rejects.toThrow();
+    });
+  });
+
+  describe('match id path safety', () => {
+    it('accepts only safe portable match ids', () => {
+      expect(validateMatchId('match_2026-05-20')).toBe('match_2026-05-20');
+
+      for (const value of ['', ' ', '../match', 'match/1', 'match\\1', 'match 1', 'C:\\temp\\match', '/tmp/match', '..']) {
+        expect(() => validateMatchId(value)).toThrow(/match id/i);
+      }
+    });
+
+    it('resolves match paths inside the data directory only', async () => {
+      await createMatch({ id: 'safe-match_1', homeTeam: 'Bigua' });
+
+      const matchFile = resolveMatchPath('safe-match_1', 'match.json');
+
+      expect(matchFile).toBe(path.resolve(TEST_USER_DATA, 'data', 'safe-match_1', 'match.json'));
+      expect(() => resolveMatchPath('../escape', 'match.json')).toThrow(/match id/i);
+    });
   });
 
   describe('getAllMatches', () => {
@@ -63,6 +123,27 @@ describe('storage.js', () => {
       expect(matches.map(match => match.homeTeam).sort()).toEqual(['A', 'B']);
       expect(matches[0].events).toBeUndefined();
     });
+
+    it('returns corrupt match.json files as recoverable diagnostics instead of hiding them', async () => {
+      const corruptDir = path.join(TEST_USER_DATA, 'data', 'corrupt-match');
+      const corruptFile = path.join(corruptDir, 'match.json');
+      await fs.mkdir(corruptDir, { recursive: true });
+      await fs.writeFile(corruptFile, '{ invalid json', 'utf-8');
+
+      const matches = await getAllMatches();
+
+      expect(matches).toEqual([
+        expect.objectContaining({
+          id: 'corrupt-match',
+          status: 'corrupt',
+          corrupt: true,
+          recoverable: true,
+          filePath: corruptFile,
+          error: expect.stringMatching(/json/i),
+        }),
+      ]);
+      expect(await fs.readFile(corruptFile, 'utf-8')).toBe('{ invalid json');
+    });
   });
 
   describe('getMatchById', () => {
@@ -77,6 +158,32 @@ describe('storage.js', () => {
 
     it('should throw error if match does not exist', async () => {
       await expect(getMatchById('not-found')).rejects.toThrow();
+    });
+
+    it('rejects unsafe ids without leaking the unsafe value in the error', async () => {
+      await expect(getMatchById('../secret')).rejects.toThrow(/match id/i);
+      await expect(getMatchById('../secret')).rejects.not.toThrow(/\.\.\/secret/);
+    });
+
+    it('normalizes old cached matches without score into a safe unknown score', async () => {
+      await upsertMatchCache({
+        id: 'legacy-no-score',
+        homeTeam: 'Bigua',
+        awayTeam: 'Rival',
+        status: 'created',
+      });
+
+      const saved = await getMatchById('legacy-no-score');
+
+      expect(saved.score).toEqual(expect.objectContaining({
+        local: 0,
+        rival: 0,
+        bigua: 0,
+        opponent: 0,
+        winnerTeam: null,
+        resultForBigua: 'unknown',
+      }));
+      expect(saved.scoreContext.resultForBigua).toBe('unknown');
     });
   });
 
@@ -99,6 +206,16 @@ describe('storage.js', () => {
       await deleteMatch(match.id);
 
       await expect(getMatchById(match.id)).rejects.toThrow();
+    });
+
+    it('does not delete outside the data directory for malicious ids', async () => {
+      const outsidePath = path.join(TEST_USER_DATA, 'outside-keep.txt');
+      await fs.mkdir(TEST_USER_DATA, { recursive: true });
+      await fs.writeFile(outsidePath, 'keep', 'utf-8');
+
+      await expect(deleteMatch('../outside-keep.txt')).rejects.toThrow(/match id/i);
+
+      await expect(fs.readFile(outsidePath, 'utf-8')).resolves.toBe('keep');
     });
   });
 });

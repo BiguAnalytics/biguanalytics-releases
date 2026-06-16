@@ -1,4 +1,5 @@
 // @ts-check
+import { timeStartup } from './startup-timing.js';
 
 /**
  * @param {unknown} theme
@@ -25,7 +26,7 @@ export function applyAppTheme(theme, root = document.documentElement) {
  */
 export async function loadAndApplyTheme() {
   try {
-    const settings = await window.api?.settings?.get?.();
+    const settings = await timeStartup('settings:theme-load', () => window.api?.settings?.get?.());
     return applyAppTheme(settings?.theme);
   } catch {
     return applyAppTheme('dark');

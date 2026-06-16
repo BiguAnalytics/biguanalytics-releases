@@ -4,6 +4,9 @@ import { describe, expect, it } from 'vitest';
 
 const routerSource = readFileSync(new URL('../../router.js', import.meta.url), 'utf8');
 const dashboardSource = readFileSync(new URL('../dashboard.js', import.meta.url), 'utf8');
+const clipPlayerSource = readFileSync(new URL('../clip-player.js', import.meta.url), 'utf8');
+const clipPlayerCss = readFileSync(new URL('../../../styles/components/clip-player.css', import.meta.url), 'utf8');
+const preloadSource = readFileSync(new URL('../../../main/preload.js', import.meta.url), 'utf8');
 const printSource = readFileSync(new URL('../../dashboard-print.js', import.meta.url), 'utf8');
 const dashboardCss = readFileSync(new URL('../../../styles/components/dashboard.css', import.meta.url), 'utf8');
 const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
@@ -11,16 +14,37 @@ const settingsSource = readFileSync(new URL('../settings.js', import.meta.url), 
 const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'utf8');
 
 describe('dashboard phase 3 renderer wiring', () => {
+  it('downloads cloud match detail before rendering stats and syncs coach notes through cloudMatchService', () => {
+    expect(dashboardSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
+    expect(dashboardSource).toContain('cloudMatchService.getMatchById(params.matchId)');
+    expect(dashboardSource).toContain('cloudMatchService.updateMatch(state.match.id, { coachNotes })');
+    expect(dashboardSource).not.toContain('window.api.matches.update(state.match.id, { coachNotes })');
+  });
+
   it('routes dashboard to a real view and loads Chart.js from a local vendor bundle', () => {
     expect(routerSource).toContain("import { renderDashboard } from './views/dashboard.js';");
+    expect(routerSource).toContain("import { renderClipPlayer } from './views/clip-player.js';");
     expect(routerSource).toContain('dashboard: renderDashboard');
-    expect(indexHtml).toContain('vendor/chart.umd.js');
-    expect(indexHtml.indexOf('vendor/chart.umd.js')).toBeLessThan(indexHtml.indexOf('src="app.js"'));
+    expect(routerSource).toContain('clips: renderClipPlayer');
+    expect(indexHtml).not.toContain('vendor/chart.umd.js');
+    expect(dashboardSource).toContain("import { ensureChartJs } from '../vendor-loader.js';");
+    expect(dashboardSource).toContain('await ensureChartJs();');
+    expect(indexHtml).toContain('../styles/components/clip-player.css');
   });
 
   it('adds tagging to dashboard navigation for the active match', () => {
     expect(taggingSource).toContain("id: 'dashboard'");
     expect(taggingSource).toContain("navigate('dashboard', { matchId: match.id })");
+  });
+
+  it('wires dashboard event rows back to Tagging with exact seek timestamps', () => {
+    expect(dashboardSource).toContain('function buildDashboardEventLinks');
+    expect(dashboardSource).toContain('data-dashboard-seek-event');
+    expect(dashboardSource).toContain('data-dashboard-event-timestamp');
+    expect(dashboardSource).not.toContain('.slice(0, 8)');
+    expect(dashboardSource).toContain("navigate('tagging', { matchId: state.match.id, seekTo: timestamp })");
+    expect(dashboardSource).toContain("showToast(container, 'El evento no tiene timestamp para navegar al video.')");
+    expect(taggingSource).toContain('const initialSeekSeconds = normalizeSeekParam(params.seekTo)');
   });
 
   it('renders dashboard controls, sections, notes drawer, heatmap filters and export flow', () => {
@@ -38,6 +62,7 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('BIP');
     expect(dashboardSource).toContain('Secuencias');
     expect(dashboardSource).toContain('Heatmap');
+    expect(dashboardSource).toContain('Custom');
     expect(dashboardSource).toContain('dashboard-notes-drawer');
     expect(dashboardSource).toContain('coachNotes');
     expect(dashboardSource).toContain('data-heatmap-filter');
@@ -47,12 +72,102 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('Abrir archivo');
   });
 
+  it('wires local batch clip export from a dedicated dashboard clip module', () => {
+    expect(dashboardSource).toContain("import { openModal } from '../components/modal.js';");
+    expect(dashboardSource).toContain("const clipActionLabel = getClipSourceType(state) === 'youtube' ? 'Reproducir clips' : 'Exportar clips';");
+    expect(dashboardSource).toContain("{ id: 'clips', label: clipActionLabel }");
+    expect(dashboardSource).toContain('data-dashboard-clip-module');
+    expect(dashboardSource).toContain('data-open-clip-module');
+    expect(dashboardSource).toContain('data-clip-module-preset');
+    expect(dashboardSource).toContain('Módulo de clips');
+    expect(dashboardCss).toContain('.dashboard-clip-module');
+    expect(dashboardSource).not.toContain('data-section-export-clips');
+    expect(dashboardCss).not.toContain('.dashboard-section-export');
+    expect(dashboardSource).toContain('Tipo de evento');
+    expect(dashboardSource).toContain('data-clip-filter-time-preset');
+    expect(dashboardSource).toContain('Todo el partido');
+    expect(dashboardSource).toContain("const timePreset = /** @type {HTMLSelectElement|null} */ (host.querySelector('[data-clip-filter-time-preset]'))?.value || 'all';");
+    expect(dashboardSource).toContain("fromSeconds: timePreset === 'custom'");
+    expect(dashboardSource).toContain('Se exportarán');
+    expect(dashboardSource).toContain('No hay clips para exportar con estos filtros');
+    expect(dashboardSource).toContain('Exportando 12 / 48 clips');
+    expect(dashboardSource).toContain('window.api.clips.exportBatch');
+    expect(dashboardSource).toContain('window.api.clips.cancelExport');
+    expect(dashboardSource).toContain('La exportación de clips requiere tener cargado el archivo MP4 local del partido.');
+    expect(preloadSource).toContain('clips: {');
+    expect(preloadSource).toContain("ipcRenderer.invoke('clips:export-batch'");
+    expect(preloadSource).toContain("ipcRenderer.on('clips:export-progress'");
+  });
+
+  it('switches the clips modal between YouTube virtual playback and local MP4 export', () => {
+    expect(dashboardSource).toContain("sourceType === 'youtube' ? 'Reproducir clips' : 'Exportar clips'");
+    expect(dashboardSource).toContain('La exportación MP4 requiere video local.');
+    expect(dashboardSource).toContain('data-associate-local-mp4');
+    expect(dashboardSource).toContain('Asociar MP4 local');
+    expect(dashboardSource).toContain('Se reproducirán');
+    expect(dashboardSource).toContain("navigate('clips', {");
+    expect(dashboardSource).not.toContain("clipMode: 'youtube-clips'");
+    expect(dashboardSource).toContain('window.api.media.selectLocalVideo()');
+    expect(dashboardSource).toContain('cloudMatchService.updateMatch(state.match.id, { video: selected');
+    expect(dashboardSource).not.toContain('yt-dlp');
+    expect(dashboardSource).not.toContain('youtube-dl');
+  });
+
+  it('keeps the clips modal cancel action available before local MP4 export starts', () => {
+    const modalBodyStart = dashboardSource.indexOf('function buildClipExportModalBody');
+    const modalBodyEnd = dashboardSource.indexOf('function readClipExportFilters', modalBodyStart);
+    const modalBodySource = dashboardSource.slice(modalBodyStart, modalBodyEnd);
+    const cancelHandlerStart = dashboardSource.indexOf("host.querySelector('[data-clip-export-cancel]')");
+    const cancelHandlerEnd = dashboardSource.indexOf("host.querySelector('[data-associate-local-mp4]')", cancelHandlerStart);
+    const cancelHandlerSource = dashboardSource.slice(cancelHandlerStart, cancelHandlerEnd);
+
+    expect(modalBodySource).toContain('data-clip-export-cancel>Cancelar</button>');
+    expect(modalBodySource).not.toContain('data-clip-export-cancel hidden');
+    expect(cancelHandlerSource).toContain("startButton?.dataset.exporting !== 'true'");
+    expect(cancelHandlerSource).toContain('modal.close();');
+    expect(cancelHandlerSource).toContain('window.api.clips.cancelExport()');
+  });
+
+  it('makes the clips and AI dashboard panels collapsible without losing their primary actions', () => {
+    expect(dashboardSource).toContain('clipModuleCollapsed');
+    expect(dashboardSource).toContain('aiPanelCollapsed');
+    expect(dashboardSource).toContain('data-clip-module-toggle');
+    expect(dashboardSource).toContain('data-ai-panel-toggle');
+    expect(dashboardSource).toContain('state.clipModuleCollapsed = !state.clipModuleCollapsed');
+    expect(dashboardSource).toContain('state.aiPanelCollapsed = !state.aiPanelCollapsed');
+    expect(dashboardCss).toContain('.dashboard-clip-module.collapsed');
+    expect(dashboardCss).toContain('.dashboard-ai-panel.collapsed');
+    expect(dashboardCss).toContain('.dashboard-panel-toggle');
+  });
+
+  it('renders YouTube clips in a dedicated standalone player instead of the tagging screen', () => {
+    expect(clipPlayerSource).toContain('export function renderClipPlayer');
+    expect(clipPlayerSource).toContain('clip-player-view');
+    expect(clipPlayerSource).toContain('clip-player-stage');
+    expect(clipPlayerSource).toContain('data-clip-player-queue');
+    expect(clipPlayerSource).toContain('youtubePlayer.seekTo(activeClip.start, true)');
+    expect(clipPlayerSource).toContain('advanceClipQueue');
+    expect(clipPlayerSource).toContain("navigate('dashboard', { matchId: match.id })");
+    expect(clipPlayerCss).toContain('.clip-player-view');
+    expect(clipPlayerCss).toContain('.clip-player-stage');
+  });
+
   it('lazy-renders Chart.js canvases only when sections enter the viewport', () => {
     expect(dashboardSource).toContain('IntersectionObserver');
     expect(dashboardSource).toContain('createLazyChartRenderer');
     expect(dashboardSource).toContain('data-chart-key');
     expect(dashboardSource).toContain('observer.observe(canvas)');
     expect(dashboardSource).not.toContain('createSetPiecesChart(stats, selectedView, colors, charts);\n  createRucksChart');
+  });
+
+  it('renders configured custom hotkey events with their own dashboard chart', () => {
+    expect(dashboardSource).toContain("['custom-events', 'Custom']");
+    expect(dashboardSource).toContain('chart-custom-events');
+    expect(dashboardSource).toContain('data-chart-key="customEvents"');
+    expect(dashboardSource).toContain('buildCustomEventsBody(stats)');
+    expect(dashboardSource).toContain('createCustomEventsChart(stats, selectedView, colors, charts)');
+    expect(dashboardSource).toContain('stats.customEvents?.byType');
+    expect(dashboardCss).toContain('.dashboard-custom-events-summary');
   });
 
   it('uses contextual empty copy when the heatmap has no zone data', () => {
@@ -93,6 +208,7 @@ describe('dashboard phase 3 renderer wiring', () => {
 
   it('uses a rich coach notes editor with bold italic underline and markdown list rendering', () => {
     expect(dashboardSource).toContain('contenteditable="true"');
+    expect(dashboardSource).toContain('tabindex="0"');
     expect(dashboardSource).toContain('data-coach-notes-editor');
     expect(dashboardSource).toContain('data-note-command="bold"');
     expect(dashboardSource).toContain('data-note-command="italic"');
@@ -126,11 +242,134 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardCss).toContain('rgba(200, 16, 46, 0.14)');
   });
 
-  it('uses the persisted match scoreboard for the dashboard header', () => {
+  it('activates coach note formatting on pointerdown before the editor can blur', () => {
+    const notesClose = dashboardSource.indexOf("drawer?.querySelector('[data-notes-close]')");
+    const toolbarStart = notesClose;
+    const toolbarEnd = dashboardSource.indexOf("editor?.addEventListener('keydown'", toolbarStart);
+    const toolbarSource = dashboardSource.slice(toolbarStart, toolbarEnd);
+
+    expect(toolbarSource).toContain('const runNoteToolbarCommand = (button) => {');
+    expect(toolbarSource).toContain("button.addEventListener('pointerdown'");
+    expect(toolbarSource).toContain('event.preventDefault();');
+    expect(toolbarSource).toContain("button.dataset.notePointerHandled = 'true';");
+    expect(toolbarSource).toContain('runNoteToolbarCommand(button);');
+    expect(toolbarSource).toContain("button.dataset.notePointerHandled === 'true'");
+    expect(toolbarSource).toContain('delete button.dataset.notePointerHandled;');
+  });
+
+  it('keeps normal coach note typing native and places formatted caret after inserted text', () => {
+    const handleStart = dashboardSource.indexOf('function handleFormattedTextInput');
+    const handleEnd = dashboardSource.indexOf('function rangeIsAtElementBoundary', handleStart);
+    const handleSource = dashboardSource.slice(handleStart, handleEnd);
+    const insertStart = dashboardSource.indexOf('function insertFormattedText');
+    const insertEnd = dashboardSource.indexOf('function handleFormattedTextInput', insertStart);
+    const insertSource = dashboardSource.slice(insertStart, insertEnd);
+
+    expect(dashboardSource).toContain('function hasActiveNoteFormat');
+    expect(handleSource).toContain('if (!hasActiveNoteFormat(noteFormats)) return false;');
+    expect(insertSource).toContain('const insertedNode = createFormattedTextNode(text, noteFormats);');
+    expect(insertSource).toContain('nextRange.setStartAfter(insertedNode);');
+    expect(insertSource).not.toContain('setStartBefore(marker)');
+  });
+
+  it('does not overwrite pending coach note formats from a collapsed plain caret', () => {
+    const syncStart = dashboardSource.indexOf('function canSyncNoteFormatsFromSelection');
+    const syncEnd = dashboardSource.indexOf('function getNoteFormatsAtSelection', syncStart);
+    const syncSource = dashboardSource.slice(syncStart, syncEnd);
+
+    expect(syncSource).toContain('if (!selection?.anchorNode || !editor.contains(selection.anchorNode)) return false;');
+    expect(syncSource).toContain('if (!selection.isCollapsed) return true;');
+    expect(syncSource).toContain("anchorElement?.closest('strong,b,em,i,u')");
+  });
+
+  it('keeps the coach notes pencil floating directly above the chatbot button', () => {
+    expect(dashboardSource).toContain('function renderDashboardFloatingActions(match)');
+    expect(dashboardSource).toContain("document.querySelector('[data-dashboard-floating-actions]')?.remove();");
+    expect(dashboardSource).toContain('document.body.appendChild(floatingActions);');
+    expect(dashboardSource).toContain('renderDashboardFloatingActions(state.match);');
+    expect(dashboardSource).toContain("document.querySelector('[data-dashboard-floating-actions] [data-notes-open]')");
+    expect(dashboardSource).not.toContain('<div class="dashboard-floating-actions" aria-label="Acciones del dashboard">');
+    expect(dashboardSource).toContain("window.requestAnimationFrame(() => {\n      editor?.focus();");
+    expect(dashboardCss).toMatch(/\.dashboard-floating-actions\s*{[^}]*position:\s*fixed;[^}]*right:\s*20px;[^}]*bottom:\s*92px;[^}]*z-index:\s*87;/s);
+    expect(dashboardCss).toMatch(/\.dashboard-notes-button\s*{[^}]*width:\s*56px;[^}]*height:\s*56px;[^}]*radial-gradient\(circle at 32% 18%, rgba\(255,\s*255,\s*255,\s*0\.12\), transparent 38%\)[^}]*var\(--color-bg-surface\)/s);
+    expect(dashboardCss).toMatch(/\.dashboard-notes-button\s*{[^}]*box-shadow:\s*0 18px 42px rgba\(0,\s*0,\s*0,\s*0\.28\), 0 0 0 4px var\(--color-accent-muted\)/s);
+    expect(dashboardCss).toMatch(/@media \(max-width: 760px\)\s*{[\s\S]*\.dashboard-floating-actions\s*{[^}]*right:\s*20px;[^}]*bottom:\s*92px;/s);
+    expect(dashboardCss).not.toMatch(/\.dashboard-floating-actions\s*{[^}]*position:\s*absolute;/s);
+    expect(dashboardCss).not.toMatch(/\.dashboard-notes-button\s*{[^}]*position:\s*fixed;/s);
+  });
+
+  it('mounts coach notes as a full-height body drawer and hides chatbot while open', () => {
+    expect(dashboardSource).toContain('function renderDashboardNotesDrawer(match)');
+    expect(dashboardSource).toContain('document.body.appendChild(drawer);');
+    expect(dashboardSource).toContain("document.body.classList.add('has-dashboard-notes-open')");
+    expect(dashboardSource).toContain("document.body.classList.remove('has-dashboard-notes-open')");
+    expect(dashboardSource).toContain("document.querySelector('[data-dashboard-notes-drawer]')?.remove();");
+
+    expect(dashboardCss).toMatch(/\.dashboard-notes-drawer\s*{[^}]*position:\s*fixed;[^}]*top:\s*calc\(var\(--titlebar-height\) \+ var\(--topbar-height\)\);[^}]*height:\s*calc\(100dvh - var\(--titlebar-height\) - var\(--topbar-height\)\);/s);
+    expect(dashboardCss).not.toContain('inset: calc(var(--titlebar-height) + var(--topbar-height)) 0 0 auto;');
+    expect(dashboardCss).toMatch(/\.dashboard-notes-panel\s*{[^}]*min-height:\s*0;[^}]*overflow:\s*hidden;/s);
+    expect(dashboardCss).toMatch(/\.dashboard-note-toolbar\s*{[^}]*flex-shrink:\s*0;/s);
+    expect(dashboardCss).toMatch(/\.dashboard-notes-editor\s*{[^}]*flex:\s*1;[^}]*min-height:\s*0;[^}]*overflow-y:\s*auto;/s);
+    expect(dashboardCss).toMatch(/body\.has-dashboard-notes-open\s+\.ai-chatbot-root\s*{[^}]*display:\s*none;/s);
+  });
+
+  it('uses analytics score as the dashboard header source of truth', () => {
     expect(dashboardSource).toContain('function getDashboardScore');
     expect(dashboardSource).toContain('const displayScore = getDashboardScore(stats, match)');
     expect(dashboardSource).toContain('${displayScore.home} - ${displayScore.away}');
     expect(dashboardSource).toContain('getResultBadge(stats, match)');
+    expect(dashboardSource).not.toContain('const hasPersistedScore = manual.home > 0 || manual.away > 0');
+    expect(dashboardSource).toContain('getScoreSourceLabel(stats?.score?.source)');
+    expect(dashboardSource).toContain("if (source === 'events-manual') return 'Eventos + ajuste manual';");
+  });
+
+  it('falls back to the persisted match score when dashboard stats do not carry a final score', () => {
+    const helperStart = dashboardSource.indexOf('function scoreNumber');
+    const helperEnd = dashboardSource.indexOf('function getScoreSourceLabel', helperStart);
+    const helpers = new Function(`${dashboardSource.slice(helperStart, helperEnd)} return { getDashboardScore };`)();
+
+    expect(helpers.getDashboardScore({
+      score: {
+        home: { total: 0 },
+        away: { total: 0 },
+      },
+    }, {
+      homeScore: 4,
+      awayScore: 2,
+    })).toEqual({ home: 4, away: 2 });
+
+    expect(helpers.getDashboardScore({
+      score: {
+        home: { total: 0 },
+        away: { total: 0 },
+      },
+    }, {
+      scoreOverride: {
+        enabled: true,
+        homeScore: 3,
+        awayScore: 1,
+      },
+    })).toEqual({ home: 3, away: 1 });
+  });
+
+  it('uses the tagging match selector surface when dashboard opens without a match', () => {
+    expect(dashboardSource).toContain("import { MATCH_EDIT_ICON, getMatchSelectionItems } from '../components/match-selection.js';");
+    expect(dashboardSource).toContain("import { openEditMatchModal } from '../components/new-match-form.js';");
+    expect(dashboardSource).toContain('const items = getMatchSelectionItems(matches);');
+    expect(dashboardSource).toContain('class="tagging-match-select-view dashboard-select-view view-enter"');
+    expect(dashboardSource).toContain('class="tagging-match-select-header"');
+    expect(dashboardSource).toContain('class="tagging-match-select-grid"');
+    expect(dashboardSource).toContain('data-dashboard-match-id');
+    expect(dashboardSource).toContain('data-dashboard-edit-match-id');
+    expect(dashboardSource).toContain('class="tagging-match-edit-button"');
+    expect(dashboardSource).toContain('aria-label="Editar partido');
+    expect(dashboardSource).toContain('openEditMatchModal(matchToEdit, async () => {');
+    expect(dashboardSource).toContain('class="tagging-match-card-kicker"');
+    expect(dashboardSource).toContain('class="tagging-match-card-video"');
+    expect(dashboardSource).toContain('class="tagging-match-card-footer"');
+    expect(dashboardSource).not.toContain('>Editar</button>');
+    expect(dashboardCss).not.toContain('.dashboard-match-grid');
+    expect(dashboardCss).not.toContain('.dashboard-match-option');
   });
 
   it('renders the heatmap field as vector SVG and exports it as an SVG image', () => {
@@ -171,6 +410,18 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('aiAnalysis:');
     expect(printSource).toContain('Análisis IA');
     expect(printSource).toContain('payload.aiAnalysis');
+  });
+
+  it('renders AI analysis from the deterministic camelCase contract without empty cards', () => {
+    expect(dashboardSource).toContain('normalizeAIAnalysisResultForDisplay');
+    expect(dashboardSource).toContain('filterAIItemsForDisplay');
+    expect(dashboardSource).toContain('scoreContext');
+    expect(dashboardSource).toContain('dataQualityWarnings');
+    expect(dashboardSource).toContain('Resultado Bigua');
+    expect(dashboardSource).toContain('No hay datos suficientes para esta sección.');
+    expect(dashboardSource).not.toContain("item.title || item.area || 'Sin titulo'");
+    expect(dashboardSource).not.toContain("item.area || 'Area'");
+    expect(dashboardSource).not.toContain("'Hallazgo'");
   });
 
   it('keeps possession interval percent calculations inside the dashboard renderer', () => {

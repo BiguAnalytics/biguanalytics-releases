@@ -207,6 +207,11 @@
 }
 
 .match-card-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  column-gap: var(--space-2);
+  row-gap: 2px;
   font: 700 16px var(--font-ui);
   color: var(--color-text-primary);
   margin-bottom: var(--space-1);
@@ -231,7 +236,7 @@
 .match-card-result-score {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  gap: var(--space-3);
   color: var(--color-text-primary);
   font: 900 24px var(--font-brand, 'Inter', sans-serif);
   font-variant-numeric: tabular-nums;
@@ -274,6 +279,11 @@
 .match-card-status.badge.analizado {
   color: var(--tag-ganado, rgb(29, 185, 84));
   border-color: var(--tag-ganado, rgb(29, 185, 84));
+}
+
+.match-card-status.badge.taggeado {
+  color: var(--tag-ataque, rgb(59, 130, 246));
+  border-color: var(--tag-ataque, rgb(59, 130, 246));
 }
 
 .match-card-status.badge.pendiente {
@@ -326,6 +336,8 @@
   color: var(--color-text-primary);
 }
 
+.match-card-export,
+.match-card-edit,
 .match-card-delete {
   width: 28px;
   height: 28px;
@@ -340,8 +352,20 @@
   flex: 0 0 28px;
 }
 
+.match-card:hover .match-card-edit,
+.match-card:hover .match-card-export,
 .match-card:hover .match-card-delete {
   opacity: 1;
+}
+
+.match-card-export:hover {
+  background: rgba(59, 130, 246, 0.14);
+  color: var(--tag-ataque);
+}
+
+.match-card-edit:hover {
+  background: rgba(138, 155, 176, 0.14);
+  color: var(--color-text-primary);
 }
 
 .match-card-delete:hover {
@@ -349,6 +373,8 @@
   color: var(--color-accent);
 }
 
+.match-card-export svg,
+.match-card-edit svg,
 .match-card-delete svg {
   width: 14px;
   height: 14px;

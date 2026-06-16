@@ -1,15 +1,28 @@
 // @ts-check
-import { renderAccessGate } from './auth/access-guard.js';
+import {
+  getAccessState,
+  isAllowedAccessState,
+  renderAccessGate,
+  resolveStartupAccess,
+  runBackgroundAccessVerification,
+} from './auth/access-guard.js';
+import { syncService } from './cloud/sync-service.js';
 import { getDisplayUserFromProfile } from './auth/license-service.js';
-import { createSidebar, getBiguLogoSvg } from './components/sidebar.js';
+import { createSidebar, updateCurrentSidebarProfile } from './components/sidebar.js';
 import { createAIChatbot } from './components/ai-chatbot.js';
-import { createTopbar, setTopbarActions } from './components/topbar.js';
+import { createWalkthroughController } from './components/walkthrough.js';
+import { createTopbar, setTopbarActions, updateTopbarLicense } from './components/topbar.js';
 import { initRouter, navigate } from './router.js';
 import { loadAndApplyTheme } from './theme.js';
+import { markStartup } from './startup-timing.js';
+import { renderBiguLogo, wireBiguLogoFallback } from './brand-logo.js';
 
-const SPLASH_SESSION_KEY = 'bigu:splash-played';
-const SPLASH_DURATION_MS = 2500;
-const SPLASH_REDUCED_MOTION_MS = 320;
+const STARTUP_AUTH_DELAY_MS = 1500;
+const SHELL_BACKGROUND_WORK_DELAY_MS = 1200;
+const STARTUP_SPLASH_MIN_MS = 900;
+const STARTUP_SPLASH_MAX_MS = 2000;
+let shellMounted = false;
+let walkthroughCleanup = null;
 
 /**
  * Initializes the application.
@@ -17,18 +30,41 @@ const SPLASH_REDUCED_MOTION_MS = 320;
 async function initApp() {
   const app = document.getElementById('app');
   if (!app) return;
+  const startupSplash = showStartupSplash();
   wireGlobalErrorToasts();
-  await loadAndApplyTheme();
+  loadAndApplyTheme().catch(() => {});
   ensureAmbientGlows();
   ensureTitlebar(app);
 
-  const access = await renderAccessGate(app, {
+  setStartupSplashStatus(startupSplash, 'VERIFICANDO LICENCIA...');
+  const startupAccess = await resolveStartupAccess({
+    onLocalAccess: () => setStartupSplashStatus(startupSplash, 'ACCESO LOCAL VERIFICADO'),
+    onBlockingStart: () => setStartupSplashStatus(startupSplash, 'VERIFICANDO LICENCIA...'),
+  });
+
+  if (isAllowedAccessState(startupAccess.access)) {
+    await mountAppShell(app, startupAccess.access);
+    if (startupAccess.source === 'local_grace') {
+      hideStartupSplash(startupSplash);
+    } else {
+      hideStartupSplashAfterInitialData(startupSplash);
+    }
+    if (startupAccess.shouldRunBackgroundVerification) startBackgroundAccessRefresh(app);
+    return;
+  }
+
+  const resolvedAccess = await renderAccessGate(app, {
+    initialAccess: startupAccess.access,
     onActive: async (nextAccess) => {
       await mountAppShell(app, nextAccess);
+      hideStartupSplash(startupSplash);
     },
   });
-  if (access.state === 'active') {
-    await mountAppShell(app, access);
+  if (isAllowedAccessState(resolvedAccess)) {
+    await mountAppShell(app, resolvedAccess);
+    hideStartupSplashAfterInitialData(startupSplash);
+  } else {
+    hideStartupSplash(startupSplash);
   }
 }
 
@@ -85,6 +121,74 @@ function showAppToast(message, tone = 'error') {
   }, 5000));
 }
 
+/**
+ * @returns {HTMLElement}
+ */
+function showStartupSplash() {
+  const existing = document.querySelector('.bigu-startup-splash');
+  if (existing) return existing;
+  const splash = document.createElement('div');
+  splash.className = 'bigu-startup-splash';
+  splash.setAttribute('role', 'status');
+  splash.setAttribute('aria-live', 'polite');
+  splash.innerHTML = `
+    <div class="bigu-startup-brand">
+      ${renderBiguLogo({ className: 'bigu-startup-logo', ariaHidden: true })}
+      <div class="bigu-startup-wordmark">Bigu<span>Analytics</span></div>
+      <div class="bigu-startup-status">Cargando...</div>
+    </div>
+  `;
+  document.body.appendChild(splash);
+  wireBiguLogoFallback(splash);
+  markStartup('splash:shown');
+  return splash;
+}
+
+/**
+ * @param {HTMLElement} splash
+ */
+function hideStartupSplash(splash) {
+  if (!splash?.isConnected) return;
+  splash.classList.add('is-hiding');
+  window.setTimeout(() => {
+    splash.remove();
+    markStartup('splash:hidden');
+  }, 180);
+}
+
+/**
+ * @param {HTMLElement} splash
+ * @param {string} text
+ */
+function setStartupSplashStatus(splash, text) {
+  const status = splash?.querySelector?.('.bigu-startup-status');
+  if (status) status.textContent = text;
+}
+
+/**
+ * @param {number} ms
+ * @returns {Promise<void>}
+ */
+function wait(ms) {
+  return new Promise(resolve => window.setTimeout(resolve, ms));
+}
+
+/**
+ * @param {HTMLElement} splash
+ */
+function hideStartupSplashAfterInitialData(splash) {
+  const initialDataReady = new Promise(resolve => {
+    window.addEventListener('bigu:home-initial-data-ready', resolve, { once: true });
+  });
+  Promise.all([
+    wait(STARTUP_SPLASH_MIN_MS),
+    Promise.race([initialDataReady, wait(STARTUP_SPLASH_MAX_MS)]),
+  ]).then(() => hideStartupSplash(splash)).catch(() => hideStartupSplash(splash));
+}
+
+/**
+ * @param {HTMLElement} app
+ */
 function wireGlobalErrorToasts() {
   if (window.biguShowToast) return;
   window.biguShowToast = showAppToast;
@@ -102,10 +206,18 @@ function wireGlobalErrorToasts() {
  * @param {object} accessState
  */
 async function mountAppShell(app, accessState) {
-  await syncLicensedUserSettings(accessState);
+  markStartup('renderer:shell-mount:start');
+  if (shellMounted && app.querySelector('.app-layout')) {
+    await updateShellForAccess(accessState);
+    return;
+  }
+  window.biguSyncCleanup?.();
+  window.biguSyncCleanup = null;
+  stopWalkthroughController();
   app.innerHTML = '';
   document.querySelectorAll('.ai-chatbot-root').forEach(node => node.remove());
   document.body.classList.remove('has-ai-chatbot-visible');
+  window.biguAuthOnlineCleanup?.();
 
   const layout = document.createElement('div');
   layout.className = 'app-layout';
@@ -140,27 +252,117 @@ async function mountAppShell(app, accessState) {
 
   layout.appendChild(mainContent);
   app.appendChild(layout);
+  shellMounted = true;
+  markStartup('shell:mounted');
+  markStartup('renderer:shell-dom-ready');
   document.body.appendChild(createAIChatbot());
+  markStartup('renderer:ai-chatbot-mounted');
+  startWalkthroughController();
+
+  const refreshAccessAfterReconnect = async () => {
+    if (getAccessState()?.state !== 'offline_grace') return;
+    await runBackgroundAccessVerification({
+      onUpdate: async (nextAccess) => updateShellForAccess(nextAccess),
+      onDenied: async (nextAccess) => {
+        window.dispatchEvent(new CustomEvent('bigu:access-denied', {
+          detail: nextAccess,
+        }));
+      },
+    });
+  };
+  window.addEventListener('online', refreshAccessAfterReconnect);
+  window.biguAuthOnlineCleanup = () => window.removeEventListener('online', refreshAccessAfterReconnect);
 
   window.addEventListener('bigu:access-denied', async () => {
+    window.biguAuthOnlineCleanup?.();
+    stopWalkthroughController();
     document.querySelectorAll('.ai-chatbot-root').forEach(node => node.remove());
+    shellMounted = false;
     await renderAccessGate(app, {
       onActive: async (nextAccess) => mountAppShell(app, nextAccess),
     });
   }, { once: true });
 
-  await playLaunchSplash();
+  markStartup('renderer:router-init:start');
   initRouter();
+  markStartup('renderer:router-init:end');
+  scheduleShellBackgroundWork(accessState);
+}
+
+function startWalkthroughController() {
+  if (walkthroughCleanup) return;
+  const controller = createWalkthroughController({ getAccessState });
+  walkthroughCleanup = controller.mount();
+}
+
+function stopWalkthroughController() {
+  walkthroughCleanup?.();
+  walkthroughCleanup = null;
 }
 
 /**
  * @param {object} accessState
  */
-async function syncLicensedUserSettings(accessState) {
+function scheduleShellBackgroundWork(accessState) {
+  window.setTimeout(() => {
+    updateShellForAccess(accessState).catch((error) => {
+      showAppToast(getUserFacingErrorMessage(error));
+    });
+  }, SHELL_BACKGROUND_WORK_DELAY_MS);
+}
+
+/**
+ * @param {HTMLElement} app
+ */
+function startBackgroundAccessRefresh(app) {
+  markStartup('auth:license-check:scheduled', { delayMs: STARTUP_AUTH_DELAY_MS });
+  window.setTimeout(() => {
+    runBackgroundAccessVerification({
+      onUpdate: async (nextAccess) => updateShellForAccess(nextAccess),
+      onDenied: async (nextAccess) => {
+        window.dispatchEvent(new CustomEvent('bigu:access-denied', {
+          detail: nextAccess,
+        }));
+      },
+    }).catch((error) => {
+      showAppToast(getUserFacingErrorMessage(error));
+    });
+  }, STARTUP_AUTH_DELAY_MS);
+}
+
+/**
+ * @param {object} accessState
+ */
+async function updateShellForAccess(accessState) {
+  if (!accessState) return;
+  persistLicensedUserSettings(accessState);
+  updateTopbarLicense(accessState);
+  if (accessState.profile) {
+    const user = getDisplayUserFromProfile(accessState.profile);
+    updateCurrentSidebarProfile(user);
+    window.dispatchEvent(new CustomEvent('bigu:home-profile-updated', {
+      detail: { access: accessState, user },
+    }));
+  }
+  startBackgroundSyncIfAllowed(accessState);
+}
+
+/**
+ * @param {object} accessState
+ */
+function startBackgroundSyncIfAllowed(accessState) {
+  if (!isAllowedAccessState(accessState) || window.biguSyncCleanup) return;
+  window.biguSyncCleanup = syncService.startAutoSync();
+}
+
+/**
+ * @param {object} accessState
+ */
+function persistLicensedUserSettings(accessState) {
   if (accessState?.state !== 'active' || !accessState.profile || !window.api?.settings?.set) return;
-  await window.api.settings.set({
+  window.api.settings.set({
     user: getDisplayUserFromProfile(accessState.profile),
-  });
+  }).catch(() => {});
 }
 
 function ensureAmbientGlows() {
@@ -179,37 +381,6 @@ function ensureAmbientGlows() {
     glowBlue.className = 'ambient-glow-blue';
     document.body.appendChild(glowBlue);
   }
-}
-
-function prefersReducedMotion() {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
-}
-
-function wait(ms) {
-  return new Promise(resolve => window.setTimeout(resolve, ms));
-}
-
-async function playLaunchSplash() {
-  if (window.sessionStorage?.getItem(SPLASH_SESSION_KEY) === 'true') return;
-  window.sessionStorage?.setItem(SPLASH_SESSION_KEY, 'true');
-
-  const splash = document.createElement('div');
-  splash.className = 'bigu-splash';
-  splash.setAttribute('role', 'presentation');
-  splash.setAttribute('aria-hidden', 'true');
-  splash.innerHTML = `
-    <div class="bigu-splash-mark">
-      <div class="bigu-splash-icon">${getBiguLogoSvg()}</div>
-      <svg class="bigu-splash-line" viewBox="0 0 220 12" aria-hidden="true" focusable="false">
-        <line x1="2" y1="6" x2="218" y2="6"></line>
-      </svg>
-      <div class="bigu-splash-wordmark">Bigu<span>Analytics</span></div>
-    </div>
-  `;
-
-  document.body.appendChild(splash);
-  await wait(prefersReducedMotion() ? SPLASH_REDUCED_MOTION_MS : SPLASH_DURATION_MS);
-  splash.remove();
 }
 
 /**
@@ -242,5 +413,13 @@ function ensureTitlebar(app) {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
-  initApp();
+  markStartup('renderer:dom-content-loaded');
+  initApp()
+    .then(() => markStartup('renderer:ready'))
+    .catch((error) => {
+      markStartup('renderer:ready:error', {
+        error: error instanceof Error ? error.message.slice(0, 160) : String(error || 'unknown'),
+      });
+      throw error;
+    });
 });

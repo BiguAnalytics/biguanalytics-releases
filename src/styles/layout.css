@@ -116,6 +116,16 @@
   color: var(--color-text-muted);
 }
 
+.home-sync-notice {
+  margin: calc(var(--space-6) * -1) var(--space-8) var(--space-6);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  border-radius: var(--radius-md);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--color-text-secondary);
+  font: 700 12px var(--font-ui);
+}
+
 .home-new-match-btn {
   min-height: 44px;
   padding-inline: var(--space-6);
@@ -243,60 +253,6 @@
   color: var(--color-text-secondary);
   margin-bottom: var(--space-6);
   max-width: 400px;
-}
-
-.home-stats-action {
-  position: relative;
-}
-
-.home-first-launch-tooltip {
-  position: absolute;
-  top: calc(100% + var(--space-3));
-  left: 0;
-  z-index: 40;
-  width: min(320px, calc(100vw - var(--space-8)));
-  display: grid;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border-accent);
-  border-radius: var(--radius-lg);
-  background: rgba(18, 32, 53, 0.98);
-  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.34);
-}
-
-.home-first-launch-tooltip::before {
-  content: '';
-  position: absolute;
-  top: -7px;
-  left: var(--space-6);
-  width: 12px;
-  height: 12px;
-  transform: rotate(45deg);
-  border-left: 1px solid var(--color-border-accent);
-  border-top: 1px solid var(--color-border-accent);
-  background: rgba(18, 32, 53, 0.98);
-}
-
-.home-first-launch-tooltip strong {
-  color: var(--color-text-primary);
-  font: 900 13px var(--font-brand);
-}
-
-.home-first-launch-tooltip span {
-  color: var(--color-text-secondary);
-  font: 400 12px var(--font-ui);
-  line-height: 1.45;
-}
-
-.home-first-launch-tooltip button {
-  justify-self: start;
-  min-height: 32px;
-  padding: 0 var(--space-3);
-  border-radius: var(--radius-md);
-  color: var(--color-accent);
-  background: var(--color-accent-muted);
-  font: 800 11px var(--font-brand);
-  cursor: pointer;
 }
 
 /* Error state */
@@ -466,8 +422,391 @@
   font: 400 12px var(--font-ui);
 }
 
+.settings-hotkeys-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-microphone-section,
+.settings-ai-section,
+.settings-onboarding-section {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.settings-microphone-card,
+.settings-ai-card,
+.settings-onboarding-card {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 26, 0.32);
+}
+
+.settings-microphone-select-row,
+.settings-ai-row,
+.settings-onboarding-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
+  gap: var(--space-4);
+  align-items: center;
+}
+
+.settings-microphone-select-row strong,
+.settings-ai-row strong,
+.settings-onboarding-card strong {
+  display: block;
+  color: var(--color-text-primary);
+  font: 900 13px var(--font-brand);
+}
+
+.settings-microphone-select-row small,
+.settings-ai-row small,
+.settings-onboarding-card small,
+.settings-ai-status,
+.settings-microphone-test-hint,
+.settings-microphone-status {
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+}
+
+.settings-onboarding-restart {
+  min-height: 42px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-md);
+  background: var(--color-accent-muted);
+  color: var(--color-accent-hover);
+  font: 900 12px var(--font-brand);
+  cursor: pointer;
+  transition: background 150ms, border-color 150ms, color 150ms, transform 150ms;
+}
+
+.settings-onboarding-restart:hover:not(:disabled) {
+  border-color: var(--color-border-accent);
+  background: rgba(200, 16, 46, 0.20);
+  color: var(--color-text-primary);
+}
+
+.settings-onboarding-restart:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.settings-onboarding-restart:disabled {
+  cursor: default;
+  opacity: 0.62;
+}
+
+.form-select.settings-microphone-select {
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 56px;
+  border-color: transparent;
+  background-image:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
+    linear-gradient(120deg, rgba(255, 255, 255, 0.12), rgba(138, 155, 176, 0.22), rgba(15, 35, 64, 0.58)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F0F4F8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-origin: border-box;
+  background-clip: padding-box, border-box, border-box;
+  background-position: 0 0, 0 0, right 22px center;
+  background-size: auto, auto, 14px 14px;
+}
+
+.form-select.settings-microphone-select:hover,
+.form-select.settings-microphone-select:focus {
+  border-color: transparent;
+  background-image:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
+    linear-gradient(120deg, rgba(138, 155, 176, 0.36), rgba(240, 244, 248, 0.22), rgba(15, 35, 64, 0.52)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F0F4F8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  box-shadow:
+    0 0 0 3px rgba(138, 155, 176, 0.14),
+    0 14px 34px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.045);
+}
+
+.form-select.settings-microphone-select option {
+  background: #f8fafc;
+  color: #102033;
+}
+
+.form-select.settings-microphone-select option:disabled {
+  color: #94a3b8;
+}
+
+.settings-microphone-meter {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings-microphone-meter-track {
+  height: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(138, 155, 176, 0.16);
+  border-radius: var(--radius-full);
+  background: rgba(8, 14, 26, 0.42);
+}
+
+.settings-microphone-meter-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 80ms linear, background 120ms ease;
+  background: var(--tag-ganado);
+}
+
+.settings-microphone-meter-fill[data-tone="yellow"] {
+  background: var(--tag-sucio);
+}
+
+.settings-microphone-meter-fill[data-tone="red"] {
+  background: var(--color-accent);
+}
+
+.settings-microphone-db {
+  color: var(--color-text-secondary);
+  font: 800 12px var(--font-ui);
+  text-align: right;
+}
+
+.settings-microphone-actions,
+.settings-ai-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.settings-microphone-test,
+.settings-ai-test {
+  min-height: 38px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: rgba(8, 14, 26, 0.34);
+  font: 900 12px var(--font-brand);
+  cursor: pointer;
+}
+
+.settings-microphone-test:hover,
+.settings-microphone-test:focus-visible,
+.settings-ai-test:hover,
+.settings-ai-test:focus-visible,
+.settings-microphone-test[aria-pressed="true"] {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
+}
+
+.settings-microphone-test:active,
+.settings-ai-test:active {
+  transform: scale(0.97);
+}
+
+.settings-microphone-test:disabled,
+.settings-ai-test:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.settings-microphone-status[data-tone="error"],
+.settings-ai-status[data-tone="error"] {
+  color: var(--color-accent);
+}
+
+.settings-microphone-status[data-tone="ok"],
+.settings-ai-status[data-tone="ok"] {
+  color: var(--tag-ganado);
+}
+
+.settings-hotkey-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.settings-hotkey-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 26, 0.32);
+}
+
+.settings-hotkey-row strong {
+  display: block;
+  color: var(--color-text-primary);
+  font: 900 13px var(--font-brand);
+}
+
+.settings-hotkey-row small,
+.settings-custom-hotkey-row label span,
+.settings-hotkey-capture > span {
+  color: var(--color-text-secondary);
+  font: 400 12px var(--font-ui);
+}
+
+.settings-hotkey-capture {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-hotkey-capture-control {
+  display: grid;
+  grid-template-columns: 52px auto;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.settings-hotkey-input {
+  text-align: center;
+  text-transform: uppercase;
+  font: 900 15px var(--font-brand);
+}
+
+.settings-hotkey-input[readonly] {
+  cursor: default;
+}
+
+.settings-hotkey-input.is-recording {
+  border-color: var(--color-border-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-muted);
+}
+
+.settings-custom-hotkey-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settings-custom-hotkey-row {
+  display: grid;
+  grid-template-columns: minmax(132px, 0.75fr) minmax(0, 1fr) minmax(0, 1fr) 36px;
+  align-items: end;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid rgba(138, 155, 176, 0.14);
+  border-radius: var(--radius-lg);
+  background: rgba(8, 14, 26, 0.32);
+}
+
+.settings-custom-hotkey-row label {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.settings-hotkey-add,
+.settings-hotkey-record,
+.settings-hotkey-reset,
+.settings-hotkey-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-primary);
+  background: rgba(8, 14, 26, 0.34);
+  cursor: pointer;
+}
+
+.settings-hotkey-add {
+  justify-self: start;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  color: var(--color-accent);
+  font: 900 12px var(--font-brand);
+}
+
+.settings-hotkey-record {
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  color: var(--color-text-secondary);
+  font: 900 11px var(--font-brand);
+  white-space: nowrap;
+}
+
+.settings-hotkey-record.is-recording {
+  color: var(--color-accent);
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+}
+
+.settings-hotkey-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.settings-hotkey-reset {
+  min-height: 38px;
+  padding: 0 var(--space-4);
+  color: var(--color-text-secondary);
+  font: 900 12px var(--font-brand);
+}
+
+.settings-hotkey-remove {
+  width: 36px;
+  height: 36px;
+  color: var(--color-text-secondary);
+}
+
+.settings-hotkey-add:hover,
+.settings-hotkey-record:hover,
+.settings-hotkey-record:focus-visible,
+.settings-hotkey-reset:hover,
+.settings-hotkey-reset:focus-visible,
+.settings-hotkey-remove:hover {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+  color: var(--color-text-primary);
+}
+
 .settings-toggle small,
 .settings-feedback {
   color: var(--color-text-secondary);
   font: 400 12px var(--font-ui);
+}
+
+@media (max-width: 760px) {
+  .settings-hotkey-list,
+  .settings-custom-hotkey-row,
+  .settings-microphone-select-row,
+  .settings-ai-row,
+  .settings-onboarding-card {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-hotkey-row,
+  .settings-hotkey-capture-control,
+  .settings-microphone-meter {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-microphone-db {
+    text-align: left;
+  }
+
+  .settings-hotkey-remove {
+    width: 100%;
+  }
 }

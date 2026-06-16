@@ -119,13 +119,159 @@
 
 :root[data-theme="light"] .settings-toggle,
 :root[data-theme="light"] .settings-theme-option,
+:root[data-theme="light"] .settings-hotkey-row,
+:root[data-theme="light"] .settings-custom-hotkey-row,
+:root[data-theme="light"] .settings-hotkey-record,
+:root[data-theme="light"] .settings-hotkey-reset,
+:root[data-theme="light"] .settings-microphone-card,
+:root[data-theme="light"] .settings-onboarding-card,
+:root[data-theme="light"] .settings-microphone-test,
+:root[data-theme="light"] .settings-onboarding-restart,
 :root[data-theme="light"] .form-tabs {
   background: rgba(255, 255, 255, 0.66);
   border-color: var(--color-border);
 }
 
-:root[data-theme="light"] .settings-theme-option:has(input:checked) {
+:root[data-theme="light"] .settings-theme-option:has(input:checked),
+:root[data-theme="light"] .settings-hotkey-record.is-recording,
+:root[data-theme="light"] .settings-microphone-test[aria-pressed="true"] {
   background: rgba(200, 16, 46, 0.08);
+}
+
+:root[data-theme="light"] #grafico-linea-nodos {
+  fill: #000000;
+}
+
+:root[data-theme="light"] .dashboard-view-toggle {
+  background: rgba(255, 255, 255, 0.86);
+  border-color: var(--color-border);
+  box-shadow: 0 14px 36px rgba(15, 35, 64, 0.08);
+}
+
+:root[data-theme="light"] .dashboard-toggle-btn:hover,
+:root[data-theme="light"] .dashboard-toggle-btn.active {
+  background: rgba(200, 16, 46, 0.10);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .dashboard-section,
+:root[data-theme="light"] .chart-shell {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(232, 239, 248, 0.34)),
+    rgba(255, 255, 255, 0.82);
+  border-color: var(--color-border);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.09);
+}
+
+:root[data-theme="light"] .dashboard-ai-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(232, 239, 248, 0.34)),
+    rgba(255, 255, 255, 0.82);
+  border-color: var(--color-border);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.09);
+}
+
+:root[data-theme="light"] .dashboard-ai-empty,
+:root[data-theme="light"] .dashboard-ai-summary,
+:root[data-theme="light"] .dashboard-ai-block article,
+:root[data-theme="light"] .dashboard-ai-recommendations article {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .dashboard-ai-warning {
+  background: rgba(200, 16, 46, 0.08);
+}
+
+:root[data-theme="light"] .dashboard-controls,
+:root[data-theme="light"] .dashboard-customizer {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(232, 239, 248, 0.34)),
+    rgba(255, 255, 255, 0.82);
+  border-color: var(--color-border);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.09);
+}
+
+:root[data-theme="light"] .dashboard-section-header {
+  background: rgba(255, 255, 255, 0.44);
+  border-bottom-color: var(--color-border);
+}
+
+:root[data-theme="light"] .dashboard-sequence-card,
+:root[data-theme="light"] .dashboard-sequence-list div,
+:root[data-theme="light"] .dashboard-custom-events-summary div,
+:root[data-theme="light"] .dashboard-section-picker-row,
+:root[data-theme="light"] .heatmap-filter-chip {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .dashboard-control select,
+:root[data-theme="light"] .dashboard-section-picker-row button {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .dashboard-customize-btn {
+  background: rgba(200, 16, 46, 0.10);
+}
+
+:root[data-theme="light"] .dashboard-heatmap-shell {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.18), transparent 48%),
+    rgba(6, 124, 68, 0.14);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .dashboard-heatmap-empty {
+  background: rgba(255, 255, 255, 0.72);
+}
+
+:root[data-theme="light"] .dashboard-notes-button {
+  background:
+    radial-gradient(circle at 32% 18%, rgba(255, 255, 255, 0.78), transparent 38%),
+    rgba(255, 255, 255, 0.96);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-accent);
+  box-shadow: 0 18px 42px rgba(15, 35, 64, 0.14), 0 0 0 4px var(--color-accent-muted);
+}
+
+:root[data-theme="light"] .dashboard-notes-panel {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.94), rgba(232, 239, 248, 0.42)),
+    rgba(255, 255, 255, 0.88);
+  border-left-color: var(--color-border);
+  box-shadow: -18px 0 44px rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .dashboard-note-toolbar button,
+:root[data-theme="light"] .dashboard-notes-editor {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .dashboard-note-toolbar button.active,
+:root[data-theme="light"] .dashboard-note-toolbar button[aria-pressed="true"] {
+  background: rgba(200, 16, 46, 0.14);
+  border-color: var(--color-border-accent);
+  color: var(--color-accent);
+}
+
+:root[data-theme="light"] .dashboard-toast,
+:root[data-theme="light"] .settings-alert-row {
+  background: rgba(255, 255, 255, 0.72);
+  border-color: var(--color-border);
+  box-shadow: 0 16px 42px rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .main-content-body {
+  scrollbar-color: rgba(78, 96, 117, 0.38) transparent;
+}
+
+:root[data-theme="light"] .main-content-body::-webkit-scrollbar-thumb {
+  background: rgba(78, 96, 117, 0.38);
+  background-clip: content-box;
 }
 
 :root[data-theme="light"] .match-card.win {
@@ -213,6 +359,15 @@
   background-image:
     linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
     linear-gradient(120deg, rgba(15, 35, 64, 0.12), rgba(200, 16, 46, 0.18), rgba(15, 35, 64, 0.18)),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+}
+
+:root[data-theme="light"] .form-select.settings-microphone-select,
+:root[data-theme="light"] .form-select.settings-microphone-select:hover,
+:root[data-theme="light"] .form-select.settings-microphone-select:focus {
+  background-image:
+    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
+    linear-gradient(120deg, rgba(15, 35, 64, 0.14), rgba(138, 155, 176, 0.22), rgba(15, 35, 64, 0.18)),
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
 }
 

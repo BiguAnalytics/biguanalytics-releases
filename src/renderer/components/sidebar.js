@@ -1,10 +1,12 @@
 // @ts-check
+import { licenseService, PLAYER_POSITION_OPTIONS, PROFILE_ROLE_OPTIONS } from '../auth/license-service.js';
 
 /** SVG icons as strings */
 const ICONS = {
   home: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>',
   play: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>',
   barChart: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"></line><line x1="18" y1="20" x2="18" y2="4"></line><line x1="6" y1="20" x2="6" y2="16"></line></svg>',
+  heatmap: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M8 5v14M16 5v14M3 12h18"></path><circle cx="8" cy="12" r="1.5" fill="currentColor" stroke="none"></circle><circle cx="16" cy="9" r="1.5" fill="currentColor" stroke="none"></circle></svg>',
   pencil: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4z"></path><path d="M13.5 6.5l4 4"></path></svg>',
   calendar: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>',
   settings: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>',
@@ -16,6 +18,7 @@ const NAV_ITEMS = [
   { id: 'home', label: 'Inicio', icon: 'home', enabled: true },
   { id: 'tagging', label: 'Tagging', icon: 'play', enabled: true },
   { id: 'dashboard', label: 'Dashboard', icon: 'barChart', enabled: true },
+  { id: 'heatmap', label: 'Heatmap', icon: 'heatmap', enabled: true },
   { id: 'tactical', label: 'Tablero', icon: 'pencil', enabled: true },
   { id: 'season', label: 'Temporada', icon: 'calendar', enabled: true },
 ];
@@ -24,10 +27,24 @@ const BOTTOM_ITEMS = [
   { id: 'settings', label: 'Ajustes', icon: 'settings', enabled: true },
 ];
 
+const SIDEBAR_TOUR_IDS = {
+  tagging: 'sidebar-tagging',
+  dashboard: 'sidebar-dashboard',
+  settings: 'settings',
+};
+
 let isExpanded = true; // Start expanded on Home
 
 export function getBiguLogoSvg() {
   return ICONS.logo;
+}
+
+/**
+ * @param {string} itemId
+ * @returns {string}
+ */
+function getSidebarTourId(itemId) {
+  return SIDEBAR_TOUR_IDS[itemId] || '';
 }
 
 /**
@@ -41,7 +58,7 @@ function getInitials(name) {
     .filter(Boolean)
     .slice(0, 2)
     .map(part => part.charAt(0).toUpperCase())
-    .join('') || 'JG';
+    .join('') || 'U';
 }
 
 /**
@@ -56,13 +73,56 @@ function formatRole(role) {
 }
 
 /**
+ * @param {string|number|boolean|null|undefined} value
+ * @returns {string}
+ */
+function escapeHtml(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function isEmailLike(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+}
+
+/**
+ * @param {{name?: string, displayName?: string, firstName?: string, lastName?: string}} user
+ * @returns {string}
+ */
+function getSidebarDisplayName(user = {}) {
+  const explicit = String(user.displayName || user.name || '').trim();
+  if (explicit && explicit.toLowerCase() !== 'usuario' && !isEmailLike(explicit)) return explicit;
+  const firstName = String(user.firstName || '').trim();
+  const lastName = String(user.lastName || '').trim();
+  return [firstName, lastName ? `${lastName.charAt(0)}.` : ''].filter(Boolean).join(' ');
+}
+
+/**
+ * @param {Array<{value: string, label: string}>} options
+ * @param {string} selectedValue
+ * @param {string} placeholder
+ * @returns {string}
+ */
+function renderSelectOptions(options, selectedValue, placeholder) {
+  return [
+    `<option value="" ${selectedValue === '' ? 'selected' : ''}>${escapeHtml(placeholder)}</option>`,
+    ...options.map(option => (
+      `<option value="${escapeHtml(option.value)}" ${selectedValue === option.value ? 'selected' : ''}>${escapeHtml(option.label)}</option>`
+    )),
+  ].join('');
+}
+
+/**
  * Updates the sidebar user profile.
  * @param {HTMLElement} sidebar
- * @param {{name?: string, role?: string}} user
+ * @param {{name?: string, role?: string, email?: string}} user
  */
 function updateSidebarProfile(sidebar, user) {
-  const name = user.name || 'Jorge G.';
-  const role = user.role || 'ENTRENADOR';
+  const name = getSidebarDisplayName(user) || 'Usuario';
+  const role = user.role || 'ANALISTA';
   const avatar = sidebar.querySelector('[data-profile-avatar]');
   const nameEl = sidebar.querySelector('[data-profile-name]');
   const roleEl = sidebar.querySelector('[data-profile-role]');
@@ -70,6 +130,15 @@ function updateSidebarProfile(sidebar, user) {
   if (avatar) avatar.textContent = getInitials(name);
   if (nameEl) nameEl.textContent = name;
   if (roleEl) roleEl.textContent = formatRole(role);
+}
+
+/**
+ * Updates the currently mounted sidebar profile.
+ * @param {{name?: string, role?: string, email?: string}} user
+ */
+export function updateCurrentSidebarProfile(user) {
+  const sidebar = document.getElementById('sidebar');
+  if (sidebar) updateSidebarProfile(sidebar, user || {});
 }
 
 /**
@@ -83,6 +152,127 @@ async function loadSidebarProfile(sidebar) {
   } catch {
     updateSidebarProfile(sidebar, {});
   }
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ */
+async function openAccountProfileModal(sidebar) {
+  document.querySelector('[data-account-profile-modal]')?.remove();
+
+  const settings = await window.api?.settings?.get?.();
+  const user = settings?.user || {};
+  const selectedRole = String(user.profileRole || user.clubRole || user.appRole || user.role || '').toLowerCase();
+  const normalizedRole = PROFILE_ROLE_OPTIONS.some(option => option.value === selectedRole) ? selectedRole : '';
+  const selectedPosition = String(user.position || '').toLowerCase();
+  const normalizedPosition = PLAYER_POSITION_OPTIONS.some(option => option.value === selectedPosition) ? selectedPosition : '';
+  const modal = document.createElement('div');
+  modal.className = 'account-profile-backdrop';
+  modal.dataset.accountProfileModal = 'true';
+  modal.innerHTML = `
+    <section class="account-profile-dialog" role="dialog" aria-modal="true" aria-labelledby="account-profile-title">
+      <div class="account-profile-header">
+        <div>
+          <span>Cuenta privada</span>
+          <h2 id="account-profile-title">Datos personales</h2>
+        </div>
+        <button class="account-profile-secondary" type="button" data-account-close>Cancelar</button>
+      </div>
+      <form class="account-profile-form" data-account-profile-form>
+        <div class="account-profile-grid">
+          <label>
+            <span>Nombre</span>
+            <input name="firstName" type="text" autocomplete="given-name" value="${escapeHtml(user.firstName || '')}" required>
+          </label>
+          <label>
+            <span>Apellido</span>
+            <input name="lastName" type="text" autocomplete="family-name" value="${escapeHtml(user.lastName || '')}" required>
+          </label>
+        </div>
+        <div class="account-profile-grid compact">
+          <label>
+            <span>Edad</span>
+            <input name="age" type="number" inputmode="numeric" min="12" max="100" value="${escapeHtml(user.age || '')}" required>
+          </label>
+          <label>
+            <span>Rol</span>
+            <select name="role" autocomplete="organization-title" required>
+              ${renderSelectOptions(PROFILE_ROLE_OPTIONS, normalizedRole, 'Elegir rol')}
+            </select>
+          </label>
+        </div>
+        <div class="account-profile-row" data-account-position-row ${normalizedRole === 'jugador' ? '' : 'hidden'}>
+          <label>
+            <span>Posición</span>
+            <select name="position" autocomplete="off" ${normalizedRole === 'jugador' ? 'required' : ''}>
+              ${renderSelectOptions(PLAYER_POSITION_OPTIONS, normalizedPosition, 'Elegir posición')}
+            </select>
+          </label>
+        </div>
+        <div class="account-profile-meta">
+          <span>Email: ${escapeHtml(user.email || 'No disponible')}</span>
+          <span>Contacto: biguanalytics@gmail.com</span>
+        </div>
+        <p class="account-profile-error" data-account-error aria-live="polite"></p>
+        <button class="account-profile-primary" type="submit" data-account-save>Guardar cambios</button>
+      </form>
+    </section>
+  `;
+
+  const close = () => modal.remove();
+  const closeButton = modal.querySelector('[data-account-close]');
+  closeButton?.addEventListener('click', close);
+  modal.addEventListener('click', (event) => {
+    if (event.target === modal) close();
+  });
+  modal.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') close();
+  });
+
+  const form = modal.querySelector('[data-account-profile-form]');
+  const errorEl = modal.querySelector('[data-account-error]');
+  const saveButton = modal.querySelector('[data-account-save]');
+  const roleSelect = form?.querySelector('[name="role"]');
+  const positionRow = form?.querySelector('[data-account-position-row]');
+  const positionSelect = form?.querySelector('[name="position"]');
+  const syncPositionVisibility = () => {
+    const isPlayer = String(roleSelect?.value || '') === 'jugador';
+    if (positionRow) positionRow.hidden = !isPlayer;
+    if (positionSelect) {
+      positionSelect.required = isPlayer;
+      if (!isPlayer) positionSelect.value = '';
+    }
+  };
+  roleSelect?.addEventListener('change', syncPositionVisibility);
+  syncPositionVisibility();
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    saveButton.disabled = true;
+    saveButton.textContent = 'Guardando...';
+    errorEl.textContent = '';
+    try {
+      const access = await licenseService.updatePersonalInfo({
+        firstName: String(data.get('firstName') || '').trim(),
+        lastName: String(data.get('lastName') || '').trim(),
+        age: String(data.get('age') || '').trim(),
+        role: String(data.get('role') || '').trim(),
+        position: String(data.get('position') || '').trim(),
+      });
+      if (!['active', 'pending_device'].includes(access.state)) {
+        throw new Error('No se pudo guardar la informacion de la cuenta.');
+      }
+      await loadSidebarProfile(sidebar);
+      close();
+    } catch (error) {
+      errorEl.textContent = error instanceof Error ? error.message : 'No se pudo guardar la informacion.';
+      saveButton.disabled = false;
+      saveButton.textContent = 'Guardar cambios';
+    }
+  });
+
+  document.body.appendChild(modal);
+  modal.querySelector('input[name="firstName"]')?.focus();
 }
 
 /**
@@ -102,7 +292,7 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
     </div>
     <nav class="sidebar-nav">
       ${NAV_ITEMS.map(item => `
-        <div class="sidebar-item${item.id === activeId ? ' active' : ''}${!item.enabled ? ' disabled' : ''}" data-nav="${item.id}">
+        <div class="sidebar-item${item.id === activeId ? ' active' : ''}${!item.enabled ? ' disabled' : ''}" data-nav="${item.id}" data-tour-id="${getSidebarTourId(item.id)}">
           <div class="sidebar-item-icon">${ICONS[item.icon]}</div>
           <span class="sidebar-item-label">${item.label}</span>
         </div>
@@ -110,17 +300,17 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
       <div class="sidebar-spacer"></div>
       <div class="sidebar-divider"></div>
       ${BOTTOM_ITEMS.map(item => `
-        <div class="sidebar-item${item.id === activeId ? ' active' : ''}${!item.enabled ? ' disabled' : ''}" data-nav="${item.id}">
+        <div class="sidebar-item${item.id === activeId ? ' active' : ''}${!item.enabled ? ' disabled' : ''}" data-nav="${item.id}" data-tour-id="${getSidebarTourId(item.id)}">
           <div class="sidebar-item-icon">${ICONS[item.icon]}</div>
           <span class="sidebar-item-label">${item.label}</span>
         </div>
       `).join('')}
     </nav>
-    <div class="sidebar-profile" aria-label="Perfil de usuario">
-      <div class="sidebar-profile-avatar" data-profile-avatar>JG</div>
+    <div class="sidebar-profile" aria-label="Perfil de usuario" role="button" tabindex="0" data-profile-open>
+      <div class="sidebar-profile-avatar" data-profile-avatar>U</div>
       <div class="sidebar-profile-details">
-        <span class="sidebar-profile-name" data-profile-name>Jorge G.</span>
-        <span class="sidebar-profile-role" data-profile-role>Entrenador</span>
+        <span class="sidebar-profile-name" data-profile-name>Usuario</span>
+        <span class="sidebar-profile-role" data-profile-role>Analista</span>
       </div>
     </div>
     <div class="sidebar-toggle" id="sidebar-toggle">
@@ -144,6 +334,15 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
       setSidebarActive(navId);
       onNavigate(navId);
     });
+  });
+
+  const profileButton = sidebar.querySelector('[data-profile-open]');
+  profileButton?.addEventListener('click', () => openAccountProfileModal(sidebar));
+  profileButton?.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      openAccountProfileModal(sidebar);
+    }
   });
 
   return sidebar;

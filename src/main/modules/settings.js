@@ -5,16 +5,52 @@ const DEFAULT_DASHBOARD_SECTIONS = [
   'discipline',
   'kicks',
   'break-lines',
+  'custom-events',
   'possession',
   'bip',
   'sequences',
   'heatmap'
 ];
 
+const DEFAULT_TAGGING_HOTKEYS = {
+  ruck: 'R',
+  scrum: 'S',
+  lineout: 'L',
+  penal: 'P',
+  points: 'T',
+  'break-line': 'B',
+  kick: 'K',
+  maul: 'M',
+  turnover: 'V',
+  card: 'A',
+  note: 'N',
+};
+
+const DEFAULT_MICROPHONE_SETTINGS = {
+  deviceId: '',
+  label: 'Microfono predeterminado',
+  language: 'es-AR',
+};
+
+const DEFAULT_ONBOARDING_SETTINGS = {
+  walkthrough: {
+    v1: {
+      completed: false,
+      identityKey: '',
+      completedByIdentity: {},
+    },
+  },
+};
+
 const DEFAULT_SETTINGS = {
   theme: 'dark',
   autoSave: true,
   firstLaunch: true,
+  onboarding: DEFAULT_ONBOARDING_SETTINGS,
+  clipPreRollSeconds: 3,
+  clipPostRollSeconds: 10,
+  clipOutputModeDefault: 'separate',
+  clipExportQuality: 'copy',
   alerts: {
     penaltiesThreshold: 10,
     turnoversThreshold: 15,
@@ -25,9 +61,12 @@ const DEFAULT_SETTINGS = {
     breakLinesConcededMax: 5
   },
   statsOnlyMode: false,
+  microphone: DEFAULT_MICROPHONE_SETTINGS,
   tagging: {
     autoCloseMs: 8000,
-    hotkeyHintsCollapsed: false
+    hotkeyHintsCollapsed: false,
+    hotkeys: DEFAULT_TAGGING_HOTKEYS,
+    customHotkeys: []
   },
   dashboard: {
     template: 'general',
@@ -50,12 +89,99 @@ const DEFAULT_SETTINGS = {
 let settingsRepository;
 
 /**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @param {number} min
+ * @returns {number}
+ */
+function normalizeClipSeconds(value, fallback, min) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < min) return fallback;
+  return Math.min(60, Math.round(numeric));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'separate'}
+ */
+function normalizeClipOutputMode(value) {
+  return value === 'separate' ? 'separate' : DEFAULT_SETTINGS.clipOutputModeDefault;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'copy'|'reencode'}
+ */
+function normalizeClipExportQuality(value) {
+  return value === 'reencode' ? 'reencode' : DEFAULT_SETTINGS.clipExportQuality;
+}
+
+/**
  * Parses electron-store JSON while tolerating BOM bytes saved by external editors.
  * @param {string} text
  * @returns {object}
  */
 function parseSettingsStoreJson(text) {
   return JSON.parse(String(text).replace(/^\uFEFF|^ï»¿|^∩╗┐/, ''));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Record<string, boolean>}
+ */
+function normalizeCompletedByIdentity(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+  return Object.entries(value).reduce((entries, [key, completed]) => {
+    if (typeof key === 'string' && key.trim() && completed === true) entries[key] = true;
+    return entries;
+  }, {});
+}
+
+/**
+ * @param {object} [onboarding]
+ * @returns {object}
+ */
+function mergeOnboardingSettings(onboarding = {}) {
+  const walkthrough = onboarding.walkthrough || {};
+  const v1 = walkthrough.v1 || {};
+  return {
+    ...DEFAULT_ONBOARDING_SETTINGS,
+    ...onboarding,
+    walkthrough: {
+      ...DEFAULT_ONBOARDING_SETTINGS.walkthrough,
+      ...walkthrough,
+      v1: {
+        ...DEFAULT_ONBOARDING_SETTINGS.walkthrough.v1,
+        ...v1,
+        completed: typeof v1.completed === 'boolean' ? v1.completed : DEFAULT_ONBOARDING_SETTINGS.walkthrough.v1.completed,
+        identityKey: typeof v1.identityKey === 'string' ? v1.identityKey : DEFAULT_ONBOARDING_SETTINGS.walkthrough.v1.identityKey,
+        completedByIdentity: normalizeCompletedByIdentity(v1.completedByIdentity),
+      },
+    },
+  };
+}
+
+/**
+ * @param {object} current
+ * @param {object} partial
+ * @returns {object}
+ */
+function mergeOnboardingUpdate(current = {}, partial = {}) {
+  return mergeOnboardingSettings({
+    ...current,
+    ...partial,
+    walkthrough: {
+      ...(current.walkthrough || {}),
+      ...(partial.walkthrough || {}),
+      v1: {
+        ...(current.walkthrough?.v1 || {}),
+        ...(partial.walkthrough?.v1 || {}),
+        completedByIdentity: partial.walkthrough?.v1?.completedByIdentity !== undefined
+          ? partial.walkthrough.v1.completedByIdentity
+          : current.walkthrough?.v1?.completedByIdentity,
+      },
+    },
+  });
 }
 
 /**
@@ -68,13 +194,32 @@ function mergeSettings(settings = {}) {
     ...DEFAULT_SETTINGS,
     ...settings,
     firstLaunch: typeof settings.firstLaunch === 'boolean' ? settings.firstLaunch : DEFAULT_SETTINGS.firstLaunch,
+    onboarding: mergeOnboardingSettings(settings.onboarding || {}),
+    clipPreRollSeconds: normalizeClipSeconds(settings.clipPreRollSeconds, DEFAULT_SETTINGS.clipPreRollSeconds, 0),
+    clipPostRollSeconds: normalizeClipSeconds(settings.clipPostRollSeconds, DEFAULT_SETTINGS.clipPostRollSeconds, 1),
+    clipOutputModeDefault: normalizeClipOutputMode(settings.clipOutputModeDefault),
+    clipExportQuality: normalizeClipExportQuality(settings.clipExportQuality),
     alerts: {
       ...DEFAULT_SETTINGS.alerts,
       ...(settings.alerts || {})
     },
     tagging: {
       ...DEFAULT_SETTINGS.tagging,
-      ...(settings.tagging || {})
+      ...(settings.tagging || {}),
+      hotkeys: {
+        ...DEFAULT_TAGGING_HOTKEYS,
+        ...(settings.tagging?.hotkeys || {})
+      },
+      customHotkeys: Array.isArray(settings.tagging?.customHotkeys)
+        ? settings.tagging.customHotkeys
+        : DEFAULT_SETTINGS.tagging.customHotkeys
+    },
+    microphone: {
+      ...DEFAULT_MICROPHONE_SETTINGS,
+      ...(settings.microphone || {}),
+      language: settings.microphone?.language || DEFAULT_MICROPHONE_SETTINGS.language,
+      label: settings.microphone?.label || DEFAULT_MICROPHONE_SETTINGS.label,
+      deviceId: settings.microphone?.deviceId || DEFAULT_MICROPHONE_SETTINGS.deviceId,
     },
     dashboard: {
       ...DEFAULT_SETTINGS.dashboard,
@@ -121,7 +266,14 @@ function createSettingsRepository(store) {
         },
         tagging: {
           ...current.tagging,
-          ...(partial.tagging || {})
+          ...(partial.tagging || {}),
+          hotkeys: {
+            ...current.tagging.hotkeys,
+            ...(partial.tagging?.hotkeys || {})
+          },
+          customHotkeys: Array.isArray(partial.tagging?.customHotkeys)
+            ? partial.tagging.customHotkeys
+            : current.tagging.customHotkeys
         },
         dashboard: {
           ...current.dashboard,
@@ -143,7 +295,15 @@ function createSettingsRepository(store) {
         user: {
           ...current.user,
           ...(partial.user || {})
-        }
+        },
+        microphone: {
+          ...current.microphone,
+          ...(partial.microphone || {}),
+          language: partial.microphone?.language || current.microphone.language || DEFAULT_MICROPHONE_SETTINGS.language,
+          label: partial.microphone?.label || current.microphone.label || DEFAULT_MICROPHONE_SETTINGS.label,
+          deviceId: partial.microphone?.deviceId || current.microphone.deviceId || DEFAULT_MICROPHONE_SETTINGS.deviceId,
+        },
+        onboarding: mergeOnboardingUpdate(current.onboarding, partial.onboarding)
       });
       store.set('settings', updated);
       return updated;
@@ -189,6 +349,7 @@ async function updateSettings(partial) {
 
 module.exports = {
   DEFAULT_DASHBOARD_SECTIONS,
+  DEFAULT_TAGGING_HOTKEYS,
   createSettingsRepository,
   mergeSettings,
   parseSettingsStoreJson,
