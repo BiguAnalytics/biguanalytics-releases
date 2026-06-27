@@ -1,5 +1,14 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
+const updaterEventChannels = [
+  'update:checking',
+  'update:available',
+  'update:not-available',
+  'update:download-progress',
+  'update:downloaded',
+  'update:error',
+];
+
 contextBridge.exposeInMainWorld('api', {
   auth: {
     getAccessStatus: () => ipcRenderer.invoke('auth:getAccessStatus'),
@@ -39,7 +48,19 @@ contextBridge.exposeInMainWorld('api', {
   analytics: {
     getMatchStats: (matchId, filters) => ipcRenderer.invoke('analytics:getMatchStats', matchId, filters),
     getSeasonStats: (year) => ipcRenderer.invoke('analytics:getSeasonStats', year),
-    exportPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:exportPdf', matchId, printPayload)
+    exportPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:exportPdf', matchId, printPayload),
+    previewPdf: (matchId, printPayload) => ipcRenderer.invoke('analytics:previewPdf', matchId, printPayload)
+  },
+  pdfTemplates: {
+    list: () => ipcRenderer.invoke('pdfTemplates:list'),
+    get: (id) => ipcRenderer.invoke('pdfTemplates:get', id),
+    create: (data) => ipcRenderer.invoke('pdfTemplates:create', data),
+    update: (id, data) => ipcRenderer.invoke('pdfTemplates:update', id, data),
+    delete: (id) => ipcRenderer.invoke('pdfTemplates:delete', id),
+    duplicate: (id, data) => ipcRenderer.invoke('pdfTemplates:duplicate', id, data),
+    setDefault: (id) => ipcRenderer.invoke('pdfTemplates:setDefault', id),
+    export: (id) => ipcRenderer.invoke('pdfTemplates:export', id),
+    import: () => ipcRenderer.invoke('pdfTemplates:import')
   },
   clips: {
     exportSingle: (payload) => ipcRenderer.invoke('clips:export-single', payload),
@@ -126,6 +147,22 @@ contextBridge.exposeInMainWorld('api', {
   },
   startup: {
     mark: (label, detail = {}) => ipcRenderer.invoke('startup:mark', label, detail)
+  },
+  updater: {
+    getStatus: () => ipcRenderer.invoke('updater:getStatus'),
+    check: () => ipcRenderer.invoke('updater:check'),
+    download: () => ipcRenderer.invoke('updater:download'),
+    install: () => ipcRenderer.invoke('updater:install'),
+    onEvent: (callback) => {
+      const listeners = updaterEventChannels.map((channel) => {
+        const listener = (event, payload) => callback({ type: channel, ...(payload || {}) });
+        ipcRenderer.on(channel, listener);
+        return { channel, listener };
+      });
+      return () => {
+        listeners.forEach(({ channel, listener }) => ipcRenderer.removeListener(channel, listener));
+      };
+    }
   },
   window: {
     minimize: () => ipcRenderer.send('window:minimize'),

@@ -39,6 +39,10 @@
   cursor: move;
 }
 
+.drawing-editor-shell[data-resize-handle="true"] .drawing-editor-canvas {
+  cursor: nwse-resize;
+}
+
 .drawing-editor-shell[data-tool="eraser"] .drawing-editor-canvas {
   cursor: cell;
 }
@@ -369,6 +373,13 @@
 .drawing-size-btn:disabled {
   opacity: 0.42;
   cursor: not-allowed;
+}
+
+.drawing-size-shortcut {
+  min-width: 28px;
+  color: var(--color-text-muted);
+  font: 900 10px var(--font-brand);
+  text-align: center;
 }
 
 .drawing-size-btn:hover:not(:disabled),

@@ -433,6 +433,7 @@
 
 .settings-microphone-section,
 .settings-ai-section,
+.settings-updater-section,
 .settings-onboarding-section {
   display: grid;
   gap: var(--space-3);
@@ -444,6 +445,7 @@
 
 .settings-microphone-card,
 .settings-ai-card,
+.settings-updater-card,
 .settings-onboarding-card {
   display: grid;
   gap: var(--space-4);
@@ -455,6 +457,7 @@
 
 .settings-microphone-select-row,
 .settings-ai-row,
+.settings-updater-row,
 .settings-onboarding-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 0.8fr);
@@ -464,6 +467,7 @@
 
 .settings-microphone-select-row strong,
 .settings-ai-row strong,
+.settings-updater-row strong,
 .settings-onboarding-card strong {
   display: block;
   color: var(--color-text-primary);
@@ -472,8 +476,10 @@
 
 .settings-microphone-select-row small,
 .settings-ai-row small,
+.settings-updater-row small,
 .settings-onboarding-card small,
 .settings-ai-status,
+.settings-updater-status,
 .settings-microphone-test-hint,
 .settings-microphone-status {
   color: var(--color-text-secondary);
@@ -490,6 +496,12 @@
   font: 900 12px var(--font-brand);
   cursor: pointer;
   transition: background 150ms, border-color 150ms, color 150ms, transform 150ms;
+}
+
+.settings-onboarding-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
 }
 
 .settings-onboarding-restart:hover:not(:disabled) {
@@ -586,7 +598,8 @@
 }
 
 .settings-microphone-actions,
-.settings-ai-actions {
+.settings-ai-actions,
+.settings-updater-actions {
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -594,7 +607,8 @@
 }
 
 .settings-microphone-test,
-.settings-ai-test {
+.settings-ai-test,
+.settings-updater-button {
   min-height: 38px;
   padding: 0 var(--space-4);
   border: 1px solid var(--color-border);
@@ -609,6 +623,8 @@
 .settings-microphone-test:focus-visible,
 .settings-ai-test:hover,
 .settings-ai-test:focus-visible,
+.settings-updater-button:hover,
+.settings-updater-button:focus-visible,
 .settings-microphone-test[aria-pressed="true"] {
   border-color: var(--color-border-accent);
   background: var(--color-accent-muted);
@@ -616,24 +632,69 @@
 }
 
 .settings-microphone-test:active,
-.settings-ai-test:active {
+.settings-ai-test:active,
+.settings-updater-button:active {
   transform: scale(0.97);
 }
 
 .settings-microphone-test:disabled,
-.settings-ai-test:disabled {
+.settings-ai-test:disabled,
+.settings-updater-button:disabled {
   opacity: 0.5;
   cursor: not-allowed;
 }
 
 .settings-microphone-status[data-tone="error"],
-.settings-ai-status[data-tone="error"] {
+.settings-ai-status[data-tone="error"],
+.settings-updater-status[data-tone="error"] {
   color: var(--color-accent);
 }
 
 .settings-microphone-status[data-tone="ok"],
-.settings-ai-status[data-tone="ok"] {
+.settings-ai-status[data-tone="ok"],
+.settings-updater-status[data-tone="ok"] {
   color: var(--tag-ganado);
+}
+
+.settings-updater-progress {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.settings-updater-progress[hidden] {
+  display: none;
+}
+
+.settings-updater-progress-track {
+  height: 10px;
+  overflow: hidden;
+  border: 1px solid rgba(138, 155, 176, 0.16);
+  border-radius: var(--radius-full);
+  background: rgba(8, 14, 26, 0.42);
+}
+
+.settings-updater-progress-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 180ms ease;
+  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-white), var(--color-brand-navy));
+}
+
+.settings-updater-progress-label {
+  color: var(--color-text-secondary);
+  font: 800 12px var(--font-ui);
+  text-align: right;
+}
+
+.settings-updater-install {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent);
+  color: var(--color-brand-white);
 }
 
 .settings-hotkey-list {
@@ -792,18 +853,25 @@
   .settings-custom-hotkey-row,
   .settings-microphone-select-row,
   .settings-ai-row,
+  .settings-updater-row,
   .settings-onboarding-card {
     grid-template-columns: 1fr;
   }
 
   .settings-hotkey-row,
   .settings-hotkey-capture-control,
-  .settings-microphone-meter {
+  .settings-microphone-meter,
+  .settings-updater-progress {
     grid-template-columns: 1fr;
   }
 
-  .settings-microphone-db {
+  .settings-microphone-db,
+  .settings-updater-progress-label {
     text-align: left;
+  }
+
+  .settings-onboarding-actions {
+    grid-template-columns: 1fr;
   }
 
   .settings-hotkey-remove {

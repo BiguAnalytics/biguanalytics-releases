@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { createSettingsRepository, mergeSettings, parseSettingsStoreJson } from '../settings.js';
+import { createSettingsRepository, DEFAULT_DASHBOARD_SECTIONS, mergeSettings, parseSettingsStoreJson } from '../settings.js';
 
 describe('settings.js', () => {
   it('preserves default user fields when persisted settings contain a partial user', () => {
@@ -131,12 +131,39 @@ describe('settings.js', () => {
     expect(settings.dashboard.visibleSections).toEqual(expect.arrayContaining(['set-pieces', 'rucks', 'discipline', 'heatmap']));
   });
 
+  it('preserves PDF template editor preferences without dropping dashboard filters', () => {
+    const settings = mergeSettings({
+      dashboard: {
+        pdfTemplate: 'forwards',
+        selectedKpis: ['scrumWinPct', 'lineoutWinPct', 'ruckWinPct', 'penalties'],
+        visibleSections: ['set-pieces', 'rucks'],
+        filters: { team: 'compare', timeBand: '0-20', zone: 'opp_22' },
+      },
+    });
+
+    expect(settings.dashboard.pdfTemplate).toBe('forwards');
+    expect(settings.dashboard.selectedKpis).toEqual(['scrumWinPct', 'lineoutWinPct', 'ruckWinPct', 'penalties']);
+    expect(settings.dashboard.visibleSections).toEqual(['set-pieces', 'rucks']);
+    expect(settings.dashboard.sectionOrder).toEqual(DEFAULT_DASHBOARD_SECTIONS);
+    expect(settings.dashboard.filters).toEqual({ team: 'compare', timeBand: '0-20', zone: 'opp_22' });
+  });
+
+  it('defaults and preserves the local PDF template editor walkthrough flag', () => {
+    expect(mergeSettings().pdfTemplateEditor.walkthrough).toEqual({ completed: false });
+
+    expect(mergeSettings({
+      pdfTemplateEditor: {
+        walkthrough: { completed: true },
+      },
+    }).pdfTemplateEditor.walkthrough).toEqual({ completed: true });
+  });
+
   it('provides validated clip export defaults and clamps unreasonable durations', () => {
     expect(mergeSettings()).toEqual(expect.objectContaining({
       clipPreRollSeconds: 5,
       clipPostRollSeconds: 8,
-      clipOutputModeDefault: 'separate',
-      clipExportQuality: 'copy',
+      clipOutputModeDefault: 'combined',
+      clipExportQuality: 'reencode',
     }));
 
     expect(mergeSettings({
@@ -147,6 +174,14 @@ describe('settings.js', () => {
     })).toEqual(expect.objectContaining({
       clipPreRollSeconds: 5,
       clipPostRollSeconds: 60,
+      clipOutputModeDefault: 'combined',
+      clipExportQuality: 'reencode',
+    }));
+
+    expect(mergeSettings({
+      clipOutputModeDefault: 'separate',
+      clipExportQuality: 'copy',
+    })).toEqual(expect.objectContaining({
       clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',
     }));

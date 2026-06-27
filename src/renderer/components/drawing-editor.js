@@ -5,11 +5,14 @@ import {
   eraseStrokesAlongPath,
   findStrokeAtPoint,
   findStrokesInRect,
+  getSelectionBounds,
   getStrokeBounds,
+  hitTestSelectionResizeHandle,
   moveStrokes,
   pushHistory,
   redoHistory,
   removeStrokesByIds,
+  scaleStrokesFromSelectionHandle,
   scaleStrokes,
   serializeDrawing,
   undoHistory,
@@ -70,6 +73,7 @@ const QUICK_COLORS = [
 ];
 
 const STROKE_WIDTHS = [1, 3, 6];
+const SELECTION_OUTLINE_PADDING = 8;
 
 const HOTKEYS = {
   v: 'select',
@@ -134,12 +138,14 @@ function resolveColor(color) {
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {PointerEvent|MouseEvent} event
+ * @param {number} logicalWidth
+ * @param {number} logicalHeight
  * @returns {{x: number, y: number}}
  */
-function getCanvasPoint(canvas, event) {
+function getCanvasPoint(canvas, event, logicalWidth = canvas.width, logicalHeight = canvas.height) {
   const rect = canvas.getBoundingClientRect();
-  const x = ((event.clientX - rect.left) / rect.width) * canvas.width;
-  const y = ((event.clientY - rect.top) / rect.height) * canvas.height;
+  const x = ((event.clientX - rect.left) / rect.width) * logicalWidth;
+  const y = ((event.clientY - rect.top) / rect.height) * logicalHeight;
   return { x, y };
 }
 
@@ -192,8 +198,34 @@ function drawSelectionOutlines(ctx, strokes, ids) {
   ctx.strokeStyle = '#FFFFFF';
   strokes.filter(stroke => selected.has(stroke.id)).forEach((stroke) => {
     const bounds = getStrokeBounds(stroke);
-    if (bounds) ctx.strokeRect(bounds.x - 8, bounds.y - 8, bounds.width + 16, bounds.height + 16);
+    if (bounds) ctx.strokeRect(
+      bounds.x - SELECTION_OUTLINE_PADDING,
+      bounds.y - SELECTION_OUTLINE_PADDING,
+      bounds.width + SELECTION_OUTLINE_PADDING * 2,
+      bounds.height + SELECTION_OUTLINE_PADDING * 2,
+    );
   });
+  ctx.restore();
+}
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x: number, y: number, width: number, height: number}|null} bounds
+ */
+function drawSelectionResizeHandle(ctx, bounds) {
+  if (!bounds) return;
+  const x = bounds.x + bounds.width + SELECTION_OUTLINE_PADDING;
+  const y = bounds.y + bounds.height + SELECTION_OUTLINE_PADDING;
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.34)';
+  ctx.shadowBlur = 8;
+  ctx.fillStyle = '#C8102E';
+  ctx.strokeStyle = '#FFFFFF';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(x, y, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -263,6 +295,9 @@ export function createDrawingEditor(host, options = {}) {
     selectedStrokeIds: [],
     selectionStartPoint: null,
     selectionRect: null,
+    selectionResizeStart: null,
+    selectionResizeBounds: null,
+    selectionResizeSourceStrokes: null,
     lastMovePoint: null,
     moveStarted: false,
     dragMode: '',
@@ -323,10 +358,11 @@ export function createDrawingEditor(host, options = {}) {
           `).join('')}
         </div>
         <div class="drawing-size-row" aria-label="Tamano de seleccion">
-          <button class="drawing-size-btn" type="button" data-size-down aria-label="Achicar seleccionado" title="Achicar seleccionado" disabled>
+          <span class="drawing-size-shortcut" aria-hidden="true">[ ]</span>
+          <button class="drawing-size-btn" type="button" data-size-down aria-label="Achicar jugador o elemento seleccionado" title="Achicar seleccionado ([)" disabled>
             ${renderIcon('minus')}
           </button>
-          <button class="drawing-size-btn" type="button" data-size-up aria-label="Agrandar seleccionado" title="Agrandar seleccionado" disabled>
+          <button class="drawing-size-btn" type="button" data-size-up aria-label="Agrandar jugador o elemento seleccionado" title="Agrandar seleccionado (])" disabled>
             ${renderIcon('plus')}
           </button>
         </div>
@@ -350,6 +386,9 @@ export function createDrawingEditor(host, options = {}) {
 
   const stage = /** @type {HTMLElement} */ (shell.querySelector('.drawing-editor-stage'));
   const canvas = /** @type {HTMLCanvasElement} */ (shell.querySelector('.drawing-editor-canvas'));
+  const canvasPixelRatio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));
+  canvas.width = Math.round(width * canvasPixelRatio);
+  canvas.height = Math.round(height * canvasPixelRatio);
   const ctx = canvas.getContext('2d');
   let pointerDown = false;
   const fitStage = () => {
@@ -374,11 +413,15 @@ export function createDrawingEditor(host, options = {}) {
   const redraw = () => {
     if (!ctx) return;
     const visibleStrokes = state.previewStrokes || state.strokes;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(canvasPixelRatio, 0, 0, canvasPixelRatio, 0, 0);
     drawStrokes(ctx, visibleStrokes);
     if (!state.previewStrokes && state.draft) drawStrokes(ctx, [state.draft]);
     if (!state.previewStrokes && !state.locked) {
+      const selectionBounds = getSelectionBounds(state.strokes, state.selectedStrokeIds);
       drawSelectionOutlines(ctx, state.strokes, state.selectedStrokeIds);
+      drawSelectionResizeHandle(ctx, selectionBounds);
       drawSelectionRect(ctx, state.selectionRect);
     }
     updateSelectionUi();
@@ -637,8 +680,8 @@ export function createDrawingEditor(host, options = {}) {
     const rect = canvas.getBoundingClientRect();
     const input = document.createElement('input');
     input.className = 'drawing-text-input';
-    input.style.left = `${(point.x / canvas.width) * rect.width}px`;
-    input.style.top = `${(point.y / canvas.height) * rect.height}px`;
+    input.style.left = `${(point.x / width) * rect.width}px`;
+    input.style.top = `${(point.y / height) * rect.height}px`;
     input.placeholder = 'Texto';
     stage.appendChild(input);
     input.focus();
@@ -672,13 +715,13 @@ export function createDrawingEditor(host, options = {}) {
 
   const getCompositeDataUrl = async () => {
     const output = document.createElement('canvas');
-    output.width = canvas.width;
-    output.height = canvas.height;
+    output.width = width;
+    output.height = height;
     const outputCtx = output.getContext('2d');
     if (!outputCtx) return canvas.toDataURL('image/png');
     if (state.backgroundImage) {
       const image = await loadImage(state.backgroundImage);
-      outputCtx.drawImage(image, 0, 0, output.width, output.height);
+      outputCtx.drawImage(image, 0, 0, width, height);
     }
     drawStrokes(outputCtx, state.strokes);
     return output.toDataURL('image/png');
@@ -697,6 +740,18 @@ export function createDrawingEditor(host, options = {}) {
       return;
     }
     if (isEditableTarget(event.target)) return;
+    if (!event.ctrlKey && !event.metaKey && !event.altKey && state.selectedStrokeIds.length) {
+      if (event.key === '[') {
+        event.preventDefault();
+        scaleSelection(0.85);
+        return;
+      }
+      if (event.key === ']') {
+        event.preventDefault();
+        scaleSelection(1.15);
+        return;
+      }
+    }
     if (!event.ctrlKey && !event.metaKey && !event.altKey) {
       const nextTool = HOTKEYS[event.key.toLowerCase()];
       if (nextTool) {
@@ -743,14 +798,29 @@ export function createDrawingEditor(host, options = {}) {
     event.preventDefault();
     if (state.locked) return;
     stopSequencePreview();
-    const point = getCanvasPoint(canvas, event);
+    const point = getCanvasPoint(canvas, event, width, height);
     state.lastMovePoint = null;
     state.moveStarted = false;
     state.dragMode = '';
     state.selectionStartPoint = null;
     state.selectionRect = null;
+    state.selectionResizeStart = null;
+    state.selectionResizeBounds = null;
+    state.selectionResizeSourceStrokes = null;
 
     if (state.tool === 'select') {
+      const selectionBounds = getSelectionBounds(state.strokes, state.selectedStrokeIds);
+      if (hitTestSelectionResizeHandle(selectionBounds, point, 10)) {
+        pointerDown = true;
+        canvas.setPointerCapture?.(event.pointerId);
+        state.dragMode = 'resize';
+        state.selectionResizeStart = point;
+        state.selectionResizeBounds = selectionBounds;
+        state.selectionResizeSourceStrokes = cloneStrokes(state.strokes);
+        shell.dataset.resizeHandle = 'true';
+        redraw();
+        return;
+      }
       const selected = findStrokeAtPoint(state.strokes, point, 8);
       pointerDown = true;
       canvas.setPointerCapture?.(event.pointerId);
@@ -820,13 +890,32 @@ export function createDrawingEditor(host, options = {}) {
 
   canvas.addEventListener('pointermove', (event) => {
     if (state.tool === 'select') {
-      if (!pointerDown) return;
+      const point = getCanvasPoint(canvas, event, width, height);
+      if (!pointerDown) {
+        const selectionBounds = getSelectionBounds(state.strokes, state.selectedStrokeIds);
+        shell.dataset.resizeHandle = hitTestSelectionResizeHandle(selectionBounds, point, 10) ? 'true' : 'false';
+        return;
+      }
       event.preventDefault();
-      const point = getCanvasPoint(canvas, event);
 
       if (state.dragMode === 'marquee' && state.selectionStartPoint) {
         state.selectionRect = createRectFromPoints(state.selectionStartPoint, point);
         state.selectedStrokeIds = findStrokesInRect(state.strokes, state.selectionRect).map(stroke => stroke.id);
+        redraw();
+        return;
+      }
+
+      if (state.dragMode === 'resize' && state.selectionResizeStart && state.selectionResizeBounds) {
+        if (!state.moveStarted) {
+          push();
+          state.moveStarted = true;
+        }
+        state.strokes = scaleStrokesFromSelectionHandle(
+          state.selectionResizeSourceStrokes || state.strokes,
+          state.selectedStrokeIds,
+          state.selectionResizeStart,
+          point,
+        );
         redraw();
         return;
       }
@@ -848,7 +937,7 @@ export function createDrawingEditor(host, options = {}) {
     if (state.tool === 'eraser') {
       if (!pointerDown || state.dragMode !== 'erase' || !state.lastMovePoint) return;
       event.preventDefault();
-      const point = getCanvasPoint(canvas, event);
+      const point = getCanvasPoint(canvas, event, width, height);
       eraseAtPoints([state.lastMovePoint, point]);
       state.lastMovePoint = point;
       return;
@@ -856,7 +945,7 @@ export function createDrawingEditor(host, options = {}) {
 
     if (!pointerDown || !state.draft) return;
     event.preventDefault();
-    const point = getCanvasPoint(canvas, event);
+    const point = getCanvasPoint(canvas, event, width, height);
     if (state.tool === 'freehand') {
       state.draft.points = [...state.draft.points, point];
     } else {
@@ -878,7 +967,11 @@ export function createDrawingEditor(host, options = {}) {
       }
       state.selectionStartPoint = null;
       state.selectionRect = null;
+      state.selectionResizeStart = null;
+      state.selectionResizeBounds = null;
+      state.selectionResizeSourceStrokes = null;
       state.dragMode = '';
+      shell.dataset.resizeHandle = 'false';
       redraw();
       notifyChange();
       return;
@@ -899,7 +992,11 @@ export function createDrawingEditor(host, options = {}) {
     state.dragMode = '';
     state.selectionStartPoint = null;
     state.selectionRect = null;
+    state.selectionResizeStart = null;
+    state.selectionResizeBounds = null;
+    state.selectionResizeSourceStrokes = null;
     state.draft = null;
+    shell.dataset.resizeHandle = 'false';
     canvas.releasePointerCapture?.(event.pointerId);
     redraw();
   });
@@ -956,7 +1053,7 @@ export function createDrawingEditor(host, options = {}) {
     element: shell,
     canvas,
     getState() {
-      const payload = serializeDrawing(state.strokes, { width: canvas.width, height: canvas.height });
+      const payload = serializeDrawing(state.strokes, { width, height });
       if (state.sequenceMode) {
         payload.steps = getSerializableSteps();
         payload.durationSeconds = getDrawingSequenceDuration({ steps: payload.steps });
@@ -976,6 +1073,9 @@ export function createDrawingEditor(host, options = {}) {
       state.selectedStrokeIds = [];
       state.selectionStartPoint = null;
       state.selectionRect = null;
+      state.selectionResizeStart = null;
+      state.selectionResizeBounds = null;
+      state.selectionResizeSourceStrokes = null;
       state.lastMovePoint = null;
       state.moveStarted = false;
       state.dragMode = '';

@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  buildClipFfmpegArgs,
+  buildSeparatorFfmpegArgs,
   calculateClipRange,
   createClipExporter,
   filterEventsForClipExport,
@@ -39,6 +41,7 @@ function createTestExporter(overrides = {}) {
     getSettings: vi.fn(async () => ({
       clipPreRollSeconds: 3,
       clipPostRollSeconds: 10,
+      clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',
     })),
     selectOutputDirectory: vi.fn(async () => 'C:\\Exports'),
@@ -85,6 +88,13 @@ describe('clip-exporter filtering and names', () => {
     expect(filterEventsForClipExport(MATCH.events, { fromSeconds: 60, toSeconds: 80 }, MATCH).map(event => event.id)).toEqual(['e2', 'e3']);
   });
 
+  it('treats empty temporal filters as the full video range instead of zero seconds', () => {
+    expect(filterEventsForClipExport(MATCH.events, {
+      fromSeconds: null,
+      toSeconds: '',
+    }, MATCH).map(event => event.id)).toEqual(['e1', 'e2', 'e3']);
+  });
+
   it('filters by combined type, result and temporal range', () => {
     const events = filterEventsForClipExport(MATCH.events, {
       type: 'ruck',
@@ -108,6 +118,53 @@ describe('clip-exporter filtering and names', () => {
 });
 
 describe('clip-exporter batch orchestration', () => {
+  it('exports a selected batch as one combined MP4 with branded separators', async () => {
+    const runClip = vi.fn(async () => {});
+    const runSeparator = vi.fn(async () => {});
+    const runConcat = vi.fn(async () => {});
+    const cleanupTempDirectory = vi.fn(async () => {});
+    const exporter = createTestExporter({
+      getSettings: vi.fn(async () => ({
+        clipPreRollSeconds: 3,
+        clipPostRollSeconds: 10,
+        clipOutputModeDefault: 'combined',
+        clipExportQuality: 'copy',
+      })),
+      runClip,
+      runSeparator,
+      runConcat,
+      cleanupTempDirectory,
+    });
+
+    const result = await exporter.exportBatch({ matchId: 'match-1', filters: { type: 'ruck' } });
+    const concatJob = runConcat.mock.calls[0]?.[0];
+
+    expect(runClip).toHaveBeenCalledTimes(2);
+    expect(runClip.mock.calls[0][0]).toEqual(expect.objectContaining({
+      quality: 'reencode',
+      normalizeForConcat: true,
+    }));
+    expect(runSeparator).toHaveBeenCalledTimes(2);
+    expect(runSeparator.mock.calls[0][0]).toEqual(expect.objectContaining({
+      clipNumber: 1,
+      totalClips: 2,
+      title: 'Ruck / Ganado',
+    }));
+    expect(runConcat).toHaveBeenCalledTimes(1);
+    expect(concatJob.inputs).toHaveLength(4);
+    expect(concatJob.outputPath).toContain('BiguAnalytics_Clips_Bigua_vs_Los_Cardos_2026-05-31.mp4');
+    expect(cleanupTempDirectory).toHaveBeenCalledTimes(1);
+    expect(result).toEqual(expect.objectContaining({
+      canceled: false,
+      exported: 2,
+      failed: 0,
+      total: 2,
+      outputMode: 'combined',
+      outputFile: concatJob.outputPath,
+      files: [concatJob.outputPath],
+    }));
+  });
+
   it('exports only valid filtered events in a batch folder', async () => {
     const runClip = vi.fn(async () => {});
     const exporter = createTestExporter({ runClip });
@@ -174,5 +231,51 @@ describe('clip-exporter batch orchestration', () => {
     expect(result.exported).toBe(1);
     expect(result.total).toBe(2);
     expect(runClip).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('clip-exporter ffmpeg commands', () => {
+  it('builds longer dark-blue separator screens without the red overlay', () => {
+    const args = buildSeparatorFfmpegArgs({
+      outputPath: 'C:\\exports\\separator.mp4',
+      clipNumber: 1,
+      totalClips: 3,
+      title: 'Ruck / Ganado',
+      timestampLabel: 'Tiempo 00:42',
+    }, false);
+    const command = args.join(' ');
+
+    expect(command).toContain('d=2.85');
+    expect(command).toContain('-t 2.85');
+    expect(command).toContain('0x080E1A');
+    expect(command).toContain('0x0F2340');
+    expect(command).not.toContain('0xC8102E');
+  });
+
+  it('builds reencoded frame-safe clip args for combined exports instead of stream copy', () => {
+    const args = buildClipFfmpegArgs({
+      inputPath: 'C:\\videos\\match.mp4',
+      outputPath: 'C:\\exports\\clip.mp4',
+      range: { start: 12.4, duration: 8.2 },
+      quality: 'reencode',
+      normalizeForConcat: true,
+    });
+
+    expect(args).toEqual(expect.arrayContaining([
+      '-map',
+      '0:v:0',
+      '-map',
+      '0:a?',
+      '-c:v',
+      'libx264',
+      '-c:a',
+      'aac',
+      '-avoid_negative_ts',
+      'make_zero',
+      '-movflags',
+      '+faststart',
+    ]));
+    expect(args.join(' ')).toContain('scale=1920:1080');
+    expect(args.join(' ')).not.toContain('-c copy');
   });
 });

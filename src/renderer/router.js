@@ -4,6 +4,7 @@ import { setSidebarActive } from './components/sidebar.js';
 import { renderClipPlayer } from './views/clip-player.js';
 import { renderDashboard } from './views/dashboard.js';
 import { renderHome } from './views/home.js';
+import { renderPdfTemplateEditor } from './views/pdf-template-editor.js';
 import { renderSeason } from './views/season.js';
 import { renderSettings } from './views/settings.js';
 import { renderTacticalBoard } from './views/tactical-board.js';
@@ -17,6 +18,7 @@ const routes = {
   clips: renderClipPlayer,
   tactical: renderTacticalBoard,
   season: renderSeason,
+  pdfTemplates: renderPdfTemplateEditor,
   settings: renderSettings,
 };
 
@@ -130,6 +132,19 @@ function dispatchRouteChanged(route, params) {
   }));
 }
 
+function runRouteCleanup() {
+  if (!currentCleanup) return;
+  try {
+    currentCleanup?.();
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('bigu:route-cleanup-error', {
+      detail: { error },
+    }));
+  } finally {
+    currentCleanup = null;
+  }
+}
+
 /**
  * @param {HTMLElement} container
  * @param {string} route
@@ -150,7 +165,8 @@ function finalizeRouteRender(container, route, params, cleanup, token) {
  * @param {number} token
  */
 function handleRouteRenderError(container, error, token) {
-  if (token === transitionToken) startRouteEnter(container);
+  if (token !== transitionToken) return;
+  startRouteEnter(container);
   window.setTimeout(() => {
     throw error;
   });
@@ -164,10 +180,7 @@ function handleRouteRenderError(container, error, token) {
  * @param {number} token
  */
 function renderRoute(container, route, params, renderFn, token) {
-  if (currentCleanup) {
-    currentCleanup();
-    currentCleanup = null;
-  }
+  runRouteCleanup();
 
   currentRoute = route;
   setSidebarActive(route);

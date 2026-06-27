@@ -3,6 +3,7 @@ import { assertSupabaseOk, resolveCloudContext } from './cloud-context.js';
 import { applyCloudOperation, syncService as defaultSyncService } from './sync-service.js';
 import { mapLocalMatchToCloud, normalizeMatchForHome } from './match-mapper.js';
 import { markStartup } from '../startup-timing.js';
+import { normalizeFieldZone } from '../field-zones.js';
 
 /**
  * @param {number|null|undefined} seconds
@@ -23,11 +24,27 @@ function msToSeconds(ms) {
 }
 
 /**
+ * @param {object|null|undefined} source
+ * @returns {{zone: string|null, zoneId: string|null, zoneLabel: string|null, legacyZone?: string}}
+ */
+function normalizeEventZonePayload(source = {}) {
+  const normalized = normalizeFieldZone(source);
+  if (!normalized) return { zone: null, zoneId: null, zoneLabel: null };
+  return {
+    zone: normalized.id,
+    zoneId: normalized.id,
+    zoneLabel: normalized.label,
+    ...(normalized.originalZone ? { legacyZone: normalized.originalZone } : {}),
+  };
+}
+
+/**
  * @param {object} event
  * @param {{matchId: string, clubId: string, userId: string}} context
  * @returns {object}
  */
 export function mapLocalEventToCloud(event, context) {
+  const zonePayload = normalizeEventZonePayload(event);
   return {
     id: event.id,
     match_id: context.matchId,
@@ -38,9 +55,9 @@ export function mapLocalEventToCloud(event, context) {
     team: event.team || null,
     result: event.result || null,
     subtype: event.subtype || null,
-    zone: event.zone || null,
+    zone: zonePayload.zone,
     note: event.note || null,
-    payload: { ...event },
+    payload: { ...event, ...zonePayload },
     created_at: event.createdAt || event.created_at || undefined,
     updated_at: event.updatedAt || event.updated_at || new Date().toISOString(),
   };
@@ -51,15 +68,20 @@ export function mapLocalEventToCloud(event, context) {
  * @returns {object}
  */
 export function mapCloudEventToLocal(row) {
+  const payload = row.payload || {};
+  const zonePayload = normalizeEventZonePayload({
+    ...payload,
+    zone: row.zone || payload.zone || payload.zoneId,
+  });
   return {
-    ...(row.payload || {}),
+    ...payload,
     id: row.id,
     timestamp: msToSeconds(row.timestamp_ms),
     type: row.event_type,
     team: row.team,
     result: row.result || '',
     subtype: row.subtype || '',
-    zone: row.zone || null,
+    ...zonePayload,
     note: row.note || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,

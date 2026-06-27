@@ -64,6 +64,8 @@ const DASHBOARD_SECTION_EVENT_TYPES = {
   heatmap: [],
 };
 
+const DASHBOARD_EVENT_LINK_LIMIT = 6;
+
 const PDF_TEMPLATES = [
   { id: 'complete', label: 'Completo' },
   { id: 'short', label: 'Resumen corto' },
@@ -82,6 +84,13 @@ const DEFAULT_DASHBOARD_PREFERENCES = {
     timeBand: 'all',
     zone: 'all',
   },
+};
+
+const SYSTEM_DEFAULT_PDF_TEMPLATE = {
+  id: 'system-default',
+  name: 'Default BiguAnalytics',
+  isSystem: true,
+  isDefault: true,
 };
 
 const KPI_IDS = [
@@ -1118,13 +1127,52 @@ function renderOptions(options, selected) {
 }
 
 /**
+ * @param {Array<object>} templates
+ * @param {string} selected
+ * @returns {string}
+ */
+function renderPdfTemplateExportOptions(templates = [], selected = 'system-default') {
+  const source = templates.length > 0
+    ? templates
+    : [{ id: 'system-default', name: 'Default BiguAnalytics', isDefault: true }];
+  return source.map(template => `
+    <option value="${escapeHtml(template.id)}"${template.id === selected ? ' selected' : ''}${template.corrupt || template.invalid ? ' disabled' : ''}>
+      ${escapeHtml(template.name || template.id)}${template.isDefault ? ' (default)' : ''}
+    </option>
+  `).join('');
+}
+
+/**
+ * @param {object} api
+ * @returns {Promise<Array<object>>}
+ */
+export async function loadPdfTemplatesForExport(api = window.api) {
+  try {
+    const templates = await api?.pdfTemplates?.list?.();
+    return Array.isArray(templates) && templates.length > 0 ? templates : [SYSTEM_DEFAULT_PDF_TEMPLATE];
+  } catch {
+    return [SYSTEM_DEFAULT_PDF_TEMPLATE];
+  }
+}
+
+/**
+ * @param {Array<object>} templates
+ * @returns {string}
+ */
+export function getDefaultExportTemplateId(templates = []) {
+  return templates.find(template => template.isDefault && !template.corrupt && !template.invalid)?.id || SYSTEM_DEFAULT_PDF_TEMPLATE.id;
+}
+
+/**
  * @param {object} stats
  * @param {object} match
  * @param {object} preferences
  * @param {boolean} customizerOpen
+ * @param {Array<object>} exportTemplates
+ * @param {string} exportTemplateId
  * @returns {string}
  */
-function buildDashboardControls(stats, match, preferences, customizerOpen) {
+function buildDashboardControls(stats, match, preferences, customizerOpen, exportTemplates = [], exportTemplateId = 'system-default') {
   const normalized = normalizeDashboardPreferences(preferences);
   const zones = getZoneOptions(match);
   const kpiDefinitions = KPI_DEFINITIONS(stats);
@@ -1155,6 +1203,13 @@ function buildDashboardControls(stats, match, preferences, customizerOpen) {
           ${renderOptions(PDF_TEMPLATES, normalized.pdfTemplate)}
         </select>
       </label>
+      <label class="dashboard-control">
+        <span>Plantilla PDF</span>
+        <select data-export-template-id>
+          ${renderPdfTemplateExportOptions(exportTemplates, exportTemplateId)}
+        </select>
+      </label>
+      <button class="dashboard-customize-btn" type="button" data-manage-pdf-templates>Plantillas PDF</button>
       <button class="dashboard-customize-btn" type="button" data-customizer-toggle>${customizerOpen ? 'Cerrar personalizacion' : 'Personalizar'}</button>
     </div>
 
@@ -1501,9 +1556,11 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false, collapsed = false
  * @param {object} aiState
  * @param {boolean} aiLoading
  * @param {boolean} aiPanelCollapsed
+ * @param {Array<object>} exportTemplates
+ * @param {string} exportTemplateId
  * @returns {string}
  */
-function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, aiPanelCollapsed = false) {
+function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, aiPanelCollapsed = false, exportTemplates = [], exportTemplateId = 'system-default', eventLinkLimits = {}) {
   const displayScore = getDashboardScore(stats, match);
   const scoreSourceLabel = getScoreSourceLabel(stats?.score?.source);
   const badge = getResultBadge(stats, match);
@@ -1530,7 +1587,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
         ${kpis.map((kpi, index) => `<div data-kpi style="--kpi-index:${index}">${createKpiCard(kpi).outerHTML}</div>`).join('')}
       </div>
 
-      ${buildDashboardControls(stats, match, normalized, customizerOpen)}
+      ${buildDashboardControls(stats, match, normalized, customizerOpen, exportTemplates, exportTemplateId)}
 
       <div class="dashboard-view-toggle" role="tablist" aria-label="Vista dashboard">
         ${VIEW_OPTIONS.map(option => `
@@ -1552,7 +1609,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
       ${buildAIAnalysisPanel(aiState, aiLoading, aiPanelCollapsed)}
 
       <div class="dashboard-sections">
-        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, match, selectedView, heatmapFilter)).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
+        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, match, selectedView, heatmapFilter, eventLinkLimits[id])).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
       </div>
 
       <div class="dashboard-toast" id="dashboard-toast" role="status" hidden></div>
@@ -1675,20 +1732,26 @@ function getDashboardSectionEvents(events = [], sectionId) {
  * @param {object} match
  * @param {object} stats
  * @param {string} sectionId
+ * @param {number} [visibleLimit]
  * @returns {string}
  */
-function buildDashboardEventLinks(match, stats, sectionId) {
+export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit = DASHBOARD_EVENT_LINK_LIMIT) {
   const events = getDashboardSectionEvents(match?.events || [], sectionId);
   if (events.length === 0) return '';
+  const normalizedLimit = Math.max(DASHBOARD_EVENT_LINK_LIMIT, Number(visibleLimit) || DASHBOARD_EVENT_LINK_LIMIT);
+  const visibleEvents = events.slice(0, normalizedLimit);
+  const hiddenCount = events.length - visibleEvents.length;
+  const eventCountLabel = hiddenCount > 0 ? `${visibleEvents.length} de ${events.length}` : `${events.length}`;
+  const nextLimit = normalizedLimit + DASHBOARD_EVENT_LINK_LIMIT;
 
   return `
     <div class="dashboard-event-links" aria-label="Eventos vinculados">
       <header>
         <strong>Eventos</strong>
-        <span>Click abre Tagging</span>
+        <span>${escapeHtml(eventCountLabel)} - click abre Tagging</span>
       </header>
       <div>
-        ${events.map((event, index) => {
+        ${visibleEvents.map((event, index) => {
           const timestamp = hasValidClipTimestamp(event.timestamp) ? Number(event.timestamp) : null;
           const eventId = event.id || `${event.type || 'event'}-${index}`;
           const result = formatLabel(event.result || event.subtype || 'registrado');
@@ -1708,6 +1771,16 @@ function buildDashboardEventLinks(match, stats, sectionId) {
             </button>
           `;
         }).join('')}
+        ${hiddenCount > 0 ? `
+          <button
+            class="dashboard-event-overflow"
+            type="button"
+            data-dashboard-show-more-events="${escapeHtml(sectionId)}"
+            data-dashboard-next-event-limit="${nextLimit}"
+          >
+            Mostrar mas <span>+${hiddenCount} eventos</span>
+          </button>
+        ` : ''}
       </div>
     </div>
   `;
@@ -1720,9 +1793,10 @@ function buildDashboardEventLinks(match, stats, sectionId) {
  * @param {object} match
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {string} heatmapFilter
+ * @param {number} [eventLinkLimit]
  * @returns {string}
  */
-function buildSection(id, title, stats, match, selectedView, heatmapFilter) {
+function buildSection(id, title, stats, match, selectedView, heatmapFilter, eventLinkLimit) {
   const body = {
     'set-pieces': '<div class="chart-shell"><canvas id="chart-set-pieces" data-chart-key="setPieces"></canvas></div>',
     rucks: '<div class="chart-shell chart-shell-compact"><canvas id="chart-rucks" data-chart-key="rucks"></canvas></div>',
@@ -1746,7 +1820,7 @@ function buildSection(id, title, stats, match, selectedView, heatmapFilter) {
       </header>
       <div class="dashboard-section-body">
         ${body}
-        ${buildDashboardEventLinks(match, stats, id)}
+        ${buildDashboardEventLinks(match, stats, id, eventLinkLimit)}
       </div>
     </section>
   `;
@@ -2487,6 +2561,15 @@ function wireDashboard(container, state) {
     });
   });
 
+  container.querySelectorAll('[data-dashboard-show-more-events]').forEach(button => {
+    button.addEventListener('click', () => {
+      const sectionId = button.getAttribute('data-dashboard-show-more-events') || '';
+      const nextLimit = Number(button.getAttribute('data-dashboard-next-event-limit')) || DASHBOARD_EVENT_LINK_LIMIT;
+      state.eventLinkLimits[sectionId] = nextLimit;
+      renderLoadedDashboard(container, state);
+    });
+  });
+
   container.querySelectorAll('[data-dashboard-view]').forEach(button => {
     button.addEventListener('click', () => {
       const view = button.dataset.dashboardView || 'bigua';
@@ -2527,6 +2610,15 @@ function wireDashboard(container, state) {
       ...state.preferences,
       pdfTemplate: select.value,
     });
+  });
+
+  container.querySelector('[data-export-template-id]')?.addEventListener('change', (event) => {
+    const select = /** @type {HTMLSelectElement} */ (event.currentTarget);
+    state.exportTemplateId = select.value || 'system-default';
+  });
+
+  container.querySelector('[data-manage-pdf-templates]')?.addEventListener('click', () => {
+    navigate('pdfTemplates', { matchId: state.match.id });
   });
 
   container.querySelector('[data-customizer-toggle]')?.addEventListener('click', () => {
@@ -2758,6 +2850,7 @@ function collectPrintPayload(state, access = null) {
     notesHtml: markdownToPrintHtml(state.match.coachNotes || ''),
     aiAnalysis: state.ai?.status === 'valid' ? state.ai.analysis : null,
     selectedView: state.selectedView,
+    templateId: state.exportTemplateId,
     pdfTemplate: state.preferences.pdfTemplate,
     selectedKpis: state.preferences.selectedKpis,
     visibleSections: getVisibleSections(state.preferences),
@@ -2835,7 +2928,7 @@ function renderLoadedDashboard(container, state) {
     if (id === 'export') exportPdf(container, state);
   });
 
-  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed);
+  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed, state.exportTemplates, state.exportTemplateId, state.eventLinkLimits);
   renderDashboardFloatingActions(state.match);
   renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
@@ -2888,6 +2981,9 @@ export function renderDashboard(container, params = {}) {
     charts: {},
     ai: { status: 'missing', hasAnalysis: false },
     aiLoading: false,
+    exportTemplates: [],
+    exportTemplateId: 'system-default',
+    eventLinkLimits: {},
     noteFormats: createEmptyNoteFormats(),
     settingsCleanup: null,
     noteToolbarCleanup: null,
@@ -2926,13 +3022,16 @@ export function renderDashboard(container, params = {}) {
         return;
       }
 
-      const [match, settings] = await Promise.all([
+      const [match, settings, pdfTemplates] = await Promise.all([
         cloudMatchService.getMatchById(params.matchId),
         window.api.settings.get(),
+        loadPdfTemplatesForExport(),
       ]);
       if (disposed) return;
       state.match = match;
       state.preferences = normalizeDashboardPreferences(settings.dashboard);
+      state.exportTemplates = Array.isArray(pdfTemplates) ? pdfTemplates : [];
+      state.exportTemplateId = getDefaultExportTemplateId(state.exportTemplates);
       state.selectedView = getViewFromPreferences(state.preferences);
       await reloadDashboardStats(state);
       await refreshAIAnalysis(state);

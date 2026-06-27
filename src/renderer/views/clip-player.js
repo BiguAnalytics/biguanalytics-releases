@@ -28,6 +28,7 @@ let youtubeApiPromise = null;
 const YOUTUBE_IFRAME_API_SRC = 'https://www.youtube.com/iframe_api';
 const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
 const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
+const DEFAULT_CLIP_OUTPUT_MODE = 'combined';
 const CLIP_QUEUE_PAGE_SIZE = 10;
 const RUGBY_HALF_SECONDS = 40 * 60;
 
@@ -65,6 +66,11 @@ const PERIOD_FILTERS = [
   { id: 'first-half', label: 'Primer tiempo' },
   { id: 'second-half', label: 'Segundo tiempo' },
   { id: 'custom', label: 'Rango personalizado' },
+];
+
+const OUTPUT_MODE_OPTIONS = [
+  { id: 'combined', label: '\u00danico MP4' },
+  { id: 'separate', label: 'Clips separados' },
 ];
 
 function escapeHtml(value) {
@@ -171,6 +177,16 @@ export function getSelectedClipIdsForExport(clips = [], selectedClipIds = new Se
     .filter(id => id && selected.has(id));
 }
 
+export function getClipExportProgressMessage(payload = {}) {
+  const rawMessage = String(payload?.message || '').trim();
+  const message = rawMessage || (
+    Number.isFinite(Number(payload?.current)) && Number.isFinite(Number(payload?.total))
+      ? `Exportando ${Number(payload.current)}/${Number(payload.total)} clips`
+      : 'Exportando clips...'
+  );
+  return /^guardando archivo/i.test(message) ? message : `Guardando archivo - ${message}`;
+}
+
 /**
  * @param {string|null|undefined} value
  * @returns {string}
@@ -220,23 +236,40 @@ function parseTimeInput(value) {
 
 /**
  * @param {object} match
+ * @returns {number|null}
+ */
+function getVideoDurationSeconds(match = {}) {
+  const duration = Number(match.video?.duration || match.videoDuration || match.duration);
+  return Number.isFinite(duration) && duration > 0 ? duration : null;
+}
+
+/**
+ * @param {unknown} value
+ * @returns {'combined'|'separate'}
+ */
+function normalizeClipOutputMode(value) {
+  return value === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE;
+}
+
+/**
+ * @param {object} match
  * @param {string} period
  * @param {object} params
  * @returns {{fromSeconds: number|null, toSeconds: number|null}}
  */
 function getPeriodRange(match = {}, period = 'all', params = {}) {
+  const videoDuration = getVideoDurationSeconds(match);
   if (period === 'custom') {
     return {
-      fromSeconds: params.clipFrom === '' || params.clipFrom === null || params.clipFrom === undefined ? null : Number(params.clipFrom),
-      toSeconds: params.clipTo === '' || params.clipTo === null || params.clipTo === undefined ? null : Number(params.clipTo),
+      fromSeconds: params.clipFrom === '' || params.clipFrom === null || params.clipFrom === undefined ? 0 : Number(params.clipFrom),
+      toSeconds: params.clipTo === '' || params.clipTo === null || params.clipTo === undefined ? videoDuration : Number(params.clipTo),
     };
   }
   if (period === 'first-half') return { fromSeconds: 0, toSeconds: RUGBY_HALF_SECONDS };
   if (period === 'second-half') {
-    const duration = Number(match.video?.duration || match.videoDuration || match.duration);
     return {
       fromSeconds: RUGBY_HALF_SECONDS,
-      toSeconds: Number.isFinite(duration) && duration > RUGBY_HALF_SECONDS ? duration : null,
+      toSeconds: videoDuration && videoDuration > RUGBY_HALF_SECONDS ? videoDuration : null,
     };
   }
   return { fromSeconds: null, toSeconds: null };
@@ -389,7 +422,7 @@ function buildEmptyClipMessage(request, sourceEvents, skippedUntimedCount, allSo
  * @param {object} match
  * @param {object} settings
  * @param {object} params
- * @returns {{status: 'ready'|'blocked', message: string, warning: string, source: object, video: {type: 'youtube'|'local', src: string}|null, clips: Array<object>, skippedUntimedCount: number, request: object, clipSettings: {clipPreRollSeconds: number, clipPostRollSeconds: number}}}
+ * @returns {{status: 'ready'|'blocked', message: string, warning: string, source: object, video: {type: 'youtube'|'local', src: string}|null, clips: Array<object>, skippedUntimedCount: number, request: object, outputMode: 'combined'|'separate', clipSettings: {clipPreRollSeconds: number, clipPostRollSeconds: number}}}
  */
 export function buildClipPlayerState(match = {}, settings = {}, params = {}) {
   const request = getClipRequest(params, match);
@@ -404,6 +437,7 @@ export function buildClipPlayerState(match = {}, settings = {}, params = {}) {
     clipPreRollSeconds: normalizeClipSeconds(params.clipPreRollSeconds ?? settings.clipPreRollSeconds, DEFAULT_CLIP_PRE_ROLL_SECONDS, 0),
     clipPostRollSeconds: normalizeClipSeconds(params.clipPostRollSeconds ?? settings.clipPostRollSeconds, DEFAULT_CLIP_POST_ROLL_SECONDS, 1),
   };
+  const outputMode = normalizeClipOutputMode(params.clipOutputMode ?? settings.clipOutputModeDefault);
   const clips = timedEvents.map((event, index) => {
     const range = calculateClipPlayerRange(event.timestamp, videoDuration, clipSettings);
     const typeLabel = formatClipLabel(getEventTypeLabel(event));
@@ -438,6 +472,7 @@ export function buildClipPlayerState(match = {}, settings = {}, params = {}) {
     clips,
     skippedUntimedCount,
     request,
+    outputMode,
     clipSettings,
   };
 }
@@ -495,6 +530,10 @@ function renderFilters(state) {
         <label>
           <span>Periodo</span>
           <select data-clip-filter-period>${renderOptions(PERIOD_FILTERS, request.period || 'all')}</select>
+        </label>
+        <label>
+          <span>Salida</span>
+          <select data-clip-output-mode>${renderOptions(OUTPUT_MODE_OPTIONS, state.outputMode || DEFAULT_CLIP_OUTPUT_MODE)}</select>
         </label>
         <label ${isCustom ? '' : 'hidden'}>
           <span>Desde</span>
@@ -598,6 +637,7 @@ function renderClipPlayerShell(match, state, activeIndex = 0, queuePageIndex = 0
     : state.source.status === 'local'
       ? ''
       : state.source.message;
+  const exportLabel = state.outputMode === 'combined' ? 'Exportar video unico' : 'Exportar clips seleccionados';
   return `
     <section class="clip-player-view view-enter">
       <header class="clip-player-header">
@@ -618,6 +658,10 @@ function renderClipPlayerShell(match, state, activeIndex = 0, queuePageIndex = 0
             ${renderClipMedia(match, state)}
             <div class="clip-player-status" data-clip-player-status>${state.video ? 'Reproductor listo.' : state.source.message}</div>
           </section>
+          <div class="clip-player-export-progress" data-clip-export-progress data-export-visible="false" aria-live="polite" role="status">
+            <span>Guardando archivo</span>
+            <strong data-clip-export-progress-label>Esperando exportacion</strong>
+          </div>
           <footer class="clip-player-controls">
             <button class="btn btn-secondary" type="button" data-clip-prev ${clips.length ? '' : 'disabled'}>Anterior</button>
             <label class="clip-player-playlist">
@@ -629,7 +673,7 @@ function renderClipPlayerShell(match, state, activeIndex = 0, queuePageIndex = 0
               <strong data-clip-player-current>${escapeHtml(clips[activeIndex]?.title || 'Sin clip')}</strong>
             </div>
             <button class="btn btn-secondary" type="button" data-clip-next ${clips.length ? '' : 'disabled'}>Siguiente</button>
-            <button class="btn btn-primary" type="button" data-clip-export-selected ${canExport ? '' : 'disabled'}>Exportar clips seleccionados</button>
+            <button class="btn btn-primary" type="button" data-clip-export-selected ${canExport ? '' : 'disabled'}>${exportLabel}</button>
             ${exportReason ? `<small data-clip-export-reason>${escapeHtml(exportReason)}</small>` : ''}
           </footer>
         </div>
@@ -838,6 +882,10 @@ export function renderClipPlayer(container, params = {}) {
       currentParams = { ...currentParams, clipPeriod: event.currentTarget.value || 'all' };
       renderCurrentState(0);
     });
+    container.querySelector('[data-clip-output-mode]')?.addEventListener('change', (event) => {
+      currentParams = { ...currentParams, clipOutputMode: event.currentTarget.value || DEFAULT_CLIP_OUTPUT_MODE };
+      renderCurrentState(activeIndex);
+    });
     container.querySelectorAll('[data-clip-filter-from], [data-clip-filter-to]').forEach(input => {
       input.addEventListener('change', () => {
         currentParams = {
@@ -873,12 +921,13 @@ export function renderClipPlayer(container, params = {}) {
     wireQueueClipActions();
     container.querySelector('[data-clip-export-selected]')?.addEventListener('click', exportSelectedClips);
     container.querySelector('[data-associate-local-mp4]')?.addEventListener('click', associateLocalMp4);
-    cleanupFns.push(window.api.clips.onProgress?.(payload => updateStatus(payload?.message || 'Exportando clips...')));
+    cleanupFns.push(window.api.clips.onProgress?.(payload => updateExportProgress(payload)));
     cleanupFns.push(window.api.clips.onComplete?.(payload => {
+      finishExportProgress(payload?.outputDir ? 'Clips exportados correctamente.' : 'Exportacion finalizada.', 'complete');
       updateStatus(payload?.outputDir ? 'Clips exportados correctamente.' : 'Exportación finalizada.');
       if (payload?.outputDir) window.biguShowToast?.('Clips exportados correctamente.', 'info');
     }));
-    cleanupFns.push(window.api.clips.onError?.(payload => updateStatus(payload?.message || 'No se pudieron exportar los clips.')));
+    cleanupFns.push(window.api.clips.onError?.(payload => finishExportProgress(payload?.message || 'No se pudieron exportar los clips.', 'error')));
   }
 
   function wireStaticActions() {
@@ -910,10 +959,11 @@ export function renderClipPlayer(container, params = {}) {
       updateStatus('Seleccioná al menos un clip para exportar.');
       return;
     }
-    updateStatus(`Exportando ${selectedIds.length} clips seleccionados...`);
+    updateExportProgress({ message: `Selecciona carpeta de destino para ${selectedIds.length} clips...` });
     try {
       await window.api.clips.exportBatch({
         matchId: match.id,
+        outputMode: clipState.outputMode,
         filters: {
           type: clipState.request.type,
           result: clipState.request.result,
@@ -924,7 +974,7 @@ export function renderClipPlayer(container, params = {}) {
         },
       });
     } catch (error) {
-      updateStatus(error instanceof Error ? error.message : 'No se pudieron exportar los clips.');
+      finishExportProgress(error instanceof Error ? error.message : 'No se pudieron exportar los clips.', 'error');
     }
   }
 
@@ -1021,6 +1071,29 @@ export function renderClipPlayer(container, params = {}) {
   function updateStatus(message) {
     const status = container.querySelector('[data-clip-player-status]');
     if (status) status.textContent = message;
+  }
+
+  function updateExportProgress(payload = {}) {
+    const message = getClipExportProgressMessage(payload);
+    const progress = container.querySelector('[data-clip-export-progress]');
+    const label = container.querySelector('[data-clip-export-progress-label]');
+    updateStatus(message);
+    if (progress) {
+      progress.dataset.exportVisible = 'true';
+      progress.dataset.tone = 'active';
+    }
+    if (label) label.textContent = message;
+  }
+
+  function finishExportProgress(message, tone) {
+    const progress = container.querySelector('[data-clip-export-progress]');
+    const label = container.querySelector('[data-clip-export-progress-label]');
+    updateStatus(message);
+    if (progress) {
+      progress.dataset.exportVisible = 'true';
+      progress.dataset.tone = tone;
+    }
+    if (label) label.textContent = message;
   }
 
   function wireQueueClipActions() {

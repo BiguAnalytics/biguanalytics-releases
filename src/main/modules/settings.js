@@ -42,6 +42,12 @@ const DEFAULT_ONBOARDING_SETTINGS = {
   },
 };
 
+const DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS = {
+  walkthrough: {
+    completed: false,
+  },
+};
+
 const DEFAULT_SETTINGS = {
   theme: 'dark',
   autoSave: true,
@@ -49,8 +55,8 @@ const DEFAULT_SETTINGS = {
   onboarding: DEFAULT_ONBOARDING_SETTINGS,
   clipPreRollSeconds: 5,
   clipPostRollSeconds: 8,
-  clipOutputModeDefault: 'separate',
-  clipExportQuality: 'copy',
+  clipOutputModeDefault: 'combined',
+  clipExportQuality: 'reencode',
   alerts: {
     penaltiesThreshold: 10,
     turnoversThreshold: 15,
@@ -62,6 +68,10 @@ const DEFAULT_SETTINGS = {
   },
   statsOnlyMode: false,
   microphone: DEFAULT_MICROPHONE_SETTINGS,
+  pdfTemplates: {
+    defaultTemplateId: 'system-default',
+  },
+  pdfTemplateEditor: DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS,
   tagging: {
     autoCloseMs: 8000,
     hotkeyHintsCollapsed: false,
@@ -102,10 +112,10 @@ function normalizeClipSeconds(value, fallback, min) {
 
 /**
  * @param {unknown} value
- * @returns {'separate'}
+ * @returns {'combined'|'separate'}
  */
 function normalizeClipOutputMode(value) {
-  return value === 'separate' ? 'separate' : DEFAULT_SETTINGS.clipOutputModeDefault;
+  return value === 'combined' || value === 'separate' ? value : DEFAULT_SETTINGS.clipOutputModeDefault;
 }
 
 /**
@@ -113,7 +123,7 @@ function normalizeClipOutputMode(value) {
  * @returns {'copy'|'reencode'}
  */
 function normalizeClipExportQuality(value) {
-  return value === 'reencode' ? 'reencode' : DEFAULT_SETTINGS.clipExportQuality;
+  return value === 'copy' || value === 'reencode' ? value : DEFAULT_SETTINGS.clipExportQuality;
 }
 
 /**
@@ -185,6 +195,41 @@ function mergeOnboardingUpdate(current = {}, partial = {}) {
 }
 
 /**
+ * @param {object} [pdfTemplateEditor]
+ * @returns {object}
+ */
+function mergePdfTemplateEditorSettings(pdfTemplateEditor = {}) {
+  const walkthrough = pdfTemplateEditor.walkthrough || {};
+  return {
+    ...DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS,
+    ...pdfTemplateEditor,
+    walkthrough: {
+      ...DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS.walkthrough,
+      ...walkthrough,
+      completed: typeof walkthrough.completed === 'boolean'
+        ? walkthrough.completed
+        : DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS.walkthrough.completed,
+    },
+  };
+}
+
+/**
+ * @param {object} current
+ * @param {object} partial
+ * @returns {object}
+ */
+function mergePdfTemplateEditorUpdate(current = {}, partial = {}) {
+  return mergePdfTemplateEditorSettings({
+    ...current,
+    ...partial,
+    walkthrough: {
+      ...(current.walkthrough || {}),
+      ...(partial.walkthrough || {}),
+    },
+  });
+}
+
+/**
  * Merges persisted settings with defaults.
  * @param {object} [settings]
  * @returns {object}
@@ -221,6 +266,14 @@ function mergeSettings(settings = {}) {
       label: settings.microphone?.label || DEFAULT_MICROPHONE_SETTINGS.label,
       deviceId: settings.microphone?.deviceId || DEFAULT_MICROPHONE_SETTINGS.deviceId,
     },
+    pdfTemplates: {
+      ...DEFAULT_SETTINGS.pdfTemplates,
+      ...(settings.pdfTemplates || {}),
+      defaultTemplateId: typeof settings.pdfTemplates?.defaultTemplateId === 'string' && settings.pdfTemplates.defaultTemplateId
+        ? settings.pdfTemplates.defaultTemplateId
+        : DEFAULT_SETTINGS.pdfTemplates.defaultTemplateId,
+    },
+    pdfTemplateEditor: mergePdfTemplateEditorSettings(settings.pdfTemplateEditor || {}),
     dashboard: {
       ...DEFAULT_SETTINGS.dashboard,
       ...(settings.dashboard || {}),
@@ -303,6 +356,12 @@ function createSettingsRepository(store) {
           label: partial.microphone?.label || current.microphone.label || DEFAULT_MICROPHONE_SETTINGS.label,
           deviceId: partial.microphone?.deviceId || current.microphone.deviceId || DEFAULT_MICROPHONE_SETTINGS.deviceId,
         },
+        pdfTemplates: {
+          ...current.pdfTemplates,
+          ...(partial.pdfTemplates || {}),
+          defaultTemplateId: partial.pdfTemplates?.defaultTemplateId || current.pdfTemplates.defaultTemplateId,
+        },
+        pdfTemplateEditor: mergePdfTemplateEditorUpdate(current.pdfTemplateEditor, partial.pdfTemplateEditor),
         onboarding: mergeOnboardingUpdate(current.onboarding, partial.onboarding)
       });
       store.set('settings', updated);

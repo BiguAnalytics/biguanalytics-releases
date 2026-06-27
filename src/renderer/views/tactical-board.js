@@ -3,7 +3,7 @@ import { createDrawingEditor } from '../components/drawing-editor.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { createCuadroFromPrevious } from '../drawing/drawing-sequence.js';
-import { drawStrokes } from '../drawing/drawing-engine.js';
+import { drawStrokes, serializeDrawingSvg } from '../drawing/drawing-engine.js';
 import { interpolateFrame } from '../drawing/frame-interpolation.js';
 
 const FIELD_BACKGROUNDS = [
@@ -28,7 +28,7 @@ const DEFAULT_CANVAS = {
 
 const HALF_FIELD_CANVAS = { width: 1008, height: 720 };
 const CUADRO_THUMBNAIL_WIDTH = 640;
-const CUADRO_THUMBNAIL_VERSION = 2;
+const CUADRO_THUMBNAIL_VERSION = 3;
 const GOAL_POST_FIELD_WIDTH_RATIO = 0.112;
 
 /**
@@ -243,32 +243,39 @@ function fieldMarkings(settings, strong, medium, soft) {
  * @param {object} canvas
  * @returns {string}
  */
-function getFieldDataUrl(canvas = {}) {
+function getFieldSvgContent(canvas = {}) {
   const settings = normalizeCanvas(canvas);
   const light = isLightColor(settings.backgroundColor);
   const strong = light ? 'rgba(8,14,26,0.52)' : 'rgba(240,244,248,0.34)';
   const medium = light ? 'rgba(8,14,26,0.34)' : 'rgba(240,244,248,0.22)';
   const soft = light ? 'rgba(8,14,26,0.20)' : 'rgba(240,244,248,0.12)';
-  const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${settings.width} ${settings.height}">
-      <rect width="${settings.width}" height="${settings.height}" fill="${settings.backgroundColor}"/>
-      ${fieldMarkings(settings, strong, medium, soft)}
-    </svg>
+  return `
+    <rect width="${settings.width}" height="${settings.height}" fill="${settings.backgroundColor}"/>
+    ${fieldMarkings(settings, strong, medium, soft)}
   `;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
- * @param {string} src
- * @returns {Promise<HTMLImageElement>}
+ * @param {object} canvas
+ * @returns {string}
  */
-function loadImageForThumbnail(src) {
-  return new Promise((resolve, reject) => {
-    const image = new Image();
-    image.onload = () => resolve(image);
-    image.onerror = reject;
-    image.src = src;
-  });
+function getFieldSvg(canvas = {}) {
+  const settings = normalizeCanvas(canvas);
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${settings.width} ${settings.height}">
+      ${getFieldSvgContent(settings)}
+    </svg>
+  `;
+  return svg;
+}
+
+/**
+ * @param {object} canvas
+ * @returns {string}
+ */
+function getFieldDataUrl(canvas = {}) {
+  const svg = getFieldSvg(canvas);
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
@@ -278,20 +285,12 @@ function loadImageForThumbnail(src) {
  */
 async function generateCuadroThumbnail(cuadro = {}, canvasSettings = DEFAULT_CANVAS) {
   const settings = normalizeCanvas(canvasSettings);
-  const width = CUADRO_THUMBNAIL_WIDTH;
-  const height = Math.round(width * (settings.height / settings.width));
-  const output = document.createElement('canvas');
-  output.width = width;
-  output.height = height;
-  const ctx = output.getContext('2d');
-  if (!ctx) return '';
-  ctx.save();
-  ctx.scale(width / settings.width, height / settings.height);
-  const field = await loadImageForThumbnail(getFieldDataUrl(settings));
-  ctx.drawImage(field, 0, 0, settings.width, settings.height);
-  drawStrokes(ctx, Array.isArray(cuadro.elements) ? cuadro.elements : []);
-  ctx.restore();
-  return output.toDataURL('image/png');
+  const svg = serializeDrawingSvg(Array.isArray(cuadro.elements) ? cuadro.elements : [], {
+    width: settings.width,
+    height: settings.height,
+    background: getFieldSvgContent(settings),
+  });
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 
 /**
@@ -829,9 +828,10 @@ export function renderTacticalBoard(container) {
     thumbnailSyncTimer = window.setTimeout(async () => {
       if (!editorRef || editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
       try {
-        const thumbnail = await editorRef.getCompositeDataUrl();
+        const editorState = editorRef.getState();
+        const thumbnail = await generateCuadroThumbnail({ elements: editorState.strokes }, activeBoard?.canvas);
         if (editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
-        const payload = { ...editorRef.getState(), imageDataUrl: thumbnail };
+        const payload = { ...editorState, imageDataUrl: thumbnail };
         const nextFrames = snapshotActiveFrame(payload);
         activeBoard = {
           ...activeBoard,
@@ -858,8 +858,9 @@ export function renderTacticalBoard(container) {
       return persistActiveBoard({ ...activeBoard, frames: snapshotActiveFrame() });
     }
     try {
-      const thumbnail = await editor.getCompositeDataUrl();
-      const payload = { ...editor.getState(), imageDataUrl: thumbnail };
+      const editorState = editor.getState();
+      const thumbnail = await generateCuadroThumbnail({ elements: editorState.strokes }, activeBoard?.canvas);
+      const payload = { ...editorState, imageDataUrl: thumbnail };
       const nextFrames = snapshotActiveFrame(payload).map(frame => frame.id === activeFrameId
         ? {
             ...frame,
@@ -893,6 +894,7 @@ export function renderTacticalBoard(container) {
     const boardId = activeBoard.id;
     const frames = getFrames();
     const missing = frames.filter(frame => !frame.thumbnail
+      || !String(frame.thumbnail).startsWith('data:image/svg+xml')
       || Number(frame.thumbnailWidth) < CUADRO_THUMBNAIL_WIDTH
       || Number(frame.thumbnailVersion) !== CUADRO_THUMBNAIL_VERSION);
     if (!missing.length) return;
@@ -928,8 +930,14 @@ export function renderTacticalBoard(container) {
 
   async function saveActiveSequence(payload = null) {
     if (!activeBoard) return;
-    let nextFrames = snapshotActiveFrame(payload);
-    const thumbnail = payload?.imageDataUrl || await editor?.getCompositeDataUrl?.() || activeBoard.thumbnail || '';
+    const editorState = payload || editor?.getState?.() || {};
+    const canvasSettings = normalizeCanvas({
+      ...(activeBoard.canvas || {}),
+      ...(editorState?.canvas || {}),
+    });
+    const thumbnail = editorState?.imageDataUrl || await generateCuadroThumbnail({ elements: editorState?.strokes || [] }, canvasSettings);
+    const payloadWithThumbnail = { ...editorState, imageDataUrl: thumbnail };
+    let nextFrames = snapshotActiveFrame(payloadWithThumbnail);
     const activeFrame = getActiveFrame();
     nextFrames = nextFrames.map(frame => frame.id === activeFrame?.id ? {
       ...frame,
@@ -938,10 +946,6 @@ export function renderTacticalBoard(container) {
       thumbnailHeight: normalizeCanvas(activeBoard?.canvas).height,
       thumbnailVersion: CUADRO_THUMBNAIL_VERSION,
     } : frame);
-    const canvasSettings = normalizeCanvas({
-      ...(activeBoard.canvas || {}),
-      ...(payload?.canvas || editor?.getState?.()?.canvas || {}),
-    });
     await persistActiveBoard({ ...activeBoard, thumbnail, canvas: canvasSettings, frames: nextFrames });
   }
 

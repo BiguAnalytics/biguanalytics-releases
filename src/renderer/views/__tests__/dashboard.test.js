@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import * as dashboard from '../dashboard.js';
+
 const routerSource = readFileSync(new URL('../../router.js', import.meta.url), 'utf8');
 const dashboardSource = readFileSync(new URL('../dashboard.js', import.meta.url), 'utf8');
 const clipPlayerSource = readFileSync(new URL('../clip-player.js', import.meta.url), 'utf8');
@@ -45,6 +47,51 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain("navigate('tagging', { matchId: state.match.id, seekTo: timestamp })");
     expect(dashboardSource).toContain("showToast(container, 'El evento no tiene timestamp para navegar al video.')");
     expect(taggingSource).toContain('const initialSeekSeconds = normalizeSeekParam(params.seekTo)');
+  });
+
+  it('caps dashboard linked events per stat section and shows overflow context', () => {
+    const events = Array.from({ length: 14 }, (_, index) => ({
+      id: `ruck-${index + 1}`,
+      type: 'ruck',
+      team: index % 2 === 0 ? 'home' : 'away',
+      result: 'ganado',
+      timestamp: 60 + index,
+    }));
+    const html = dashboard.buildDashboardEventLinks({
+      events,
+    }, {
+      teams: {
+        home: { name: 'Bigua' },
+        away: { name: 'Rival' },
+      },
+    }, 'rucks');
+
+    expect((html.match(/data-dashboard-seek-event/g) || [])).toHaveLength(6);
+    expect(html).toContain('6 de 14');
+    expect(html).toContain('Mostrar mas');
+    expect(html).toContain('data-dashboard-show-more-events="rucks"');
+    expect(html).toContain('data-dashboard-next-event-limit="12"');
+
+    const expandedHtml = dashboard.buildDashboardEventLinks({
+      events,
+    }, {
+      teams: {
+        home: { name: 'Bigua' },
+        away: { name: 'Rival' },
+      },
+    }, 'rucks', 12);
+
+    expect((expandedHtml.match(/data-dashboard-seek-event/g) || [])).toHaveLength(12);
+    expect(expandedHtml).toContain('12 de 14');
+    expect(expandedHtml).toContain('data-dashboard-next-event-limit="18"');
+  });
+
+  it('wires show more event controls to release linked dashboard events in batches', () => {
+    expect(dashboardSource).toContain('eventLinkLimits');
+    expect(dashboardSource).toContain('data-dashboard-show-more-events');
+    expect(dashboardSource).toContain('data-dashboard-next-event-limit');
+    expect(dashboardSource).toContain('state.eventLinkLimits[sectionId] = nextLimit');
+    expect(dashboardSource).toContain('renderLoadedDashboard(container, state)');
   });
 
   it('renders dashboard controls, sections, notes drawer, heatmap filters and export flow', () => {

@@ -32,6 +32,14 @@ function getMatchTransferModule() {
   return lazyRequire('./modules/match-transfer');
 }
 
+function getPdfTemplatesModule() {
+  return lazyRequire('./modules/pdf-templates');
+}
+
+function getUpdaterModule() {
+  return lazyRequire('./modules/updater');
+}
+
 /**
  * @param {unknown} error
  * @returns {string}
@@ -290,6 +298,7 @@ function createRuntimeServices() {
 function registerIpcHandlers() {
   const startupTimer = getStartupTimer();
   const services = createRuntimeServices();
+  getUpdaterModule().registerUpdaterIpcHandlers();
 
   // License session and public config
   ipcMain.handle('auth:getAccessStatus', async () => startupTimer.timeAsync('auth:local-access-status', () => services.getAuthAccessService().getAccessStatus()));
@@ -361,6 +370,23 @@ function registerIpcHandlers() {
     return updated;
   });
 
+  // PDF templates
+  ipcMain.handle('pdfTemplates:list', async () => getPdfTemplatesModule().listPdfTemplates());
+  ipcMain.handle('pdfTemplates:get', async (e, id) => getPdfTemplatesModule().getPdfTemplate(id));
+  ipcMain.handle('pdfTemplates:create', async (e, data) => getPdfTemplatesModule().createPdfTemplate(data || {}));
+  ipcMain.handle('pdfTemplates:update', async (e, id, data) => getPdfTemplatesModule().updatePdfTemplate(id, data || {}));
+  ipcMain.handle('pdfTemplates:delete', async (e, id) => getPdfTemplatesModule().deletePdfTemplate(id));
+  ipcMain.handle('pdfTemplates:duplicate', async (e, id, data) => getPdfTemplatesModule().duplicatePdfTemplate(id, data || {}));
+  ipcMain.handle('pdfTemplates:setDefault', async (e, id) => getPdfTemplatesModule().setDefaultPdfTemplate(id));
+  ipcMain.handle('pdfTemplates:export', async (e, id) => {
+    const browserWindow = BrowserWindow.fromWebContents(e.sender);
+    return registerOpenResult(await getPdfTemplatesModule().exportPdfTemplate(id, { dialog, browserWindow }));
+  });
+  ipcMain.handle('pdfTemplates:import', async (e) => {
+    const browserWindow = BrowserWindow.fromWebContents(e.sender);
+    return getPdfTemplatesModule().importPdfTemplate({ dialog, browserWindow });
+  });
+
   // Analytics
   ipcMain.handle('analytics:getMatchStats', async (e, matchId, filters) => lazyRequire('./modules/analytics').getMatchStats(validateIpcMatchId(matchId), filters));
   ipcMain.handle('analytics:getSeasonStats', async (e, year) => lazyRequire('./modules/analytics').getSeasonStats(year));
@@ -368,6 +394,11 @@ function registerIpcHandlers() {
     const browserWindow = BrowserWindow.fromWebContents(e.sender);
     const { exportDashboardPdf } = lazyRequire('./modules/pdf-export');
     return registerOpenResult(await startupTimer.timeAsync('pdf:export', () => exportDashboardPdf(validateIpcMatchId(matchId), printPayload, { dialog, browserWindow })));
+  });
+  ipcMain.handle('analytics:previewPdf', async (e, matchId, printPayload) => {
+    const browserWindow = BrowserWindow.fromWebContents(e.sender);
+    const { previewDashboardPdf } = lazyRequire('./modules/pdf-export');
+    return registerOpenResult(await startupTimer.timeAsync('pdf:preview', () => previewDashboardPdf(matchId ? validateIpcMatchId(matchId) : '', printPayload, { browserWindow })));
   });
 
   // Clips

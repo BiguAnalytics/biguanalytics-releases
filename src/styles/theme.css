@@ -124,6 +124,8 @@
 :root[data-theme="light"] .settings-hotkey-record,
 :root[data-theme="light"] .settings-hotkey-reset,
 :root[data-theme="light"] .settings-microphone-card,
+:root[data-theme="light"] .settings-updater-card,
+:root[data-theme="light"] .settings-updater-button,
 :root[data-theme="light"] .settings-onboarding-card,
 :root[data-theme="light"] .settings-microphone-test,
 :root[data-theme="light"] .settings-onboarding-restart,

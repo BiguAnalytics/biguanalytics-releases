@@ -24,6 +24,13 @@ if (require('electron-squirrel-startup')) {
 }
 
 let mainWindow;
+let backgroundUpdaterStarted = false;
+
+function startBackgroundUpdaterOnce() {
+  if (backgroundUpdaterStarted) return;
+  backgroundUpdaterStarted = true;
+  require('./modules/updater').startUpdaterBackgroundCheck();
+}
 
 function configureYouTubeEmbeds() {
   const { buildYouTubeRequestHeaders } = require('./modules/media');
@@ -93,6 +100,7 @@ const createWindow = () => {
     mainWindow.maximize();
     mainWindow.show();
     startupTimer.mark('browser-window:show');
+    startBackgroundUpdaterOnce();
   }
 
   mainWindow.once('ready-to-show', () => {

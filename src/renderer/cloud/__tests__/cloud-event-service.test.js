@@ -56,6 +56,25 @@ describe('cloudEventService', () => {
     });
   });
 
+  it('uses normalized zoneId as the cloud zone when event.zone is missing', () => {
+    expect(mapLocalEventToCloud({
+      id: 'evt-zone',
+      timestamp: 18,
+      type: 'ruck',
+      team: 'home',
+      result: 'ganado',
+      zone: null,
+      zoneId: 'opp_22',
+      zoneLabel: '22 rival',
+    }, { matchId: 'match-1', clubId: 'club-1', userId: 'user-1' })).toMatchObject({
+      zone: 'opp_22',
+      payload: expect.objectContaining({
+        zoneId: 'opp_22',
+        zoneLabel: '22 rival',
+      }),
+    });
+  });
+
   it('maps cloud rows back into local tag events', () => {
     expect(mapCloudEventToLocal({
       id: 'evt-1',
@@ -75,6 +94,30 @@ describe('cloudEventService', () => {
       type: 'lineout',
       player: '2',
       updatedAt: '2026-05-31T00:01:00.000Z',
+    }));
+  });
+
+  it('does not lose heatmap zone data when cloud zone column is empty but payload has it', () => {
+    expect(mapCloudEventToLocal({
+      id: 'evt-zoned',
+      timestamp_ms: 22000,
+      event_type: 'ruck',
+      team: 'home',
+      result: 'ganado',
+      subtype: '',
+      zone: null,
+      note: '',
+      payload: {
+        zone: 'opp_22',
+        zoneId: 'opp_22',
+        zoneLabel: '22 rival',
+      },
+      created_at: '2026-05-31T00:00:00.000Z',
+      updated_at: '2026-05-31T00:01:00.000Z',
+    })).toEqual(expect.objectContaining({
+      zone: 'opp_22',
+      zoneId: 'opp_22',
+      zoneLabel: '22 rival',
     }));
   });
 

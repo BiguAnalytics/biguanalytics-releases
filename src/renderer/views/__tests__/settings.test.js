@@ -14,6 +14,8 @@ const {
   getMicrophoneLevelTone,
   getDecibelsFromRms,
   getAISettingsPayload,
+  getUpdaterProgressPercent,
+  getReadableUpdaterError,
 } = settingsModule;
 
 const settingsSource = readFileSync(new URL('../settings.js', import.meta.url), 'utf8');
@@ -88,10 +90,16 @@ describe('settings clip export configuration', () => {
     expect(settingsSource).toContain('Exportación de clips');
     expect(settingsSource).toContain('id="clip-pre-roll"');
     expect(settingsSource).toContain('id="clip-post-roll"');
+    expect(settingsSource).toContain('id="clip-output-mode"');
+    expect(settingsSource).toContain('id="clip-export-quality"');
+    expect(settingsSource).toContain('value="combined" selected');
+    expect(settingsSource).toContain('&#218;nico MP4');
     expect(settingsSource).toContain('min="0" max="60" step="1"');
     expect(settingsSource).toContain('min="1" max="60" step="1"');
     expect(settingsSource).toContain('clipPreRollSeconds');
     expect(settingsSource).toContain('clipPostRollSeconds');
+    expect(settingsSource).toContain('clipOutputModeDefault');
+    expect(settingsSource).toContain('clipExportQuality');
   });
 
   it('normalizes clip export settings before persisting them', () => {
@@ -100,6 +108,8 @@ describe('settings clip export configuration', () => {
         return {
           '#clip-pre-roll': { value: '-2' },
           '#clip-post-roll': { value: '99' },
+          '#clip-output-mode': { value: 'combined' },
+          '#clip-export-quality': { value: 'reencode' },
         }[selector] || null;
       },
     };
@@ -107,8 +117,8 @@ describe('settings clip export configuration', () => {
     expect(getClipExportSettingsPayload?.(container)).toEqual({
       clipPreRollSeconds: 5,
       clipPostRollSeconds: 60,
-      clipOutputModeDefault: 'separate',
-      clipExportQuality: 'copy',
+      clipOutputModeDefault: 'combined',
+      clipExportQuality: 'reencode',
     });
   });
 });
@@ -219,6 +229,54 @@ describe('settings AI backend configuration', () => {
     expect(getAISettingsPayload(container)).toEqual({});
     expect(settingsSource).not.toContain('await window.biguAIConfig?.set?.(getAISettingsPayload(container))');
     expect(settingsSource).not.toContain('await window.biguAIConfig.set(getAISettingsPayload(container))');
+  });
+});
+
+describe('settings updater configuration', () => {
+  it('renders an updates section with current version, manual check, download progress and install action', () => {
+    expect(settingsSource).toContain('Actualizaciones');
+    expect(settingsSource).toContain('Version actual');
+    expect(settingsSource).toContain('data-updater-current-version');
+    expect(settingsSource).toContain('data-updater-check');
+    expect(settingsSource).toContain('Buscar actualizacion');
+    expect(settingsSource).toContain('Nueva version disponible');
+    expect(settingsSource).toContain('data-updater-download');
+    expect(settingsSource).toContain('Descargar');
+    expect(settingsSource).toContain('data-updater-progress');
+    expect(settingsSource).toContain('Reiniciar e instalar');
+    expect(settingsSource).toContain('Estas usando la ultima version');
+  });
+
+  it('uses the fixed main-process updater API without allowing a user supplied update URL', () => {
+    expect(settingsSource).toContain('window.api.updater.getStatus');
+    expect(settingsSource).toContain('window.api.updater.check');
+    expect(settingsSource).toContain('window.api.updater.download');
+    expect(settingsSource).toContain('window.api.updater.install');
+    expect(settingsSource).toContain('window.api.updater.onEvent');
+    expect(settingsSource).not.toContain('data-updates-url');
+    expect(settingsSource).not.toContain('UPDATES_URL');
+    expect(settingsSource).not.toContain('type="url"');
+  });
+
+  it('normalizes updater progress percentage for display', () => {
+    expect(getUpdaterProgressPercent).toBeTypeOf('function');
+    expect(getUpdaterProgressPercent?.({ percent: 42.6 })).toBe(43);
+    expect(getUpdaterProgressPercent?.({ percent: -12 })).toBe(0);
+    expect(getUpdaterProgressPercent?.({ percent: 140 })).toBe(100);
+    expect(getUpdaterProgressPercent?.({})).toBe(0);
+  });
+
+  it('shows updater errors without technical stacks', () => {
+    expect(getReadableUpdaterError).toBeTypeOf('function');
+    const message = getReadableUpdaterError?.({
+      message: 'Error: network failed\n    at AutoUpdater.checkForUpdates (updater.js:10:2)',
+      stack: 'secret stack',
+    });
+
+    expect(message).toBe('No se pudo completar la actualizacion. Revisa tu conexion e intenta nuevamente.');
+    expect(message).not.toContain('AutoUpdater');
+    expect(message).not.toContain('at ');
+    expect(message).not.toContain('stack');
   });
 });
 

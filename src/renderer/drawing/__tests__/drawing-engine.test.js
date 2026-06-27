@@ -6,14 +6,18 @@ import {
   eraseStrokeAtPoint,
   findStrokeAtPoint,
   findStrokesInRect,
+  getSelectionBounds,
   getStrokeBounds,
+  hitTestSelectionResizeHandle,
   hitTestStroke,
   moveStrokes,
   moveStroke,
   pushHistory,
   redoHistory,
   removeStrokesByIds,
+  scaleStrokesFromSelectionHandle,
   scaleStrokes,
+  serializeDrawingSvg,
   smoothFreehandPoints,
   undoHistory,
 } from '../drawing-engine.js';
@@ -128,6 +132,37 @@ describe('drawing engine', () => {
     expect(scaled.find(stroke => stroke.id === 'cone')?.radius).toBe(18);
   });
 
+  it('scales selected tactical elements from a corner resize handle around the group center', () => {
+    const strokes = [
+      createStroke('line', { id: 'line', points: [{ x: 10, y: 10 }, { x: 60, y: 10 }], width: 3 }),
+      createStroke('player', { id: 'p9', points: [{ x: 100, y: 80 }], text: '9', radius: 20, width: 3 }),
+      createStroke('cone', { id: 'cone', points: [{ x: 220, y: 180 }], radius: 18, width: 3 }),
+    ];
+    const bounds = getSelectionBounds(strokes, ['line', 'p9']);
+
+    expect(bounds).toEqual({ x: 10, y: 10, width: 110, height: 90 });
+    expect(hitTestSelectionResizeHandle(bounds, { x: 128, y: 108 }, 4)).toBe(true);
+    expect(hitTestSelectionResizeHandle(bounds, { x: 120, y: 100 }, 4)).toBe(false);
+
+    const scaled = scaleStrokesFromSelectionHandle(
+      strokes,
+      ['line', 'p9'],
+      { x: 120, y: 100 },
+      { x: 175, y: 145 },
+    );
+
+    expect(scaled.find(stroke => stroke.id === 'line')).toEqual(expect.objectContaining({
+      width: 6,
+      points: [{ x: -45, y: -35 }, { x: 55, y: -35 }],
+    }));
+    expect(scaled.find(stroke => stroke.id === 'p9')).toEqual(expect.objectContaining({
+      radius: 40,
+      width: 6,
+      points: [{ x: 135, y: 105 }],
+    }));
+    expect(scaled.find(stroke => stroke.id === 'cone')?.points[0]).toEqual({ x: 220, y: 180 });
+  });
+
   it('creates bounded tactical equipment markers', () => {
     const ball = createStroke('ball', { points: [{ x: 80, y: 40 }] });
     const cone = createStroke('cone', { points: [{ x: 120, y: 40 }] });
@@ -135,6 +170,27 @@ describe('drawing engine', () => {
     expect(hitTestStroke(ball, { x: 90, y: 40 }, 2)).toBe(true);
     expect(hitTestStroke(cone, { x: 120, y: 52 }, 2)).toBe(true);
     expect(getStrokeBounds(ball)).toEqual({ x: 62, y: 22, width: 36, height: 36 });
+  });
+
+  it('serializes tactical markers and symbols as vector SVG primitives', () => {
+    const strokes = [
+      createStroke('player', { id: 'p1', points: [{ x: 50, y: 50 }], text: '1', radius: 24, color: '#FFFFFF' }),
+      createStroke('ball', { id: 'ball', points: [{ x: 110, y: 50 }], radius: 18 }),
+      createStroke('cone', { id: 'cone', points: [{ x: 160, y: 50 }], radius: 18 }),
+      createStroke('arrow', { id: 'arrow', points: [{ x: 30, y: 120 }, { x: 180, y: 120 }], width: 4, color: '#C8102E' }),
+      createStroke('text', { id: 'text', points: [{ x: 40, y: 170 }], text: 'Salida', fontSize: 20, color: '#FFFFFF' }),
+    ];
+
+    const svg = serializeDrawingSvg(strokes, { width: 240, height: 180, background: '<rect width="240" height="180" fill="#0E3B2A"/>' });
+
+    expect(svg).toContain('<svg');
+    expect(svg).toContain('<circle');
+    expect(svg).toContain('<ellipse');
+    expect(svg).toContain('<polygon');
+    expect(svg).toContain('<marker');
+    expect(svg).toContain('Salida');
+    expect(svg).not.toContain('<canvas');
+    expect(svg).not.toContain('<img');
   });
 
   it('hit-tests shape outlines without treating the filled interior as a stroke', () => {

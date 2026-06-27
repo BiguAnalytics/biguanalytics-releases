@@ -2,6 +2,7 @@
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { buildWalkthroughResetSettings } from '../components/walkthrough.js';
+import { buildPdfTemplateEditorWalkthroughResetSettings } from '../components/pdf-template-walkthrough.js';
 import { getAccessState } from '../auth/access-guard.js';
 import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
@@ -9,6 +10,8 @@ import { applyAppTheme, normalizeTheme } from '../theme.js';
 const DEFAULT_AUTO_CLOSE_MS = 8000;
 const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
 const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
+const DEFAULT_CLIP_OUTPUT_MODE = 'combined';
+const DEFAULT_CLIP_EXPORT_QUALITY = 'reencode';
 const DEFAULT_MICROPHONE_SETTINGS = {
   deviceId: '',
   label: 'Microfono predeterminado',
@@ -290,16 +293,20 @@ function normalizeClipSecondsInput(value, fallback, min) {
 
 /**
  * @param {HTMLElement|{querySelector: function(string): {value?: string}|null}} container
- * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipOutputModeDefault: 'separate', clipExportQuality: 'copy'}}
+ * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipOutputModeDefault: 'combined'|'separate', clipExportQuality: 'copy'|'reencode'}}
  */
 export function getClipExportSettingsPayload(container) {
   const preRoll = /** @type {{value?: string}|null} */ (container.querySelector('#clip-pre-roll'));
   const postRoll = /** @type {{value?: string}|null} */ (container.querySelector('#clip-post-roll'));
+  const outputMode = /** @type {{value?: string}|null} */ (container.querySelector('#clip-output-mode'));
+  const quality = /** @type {{value?: string}|null} */ (container.querySelector('#clip-export-quality'));
+  const normalizedOutputMode = outputMode?.value === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE;
+  const normalizedQuality = quality?.value === 'copy' ? 'copy' : DEFAULT_CLIP_EXPORT_QUALITY;
   return {
     clipPreRollSeconds: normalizeClipSecondsInput(preRoll?.value, DEFAULT_CLIP_PRE_ROLL_SECONDS, 0),
     clipPostRollSeconds: normalizeClipSecondsInput(postRoll?.value, DEFAULT_CLIP_POST_ROLL_SECONDS, 1),
-    clipOutputModeDefault: 'separate',
-    clipExportQuality: 'copy',
+    clipOutputModeDefault: normalizedOutputMode,
+    clipExportQuality: normalizedQuality,
   };
 }
 
@@ -324,6 +331,185 @@ export function getMicrophoneSettingsPayload(container) {
  */
 export function getAISettingsPayload(container) {
   return {};
+}
+
+/**
+ * @param {{percent?: number}|null|undefined} progress
+ * @returns {number}
+ */
+export function getUpdaterProgressPercent(progress) {
+  const percent = Number(progress?.percent);
+  if (!Number.isFinite(percent)) return 0;
+  return Math.max(0, Math.min(100, Math.round(percent)));
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+export function getReadableUpdaterError(error) {
+  return 'No se pudo completar la actualizacion. Revisa tu conexion e intenta nuevamente.';
+}
+
+/**
+ * @param {unknown} status
+ * @returns {string}
+ */
+function getUpdaterState(status) {
+  return String(status?.state || 'idle');
+}
+
+/**
+ * @param {unknown} status
+ * @returns {string}
+ */
+function getUpdaterCurrentVersion(status) {
+  return String(status?.currentVersion || 'No disponible');
+}
+
+/**
+ * @param {unknown} status
+ * @returns {string}
+ */
+function getUpdaterAvailableVersion(status) {
+  return String(status?.updateInfo?.version || '');
+}
+
+/**
+ * @param {HTMLElement|null} element
+ * @param {string} text
+ */
+function setText(element, text) {
+  if (element) element.textContent = text;
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {object} status
+ */
+function renderUpdaterStatus(container, status = {}) {
+  const state = getUpdaterState(status);
+  const currentVersion = /** @type {HTMLElement|null} */ (container.querySelector('[data-updater-current-version]'));
+  const statusText = /** @type {HTMLElement|null} */ (container.querySelector('[data-updater-status]'));
+  const checkButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-check]'));
+  const downloadButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-download]'));
+  const installButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-install]'));
+  const progress = /** @type {HTMLElement|null} */ (container.querySelector('[data-updater-progress]'));
+  const progressFill = /** @type {HTMLElement|null} */ (container.querySelector('[data-updater-progress-fill]'));
+  const progressLabel = /** @type {HTMLElement|null} */ (container.querySelector('[data-updater-progress-label]'));
+  const availableVersion = getUpdaterAvailableVersion(status);
+  const progressPercent = getUpdaterProgressPercent(status.progress);
+  const isBusy = state === 'checking' || state === 'downloading';
+
+  setText(currentVersion, getUpdaterCurrentVersion(status));
+  if (checkButton) checkButton.disabled = isBusy;
+  if (downloadButton) {
+    downloadButton.hidden = state !== 'available';
+    downloadButton.disabled = isBusy;
+  }
+  if (installButton) {
+    installButton.hidden = state !== 'downloaded';
+    installButton.disabled = false;
+  }
+  if (progress) progress.hidden = !['downloading', 'downloaded'].includes(state);
+  if (progressFill) progressFill.style.transform = `scaleX(${state === 'downloaded' ? 1 : progressPercent / 100})`;
+  setText(progressLabel, `${state === 'downloaded' ? 100 : progressPercent}%`);
+
+  if (!status.enabled && state !== 'error') {
+    setText(statusText, 'Actualizaciones desactivadas en desarrollo.');
+    if (statusText) statusText.dataset.tone = 'neutral';
+    return;
+  }
+
+  const messages = {
+    idle: 'Sin verificar.',
+    checking: 'Buscando actualizacion...',
+    available: availableVersion ? `Nueva version disponible: ${availableVersion}` : 'Nueva version disponible',
+    'not-available': 'Estas usando la ultima version',
+    downloading: `Descargando actualizacion... ${progressPercent}%`,
+    downloaded: 'Actualizacion lista para instalar.',
+    disabled: 'Actualizaciones desactivadas en desarrollo.',
+    error: getReadableUpdaterError(status.error),
+  };
+
+  setText(statusText, messages[state] || messages.idle);
+  if (statusText) {
+    statusText.dataset.tone = state === 'error' ? 'error' : state === 'downloaded' ? 'ok' : 'neutral';
+  }
+}
+
+/**
+ * @param {HTMLElement} container
+ * @param {HTMLElement|null} feedback
+ * @returns {Promise<function>}
+ */
+async function setupUpdaterSettings(container, feedback) {
+  if (!window.api?.updater) {
+    renderUpdaterStatus(container, { state: 'disabled', enabled: false });
+    return () => {};
+  }
+
+  const checkButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-check]'));
+  const downloadButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-download]'));
+  const installButton = /** @type {HTMLButtonElement|null} */ (container.querySelector('[data-updater-install]'));
+  const applyStatus = (status) => renderUpdaterStatus(container, status || {});
+  const applyError = (error) => renderUpdaterStatus(container, {
+    state: 'error',
+    enabled: true,
+    currentVersion: 'No disponible',
+    error: getReadableUpdaterError(error),
+  });
+
+  try {
+    applyStatus(await window.api.updater.getStatus());
+  } catch (error) {
+    applyError(error);
+  }
+
+  const removeUpdaterListener = window.api.updater.onEvent((event) => {
+    const nextStatus = {
+      ...(event?.status || {}),
+      error: event?.message || event?.status?.error || '',
+    };
+    applyStatus(nextStatus);
+    if (event?.type === 'update:available') {
+      window.dispatchEvent(new CustomEvent('bigu:updater-available', { detail: nextStatus }));
+    }
+  });
+
+  checkButton?.addEventListener('click', async () => {
+    try {
+      applyStatus({ ...(await window.api.updater.getStatus()), state: 'checking' });
+      applyStatus(await window.api.updater.check());
+    } catch (error) {
+      applyError(error);
+    }
+  });
+
+  downloadButton?.addEventListener('click', async () => {
+    try {
+      applyStatus({ ...(await window.api.updater.getStatus()), state: 'downloading' });
+      applyStatus(await window.api.updater.download());
+    } catch (error) {
+      applyError(error);
+    }
+  });
+
+  installButton?.addEventListener('click', async () => {
+    const idleLabel = installButton.textContent || 'Reiniciar e instalar';
+    installButton.disabled = true;
+    installButton.textContent = 'Reiniciando...';
+    try {
+      await window.api.updater.install();
+    } catch (error) {
+      installButton.disabled = false;
+      installButton.textContent = idleLabel;
+      applyError(error);
+      if (feedback) feedback.textContent = getReadableUpdaterError(error);
+    }
+  });
+
+  return typeof removeUpdaterListener === 'function' ? removeUpdaterListener : () => {};
 }
 
 /**
@@ -560,6 +746,8 @@ export async function renderSettings(container) {
     { id: 'home', label: 'Inicio' },
   ], (id) => navigate(id));
 
+  const settings = await window.api.settings.get();
+
   container.innerHTML = `
     <section class="settings-view view-enter">
       <div class="construction-panel settings-panel">
@@ -623,6 +811,29 @@ export async function renderSettings(container) {
               </div>
               <div class="settings-ai-actions">
                 <button class="settings-ai-test" type="button" data-ai-test-connection>Probar conexion</button>
+              </div>
+            </div>
+          </fieldset>
+          <fieldset class="settings-updater-section">
+            <legend class="form-label">Actualizaciones</legend>
+            <div class="settings-updater-card">
+              <div class="settings-updater-row">
+                <span>
+                  <strong>Version actual</strong>
+                  <small data-updater-current-version>No disponible</small>
+                </span>
+                <p class="settings-updater-status" data-updater-status role="status" data-tone="neutral">Sin verificar.</p>
+              </div>
+              <div class="settings-updater-progress" data-updater-progress hidden aria-label="Progreso de descarga">
+                <div class="settings-updater-progress-track">
+                  <span class="settings-updater-progress-fill" data-updater-progress-fill></span>
+                </div>
+                <span class="settings-updater-progress-label tabular-nums" data-updater-progress-label>0%</span>
+              </div>
+              <div class="settings-updater-actions">
+                <button class="settings-updater-button" type="button" data-updater-check>Buscar actualizacion</button>
+                <button class="settings-updater-button" type="button" data-updater-download hidden>Descargar</button>
+                <button class="settings-updater-button settings-updater-install" type="button" data-updater-install hidden>Reiniciar e instalar</button>
               </div>
             </div>
           </fieldset>
@@ -727,6 +938,39 @@ export async function renderSettings(container) {
                 </span>
                 <input class="form-input" type="number" id="clip-post-roll" min="1" max="60" step="1" aria-label="Segundos después del evento" />
               </label>
+              <label class="settings-alert-row">
+                <span>
+                  <strong>Salida predeterminada</strong>
+                  <small>Unico MP4 genera un video completo con separadores.</small>
+                </span>
+                <select class="form-input" id="clip-output-mode" aria-label="Salida predeterminada de clips">
+                  <option value="combined" selected>&#218;nico MP4</option>
+                  <option value="separate">Clips separados</option>
+                </select>
+              </label>
+              <label class="settings-alert-row">
+                <span>
+                  <strong>Calidad de corte</strong>
+                  <small>Recomendado evita frames negros al inicio; rapido copia streams.</small>
+                </span>
+                <select class="form-input" id="clip-export-quality" aria-label="Calidad de corte de clips">
+                  <option value="reencode">Recomendado</option>
+                  <option value="copy">Rapido</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+          <fieldset class="settings-onboarding-section">
+            <legend class="form-label">Plantillas PDF</legend>
+            <div class="settings-onboarding-card">
+              <span>
+                <strong>Plantillas PDF</strong>
+                <small>Administra layouts locales del informe sin guardar datos del partido.</small>
+              </span>
+              <div class="settings-onboarding-actions">
+                <button class="settings-onboarding-restart" type="button" data-pdf-templates-open>Administrar plantillas</button>
+                <button class="settings-onboarding-restart" type="button" data-pdf-template-walkthrough-restart>Ver tutorial de plantillas</button>
+              </div>
             </div>
           </fieldset>
           <button class="btn btn-primary" type="submit">Guardar ajustes</button>
@@ -736,11 +980,12 @@ export async function renderSettings(container) {
     </section>
   `;
 
-  const settings = await window.api.settings.get();
   const statsOnly = /** @type {HTMLInputElement} */ (container.querySelector('#stats-only-mode'));
   const autoClose = /** @type {HTMLInputElement} */ (container.querySelector('#tagging-auto-close'));
   const clipPreRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-pre-roll'));
   const clipPostRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-post-roll'));
+  const clipOutputMode = /** @type {HTMLSelectElement|null} */ (container.querySelector('#clip-output-mode'));
+  const clipExportQuality = /** @type {HTMLSelectElement|null} */ (container.querySelector('#clip-export-quality'));
   const aiStatus = /** @type {HTMLElement|null} */ (container.querySelector('[data-ai-status]'));
   const feedback = container.querySelector('#settings-feedback');
   const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
@@ -749,6 +994,8 @@ export async function renderSettings(container) {
   autoClose.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
   if (clipPreRoll) clipPreRoll.value = String(settings.clipPreRollSeconds ?? DEFAULT_CLIP_PRE_ROLL_SECONDS);
   if (clipPostRoll) clipPostRoll.value = String(settings.clipPostRollSeconds ?? DEFAULT_CLIP_POST_ROLL_SECONDS);
+  if (clipOutputMode) clipOutputMode.value = settings.clipOutputModeDefault === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE;
+  if (clipExportQuality) clipExportQuality.value = settings.clipExportQuality === 'copy' ? 'copy' : DEFAULT_CLIP_EXPORT_QUALITY;
   DEFAULT_HOTKEY_FIELDS.forEach((field) => {
     const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
     if (input) input.value = settings.tagging?.hotkeys?.[field.key] || field.original;
@@ -760,6 +1007,7 @@ export async function renderSettings(container) {
     if (input) input.value = String(settings.alerts?.[field.key] ?? field.defaultValue);
   });
   const cleanupMicrophoneSettings = setupMicrophoneSettings(container, settings, feedback);
+  const cleanupUpdaterSettings = await setupUpdaterSettings(container, feedback);
 
   let thresholdSaveTimer = null;
   const saveThresholds = () => {
@@ -837,6 +1085,27 @@ export async function renderSettings(container) {
     }
   });
 
+  container.querySelector('[data-pdf-templates-open]')?.addEventListener('click', () => {
+    navigate('pdfTemplates');
+  });
+
+  container.querySelector('[data-pdf-template-walkthrough-restart]')?.addEventListener('click', async (event) => {
+    const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
+    const idleLabel = button.textContent || 'Ver tutorial de plantillas';
+    button.disabled = true;
+    button.textContent = 'Preparando...';
+    try {
+      const currentSettings = await window.api.settings.get();
+      await window.api.settings.set(buildPdfTemplateEditorWalkthroughResetSettings(currentSettings));
+      if (feedback) feedback.textContent = 'Tutorial de plantillas PDF reiniciado.';
+      navigate('pdfTemplates');
+    } catch {
+      if (feedback) feedback.textContent = 'No se pudo reiniciar el tutorial de plantillas PDF.';
+      button.disabled = false;
+      button.textContent = idleLabel;
+    }
+  });
+
   container.querySelectorAll('[data-default-hotkey]').forEach((input) => {
     input.addEventListener('input', () => {
       const field = DEFAULT_HOTKEY_FIELDS.find(item => item.key === input.dataset.defaultHotkey);
@@ -901,5 +1170,6 @@ export async function renderSettings(container) {
   return () => {
     finishHotkeyRecording();
     cleanupMicrophoneSettings();
+    cleanupUpdaterSettings();
   };
 }

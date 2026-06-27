@@ -2,6 +2,7 @@
 
 const HISTORY_LIMIT = 20;
 const MARKER_TOOLS = new Set(['player', 'ball', 'cone', 'pad']);
+const SELECTION_RESIZE_HANDLE_OFFSET = 8;
 
 /**
  * @returns {string}
@@ -231,6 +232,45 @@ export function findStrokesInRect(strokes, rect) {
 }
 
 /**
+ * @param {Array<object>} strokes
+ * @param {Array<string>} ids
+ * @returns {{x: number, y: number, width: number, height: number}|null}
+ */
+export function getSelectionBounds(strokes, ids) {
+  const selected = new Set(ids);
+  const bounds = (Array.isArray(strokes) ? strokes : [])
+    .filter(stroke => selected.has(stroke.id))
+    .map(getStrokeBounds)
+    .filter(Boolean);
+  if (bounds.length === 0) return null;
+  const minX = Math.min(...bounds.map(bound => bound.x));
+  const minY = Math.min(...bounds.map(bound => bound.y));
+  const maxX = Math.max(...bounds.map(bound => bound.x + bound.width));
+  const maxY = Math.max(...bounds.map(bound => bound.y + bound.height));
+  return {
+    x: minX,
+    y: minY,
+    width: Math.max(1, maxX - minX),
+    height: Math.max(1, maxY - minY),
+  };
+}
+
+/**
+ * @param {{x: number, y: number, width: number, height: number}|null} bounds
+ * @param {{x: number, y: number}} point
+ * @param {number} tolerance
+ * @returns {boolean}
+ */
+export function hitTestSelectionResizeHandle(bounds, point, tolerance = 8) {
+  if (!bounds) return false;
+  const handle = {
+    x: bounds.x + bounds.width + SELECTION_RESIZE_HANDLE_OFFSET,
+    y: bounds.y + bounds.height + SELECTION_RESIZE_HANDLE_OFFSET,
+  };
+  return Math.hypot(point.x - handle.x, point.y - handle.y) <= Math.max(4, tolerance);
+}
+
+/**
  * @param {object} stroke
  * @param {number} dx
  * @param {number} dy
@@ -289,15 +329,14 @@ function getStrokeCenter(stroke) {
  * @param {number} factor
  * @returns {object}
  */
-function scaleStroke(stroke, factor) {
+function scaleStroke(stroke, factor, origin = getStrokeCenter(stroke)) {
   const scale = Math.max(0.25, Math.min(4, Number(factor) || 1));
-  const center = getStrokeCenter(stroke);
   const next = {
     ...stroke,
     width: Math.max(1, (Number(stroke.width) || 1) * scale),
     points: (stroke.points || []).map(point => ({
-      x: center.x + (point.x - center.x) * scale,
-      y: center.y + (point.y - center.y) * scale,
+      x: origin.x + (point.x - origin.x) * scale,
+      y: origin.y + (point.y - origin.y) * scale,
     })),
   };
   if (MARKER_TOOLS.has(stroke.tool)) next.radius = Math.max(8, (Number(stroke.radius) || 18) * scale);
@@ -315,6 +354,28 @@ export function scaleStrokes(strokes, ids, factor) {
   const selected = new Set(ids);
   if (!selected.size) return strokes;
   return strokes.map(stroke => (selected.has(stroke.id) ? scaleStroke(stroke, factor) : stroke));
+}
+
+/**
+ * @param {Array<object>} strokes
+ * @param {Array<string>} ids
+ * @param {{x: number, y: number}} startPoint
+ * @param {{x: number, y: number}} currentPoint
+ * @returns {Array<object>}
+ */
+export function scaleStrokesFromSelectionHandle(strokes, ids, startPoint, currentPoint) {
+  const selected = new Set(ids);
+  if (!selected.size) return strokes;
+  const bounds = getSelectionBounds(strokes, ids);
+  if (!bounds) return strokes;
+  const origin = {
+    x: bounds.x + bounds.width / 2,
+    y: bounds.y + bounds.height / 2,
+  };
+  const startDistance = Math.max(1, Math.hypot(startPoint.x - origin.x, startPoint.y - origin.y));
+  const currentDistance = Math.max(1, Math.hypot(currentPoint.x - origin.x, currentPoint.y - origin.y));
+  const factor = currentDistance / startDistance;
+  return strokes.map(stroke => (selected.has(stroke.id) ? scaleStroke(stroke, factor, origin) : stroke));
 }
 
 /**
@@ -632,6 +693,211 @@ export function drawStroke(ctx, stroke) {
  */
 export function drawStrokes(ctx, strokes = []) {
   strokes.forEach(stroke => drawStroke(ctx, stroke));
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function escapeSvg(value) {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
+}
+
+/**
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function svgNumber(value, fallback = 0) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? Number(numeric.toFixed(3)) : fallback;
+}
+
+/**
+ * @param {object} point
+ * @returns {{x: number, y: number}}
+ */
+function svgPoint(point = {}) {
+  return {
+    x: svgNumber(point.x),
+    y: svgNumber(point.y),
+  };
+}
+
+/**
+ * @param {object} stroke
+ * @returns {string}
+ */
+function svgStrokeColor(stroke) {
+  return escapeSvg(stroke.color || '#FFFFFF');
+}
+
+/**
+ * @param {Array<{x: number, y: number}>} points
+ * @returns {string}
+ */
+function svgPointList(points = []) {
+  return points.map(point => `${svgNumber(point.x)},${svgNumber(point.y)}`).join(' ');
+}
+
+/**
+ * @param {object} stroke
+ * @returns {string}
+ */
+function renderPlayerSvg(stroke) {
+  const point = svgPoint(stroke.points[0]);
+  const radius = Math.max(12, Number(stroke.radius) || 18);
+  const strokeWidth = Math.max(2, (Number(stroke.width) || 3) * 0.8);
+  const fontSize = Math.max(13, radius * 0.9);
+  return `
+    <g class="drawing-svg-player">
+      <circle cx="${svgNumber(point.x)}" cy="${svgNumber(point.y)}" r="${svgNumber(radius)}" fill="${svgStrokeColor(stroke)}" stroke="rgba(255,255,255,0.88)" stroke-width="${svgNumber(strokeWidth)}"/>
+      <text x="${svgNumber(point.x)}" y="${svgNumber(point.y + 0.5)}" fill="${escapeSvg(readableTextColor(stroke.color || '#FFFFFF'))}" font-family="Arial, sans-serif" font-size="${svgNumber(fontSize)}" font-weight="900" text-anchor="middle" dominant-baseline="central">${escapeSvg(stroke.text || '')}</text>
+    </g>
+  `;
+}
+
+/**
+ * @param {object} stroke
+ * @returns {string}
+ */
+function renderBallSvg(stroke) {
+  const point = svgPoint(stroke.points[0]);
+  const radius = Math.max(12, Number(stroke.radius) || 18);
+  return `
+    <g class="drawing-svg-ball" transform="translate(${svgNumber(point.x)} ${svgNumber(point.y)}) rotate(-20)">
+      <ellipse cx="0" cy="0" rx="${svgNumber(radius * 0.95)}" ry="${svgNumber(radius * 0.58)}" fill="#B9794B" stroke="rgba(255,255,255,0.86)" stroke-width="2"/>
+      <line x1="${svgNumber(-radius * 0.35)}" y1="0" x2="${svgNumber(radius * 0.35)}" y2="0" stroke="rgba(255,255,255,0.86)" stroke-width="2" stroke-linecap="round"/>
+      ${[-0.18, 0, 0.18].map(offset => `
+        <line x1="${svgNumber(offset * radius)}" y1="${svgNumber(-radius * 0.22)}" x2="${svgNumber(offset * radius)}" y2="${svgNumber(radius * 0.22)}" stroke="rgba(255,255,255,0.86)" stroke-width="2" stroke-linecap="round"/>
+      `).join('')}
+    </g>
+  `;
+}
+
+/**
+ * @param {object} stroke
+ * @returns {string}
+ */
+function renderConeSvg(stroke) {
+  const point = svgPoint(stroke.points[0]);
+  const radius = Math.max(12, Number(stroke.radius) || 18);
+  const points = [
+    { x: point.x, y: point.y - radius },
+    { x: point.x + radius * 0.82, y: point.y + radius },
+    { x: point.x - radius * 0.82, y: point.y + radius },
+  ];
+  return `
+    <g class="drawing-svg-cone">
+      <polygon points="${svgPointList(points)}" fill="#F5B63D" stroke="rgba(5,9,17,0.42)" stroke-width="2" stroke-linejoin="round"/>
+      <rect x="${svgNumber(point.x - radius * 0.42)}" y="${svgNumber(point.y + radius * 0.2)}" width="${svgNumber(radius * 0.84)}" height="${svgNumber(radius * 0.18)}" fill="rgba(255,255,255,0.55)"/>
+    </g>
+  `;
+}
+
+/**
+ * @param {object} stroke
+ * @returns {string}
+ */
+function renderPadSvg(stroke) {
+  const point = svgPoint(stroke.points[0]);
+  const radius = Math.max(12, Number(stroke.radius) || 18);
+  const x = point.x - radius;
+  const y = point.y - radius;
+  const size = radius * 2;
+  return `
+    <g class="drawing-svg-pad">
+      <rect x="${svgNumber(x)}" y="${svgNumber(y)}" width="${svgNumber(size)}" height="${svgNumber(size)}" rx="${svgNumber(radius * 0.28)}" fill="#4D7CFE" stroke="rgba(255,255,255,0.72)" stroke-width="2"/>
+      <line x1="${svgNumber(point.x - radius * 0.48)}" y1="${svgNumber(point.y)}" x2="${svgNumber(point.x + radius * 0.48)}" y2="${svgNumber(point.y)}" stroke="rgba(5,9,17,0.42)" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  `;
+}
+
+/**
+ * @param {object} stroke
+ * @param {number} index
+ * @returns {string}
+ */
+function renderStrokeSvg(stroke, index) {
+  const points = stroke.points || [];
+  if (points.length === 0) return '';
+  const color = svgStrokeColor(stroke);
+  const width = Math.max(1, Number(stroke.width) || 3);
+
+  if (stroke.tool === 'text') {
+    const point = svgPoint(points[0]);
+    return `<text x="${svgNumber(point.x)}" y="${svgNumber(point.y)}" fill="${color}" font-family="Arial, sans-serif" font-size="${svgNumber(Number(stroke.fontSize) || 24)}" font-weight="700">${escapeSvg(stroke.text || '')}</text>`;
+  }
+
+  if (stroke.tool === 'player') return renderPlayerSvg(stroke);
+  if (stroke.tool === 'ball') return renderBallSvg(stroke);
+  if (stroke.tool === 'cone') return renderConeSvg(stroke);
+  if (stroke.tool === 'pad') return renderPadSvg(stroke);
+
+  if ((stroke.tool === 'line' || stroke.tool === 'arrow') && points.length >= 2) {
+    const start = svgPoint(points[0]);
+    const end = svgPoint(points[points.length - 1]);
+    const markerId = `drawing-arrow-${index}`;
+    const marker = stroke.tool === 'arrow'
+      ? `<defs><marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="4" markerHeight="4" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 Z" fill="${color}"/></marker></defs>`
+      : '';
+    return `
+      ${marker}
+      <line x1="${svgNumber(start.x)}" y1="${svgNumber(start.y)}" x2="${svgNumber(end.x)}" y2="${svgNumber(end.y)}" stroke="${color}" stroke-width="${svgNumber(width)}" stroke-linecap="round" stroke-linejoin="round"${stroke.tool === 'arrow' ? ` marker-end="url(#${markerId})"` : ''}/>
+    `;
+  }
+
+  if (stroke.tool === 'freehand' && points.length >= 2) {
+    const smoothed = smoothFreehandPoints(points);
+    return `<polyline points="${svgPointList(smoothed)}" fill="none" stroke="${color}" stroke-width="${svgNumber(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+
+  if ((stroke.tool === 'rect' || stroke.tool === 'ellipse') && points.length >= 2) {
+    const start = svgPoint(points[0]);
+    const end = svgPoint(points[1]);
+    const x = Math.min(start.x, end.x);
+    const y = Math.min(start.y, end.y);
+    const rectWidth = Math.abs(end.x - start.x);
+    const rectHeight = Math.abs(end.y - start.y);
+    if (stroke.tool === 'rect') {
+      return `<rect x="${svgNumber(x)}" y="${svgNumber(y)}" width="${svgNumber(rectWidth)}" height="${svgNumber(rectHeight)}" fill="none" stroke="${color}" stroke-width="${svgNumber(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+    }
+    return `<ellipse cx="${svgNumber(x + rectWidth / 2)}" cy="${svgNumber(y + rectHeight / 2)}" rx="${svgNumber(rectWidth / 2)}" ry="${svgNumber(rectHeight / 2)}" fill="none" stroke="${color}" stroke-width="${svgNumber(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+
+  if (points.length >= 2) {
+    return `<polyline points="${svgPointList(points)}" fill="none" stroke="${color}" stroke-width="${svgNumber(width)}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  }
+
+  return '';
+}
+
+/**
+ * @param {Array<object>} strokes
+ * @param {{width?: number, height?: number, background?: string}} canvas
+ * @returns {string}
+ */
+export function serializeDrawingSvg(strokes, canvas = {}) {
+  const width = Math.max(1, Number(canvas.width) || 1200);
+  const height = Math.max(1, Number(canvas.height) || 720);
+  const background = typeof canvas.background === 'string' ? canvas.background : '';
+  const content = (Array.isArray(strokes) ? strokes : [])
+    .map((stroke, index) => renderStrokeSvg(stroke, index))
+    .filter(Boolean)
+    .join('\n');
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${svgNumber(width)} ${svgNumber(height)}" width="${svgNumber(width)}" height="${svgNumber(height)}" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+      ${background}
+      <g class="drawing-svg-layer">
+        ${content}
+      </g>
+    </svg>
+  `;
 }
 
 /**

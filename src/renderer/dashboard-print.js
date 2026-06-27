@@ -1,4 +1,6 @@
 // @ts-check
+import { DEFAULT_PDF_TEMPLATE } from './pdf/default-template.js';
+import { renderPdfTemplatePages, validateTemplateLayout } from './pdf/pdf-blocks.js';
 
 window.__BIGU_PDF_READY__ = false;
 
@@ -358,12 +360,9 @@ function frameLimitWarning(payload) {
 
 /**
  * @param {object} payload
- * @returns {Promise<{ready: boolean, pageCount: number}>}
+ * @returns {string}
  */
-window.renderDashboardPrint = async function renderDashboardPrint(payload) {
-  window.__BIGU_PDF_READY__ = false;
-  const root = document.getElementById('print-root');
-  if (!root) throw new Error('Contenedor PDF no disponible.');
+function renderLegacyDashboardPrint(payload) {
   const stats = payload.stats;
   const chartImages = payload.chartImages || {};
   const notesHtml = payload.notesHtml || '';
@@ -452,7 +451,24 @@ window.renderDashboardPrint = async function renderDashboardPrint(payload) {
     `);
   }
 
-  root.innerHTML = pages.filter(Boolean).join('');
+  return pages.filter(Boolean).join('');
+}
+
+/**
+ * @param {object} payload
+ * @returns {Promise<{ready: boolean, pageCount: number}>}
+ */
+window.renderDashboardPrint = async function renderDashboardPrint(payload) {
+  window.__BIGU_PDF_READY__ = false;
+  const root = document.getElementById('print-root');
+  if (!root) throw new Error('Contenedor PDF no disponible.');
+
+  const templateLayout = payload.pdfTemplateLayout || DEFAULT_PDF_TEMPLATE;
+  const templateReport = validateTemplateLayout(templateLayout);
+  root.innerHTML = templateReport.valid
+    ? renderPdfTemplatePages(payload, templateLayout)
+    : renderLegacyDashboardPrint(payload);
+
   const licenseFooter = printLicenseWatermark(payload.license);
   if (licenseFooter) {
     root.querySelectorAll('.print-page').forEach((page) => {

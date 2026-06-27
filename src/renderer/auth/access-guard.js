@@ -9,7 +9,7 @@ import { ACCESS_STATES, isProfilePersonalInfoComplete, licenseService } from './
 import { markStartup } from '../startup-timing.js';
 import { renderBiguLogo, wireBiguLogoFallback } from '../brand-logo.js';
 
-export const PROTECTED_ROUTES = ['home', 'tagging', 'dashboard', 'clips', 'settings', 'season', 'tactical'];
+export const PROTECTED_ROUTES = ['home', 'tagging', 'dashboard', 'clips', 'settings', 'season', 'tactical', 'pdfTemplates'];
 export const BLOCKING_ACCESS_TIMEOUT_MS = 5000;
 export const BACKGROUND_ACCESS_TIMEOUT_MS = 7000;
 const ACCESS_CHECK_TIMEOUT_MS = BLOCKING_ACCESS_TIMEOUT_MS;

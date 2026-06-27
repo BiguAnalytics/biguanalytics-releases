@@ -11,7 +11,12 @@ const MISSING_TIMESTAMP_MESSAGE = 'El evento no tiene timestamp válido para exp
 const EMPTY_EXPORT_MESSAGE = 'No hay clips para exportar con estos filtros.';
 const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
 const DEFAULT_CLIP_POST_ROLL_SECONDS = 8;
+const DEFAULT_CLIP_OUTPUT_MODE = 'combined';
 const MAX_CLIP_EDGE_SECONDS = 60;
+const COMBINED_SEPARATOR_SECONDS = 2.85;
+const CONCAT_WIDTH = 1920;
+const CONCAT_HEIGHT = 1080;
+const CONCAT_FPS = 30;
 
 /**
  * @param {number|string|null|undefined} value
@@ -27,14 +32,35 @@ function normalizeClipSeconds(value, fallback, min) {
 
 /**
  * @param {object} [settings]
- * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipExportQuality: string}}
+ * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipOutputModeDefault: 'combined'|'separate', clipExportQuality: string}}
  */
 function normalizeClipSettings(settings = {}) {
   return {
     clipPreRollSeconds: normalizeClipSeconds(settings.clipPreRollSeconds, DEFAULT_CLIP_PRE_ROLL_SECONDS, 0),
     clipPostRollSeconds: normalizeClipSeconds(settings.clipPostRollSeconds, DEFAULT_CLIP_POST_ROLL_SECONDS, 1),
-    clipExportQuality: settings.clipExportQuality === 'reencode' ? 'reencode' : 'copy',
+    clipOutputModeDefault: settings.clipOutputModeDefault === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE,
+    clipExportQuality: settings.clipExportQuality === 'copy' ? 'copy' : 'reencode',
   };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function optionalSeconds(value) {
+  if (value === null || value === undefined || value === '') return Number.NaN;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) ? numeric : Number.NaN;
+}
+
+/**
+ * @param {unknown} value
+ * @param {'combined'|'separate'} fallback
+ * @returns {'combined'|'separate'}
+ */
+function normalizeOutputMode(value, fallback = DEFAULT_CLIP_OUTPUT_MODE) {
+  if (value === 'combined' || value === 'separate') return value;
+  return fallback === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE;
 }
 
 /**
@@ -140,8 +166,8 @@ function eventMatchesResult(event, resultFilter) {
 function filterEventsForClipExport(events = [], filters = {}, match = {}) {
   const type = normalizeKey(filters.type || 'all');
   const team = resolveTeamFilter(filters.team, match);
-  const fromSeconds = Number(filters.fromSeconds);
-  const toSeconds = Number(filters.toSeconds);
+  const fromSeconds = optionalSeconds(filters.fromSeconds);
+  const toSeconds = optionalSeconds(filters.toSeconds);
   const hasFrom = Number.isFinite(fromSeconds);
   const hasTo = Number.isFinite(toSeconds);
   const selectedIds = Array.isArray(filters.eventIds) && filters.eventIds.length > 0
@@ -197,6 +223,14 @@ function formatTimestampForFile(seconds) {
 }
 
 /**
+ * @param {number|string|null|undefined} seconds
+ * @returns {string}
+ */
+function formatTimestampForSeparator(seconds) {
+  return `Tiempo ${formatTimestampForFile(seconds).replace(/-/g, ':')}`;
+}
+
+/**
  * @param {number} index
  * @param {object} event
  * @returns {string}
@@ -222,6 +256,22 @@ function buildBatchFolderName(match) {
 }
 
 /**
+ * @param {object} match
+ * @returns {string}
+ */
+function buildCombinedClipFileName(match) {
+  return `${buildBatchFolderName(match)}.mp4`;
+}
+
+/**
+ * @param {string} jobId
+ * @returns {string}
+ */
+function buildCombinedTempFolderName(jobId) {
+  return `_tmp_${sanitizeNamePart(jobId, { preserveCase: true, allowHyphen: true })}`;
+}
+
+/**
  * @param {string} executablePath
  * @returns {string}
  */
@@ -242,6 +292,13 @@ function getDefaultFfmpegPath() {
 function getDefaultFfprobePath() {
   const ffprobe = require('ffprobe-static');
   return resolveAsarUnpackedPath(typeof ffprobe === 'string' ? ffprobe : ffprobe.path);
+}
+
+/**
+ * @returns {string}
+ */
+function getDefaultLogoPath() {
+  return path.resolve(__dirname, '../../../LOGO.svg');
 }
 
 /**
@@ -304,21 +361,31 @@ async function defaultGetVideoDuration(inputPath, deps) {
 }
 
 /**
- * Uses stream copy by default for speed. The reencode mode is slower but more accurate around keyframes.
- * @param {{inputPath: string, outputPath: string, range: {start: number, duration: number}, quality: string, state: object}} job
- * @returns {Promise<void>}
+ * @param {{inputPath: string, outputPath: string, range: {start: number, duration: number}, quality: string, normalizeForConcat?: boolean}} job
+ * @returns {Array<string>}
  */
-async function defaultRunClip(job) {
-  const ffmpegPath = job.ffmpegPath || getDefaultFfmpegPath();
-  const args = job.quality === 'reencode'
-    ? [
+function buildClipFfmpegArgs(job) {
+  if (job.quality === 'reencode') {
+    const args = [
       '-y',
-      '-ss',
-      String(job.range.start),
       '-i',
       job.inputPath,
+      '-ss',
+      String(job.range.start),
       '-t',
       String(job.range.duration),
+      '-map',
+      '0:v:0',
+      '-map',
+      '0:a?',
+    ];
+    if (job.normalizeForConcat) {
+      args.push(
+        '-vf',
+        `scale=${CONCAT_WIDTH}:${CONCAT_HEIGHT}:force_original_aspect_ratio=decrease,pad=${CONCAT_WIDTH}:${CONCAT_HEIGHT}:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=${CONCAT_FPS},format=yuv420p`,
+      );
+    }
+    args.push(
       '-c:v',
       'libx264',
       '-preset',
@@ -327,42 +394,259 @@ async function defaultRunClip(job) {
       '23',
       '-c:a',
       'aac',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-avoid_negative_ts',
+      'make_zero',
+      '-movflags',
+      '+faststart',
       job.outputPath,
-    ]
-    : [
-      '-y',
-      '-ss',
-      String(job.range.start),
-      '-i',
-      job.inputPath,
-      '-t',
-      String(job.range.duration),
-      '-c',
-      'copy',
-      job.outputPath,
-    ];
+    );
+    return args;
+  }
 
+  return [
+    '-y',
+    '-ss',
+    String(job.range.start),
+    '-i',
+    job.inputPath,
+    '-t',
+    String(job.range.duration),
+    '-c',
+    'copy',
+    '-avoid_negative_ts',
+    'make_zero',
+    job.outputPath,
+  ];
+}
+
+/**
+ * Uses stream copy only when explicitly selected. The reencode mode is slower but avoids keyframe black starts.
+ * @param {{inputPath: string, outputPath: string, range: {start: number, duration: number}, quality: string, state: object, normalizeForConcat?: boolean, ffmpegPath?: string}} job
+ * @returns {Promise<void>}
+ */
+async function defaultRunClip(job) {
+  const ffmpegPath = job.ffmpegPath || getDefaultFfmpegPath();
+  const args = buildClipFfmpegArgs(job);
+  return runFfmpegArgs(ffmpegPath, args, job.state, 'ffmpeg no pudo exportar el clip.');
+}
+
+/**
+ * @param {string} ffmpegPath
+ * @param {Array<string>} args
+ * @param {object} state
+ * @param {string} fallbackMessage
+ * @returns {Promise<void>}
+ */
+function runFfmpegArgs(ffmpegPath, args, state, fallbackMessage) {
   return new Promise((resolve, reject) => {
     const child = spawn(ffmpegPath, args, { windowsHide: true });
-    job.state.activeProcess = child;
+    state.activeProcess = child;
     let stderr = '';
     child.stderr.on('data', chunk => { stderr += chunk.toString(); });
     child.on('error', reject);
     child.on('close', (code) => {
-      job.state.activeProcess = null;
-      if (job.state.cancelled) {
+      state.activeProcess = null;
+      if (state.cancelled) {
         const error = new Error('Exportación cancelada.');
         error.canceled = true;
         reject(error);
         return;
       }
       if (code !== 0) {
-        reject(new Error(stderr.trim().slice(0, 320) || 'ffmpeg no pudo exportar el clip.'));
+        reject(new Error(stderr.trim().slice(0, 320) || fallbackMessage));
         return;
       }
       resolve();
     });
   });
+}
+
+/**
+ * @param {string|number|null|undefined} value
+ * @returns {string}
+ */
+function escapeDrawtext(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/:/g, '\\:')
+    .replace(/'/g, "\\'")
+    .replace(/\r?\n/g, ' ');
+}
+
+/**
+ * @param {object} event
+ * @returns {string}
+ */
+function getEventTypeLabel(event = {}) {
+  return String(event.type || event.eventType || event.event_type || 'Evento')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, value => value.toUpperCase());
+}
+
+/**
+ * @param {object} event
+ * @returns {string}
+ */
+function getEventResultLabel(event = {}) {
+  return String(event.result || event.outcome || event.subtype || 'Sin resultado')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, value => value.toUpperCase());
+}
+
+/**
+ * @param {object} event
+ * @returns {string}
+ */
+function getSeparatorTitle(event = {}) {
+  return `${getEventTypeLabel(event)} / ${getEventResultLabel(event)}`;
+}
+
+/**
+ * @param {{outputPath: string, clipNumber: number, totalClips: number, title: string, timestampLabel: string, logoPath?: string|null}} job
+ * @param {boolean} [withLogo]
+ * @returns {Array<string>}
+ */
+function buildSeparatorFfmpegArgs(job, withLogo = true) {
+  const baseFilter = [
+    'drawbox=x=0:y=0:w=iw:h=ih:color=0x0F2340@0.42:t=fill',
+    'drawbox=x=0:y=0:w=iw:h=110:color=0x0F2340@0.82:t=fill',
+    "drawtext=fontfile='C\\:/Windows/Fonts/arialbd.ttf':text='BIGUANALYTICS':fontcolor=white:fontsize=42:x=72:y=44",
+    `drawtext=fontfile='C\\:/Windows/Fonts/arialbd.ttf':text='CLIP ${String(job.clipNumber).padStart(2, '0')} / ${job.totalClips}':fontcolor=white:fontsize=86:x=72:y=(h-text_h)/2-70`,
+    `drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='${escapeDrawtext(job.title)}':fontcolor=white@0.88:fontsize=42:x=78:y=(h-text_h)/2+28`,
+    `drawtext=fontfile='C\\:/Windows/Fonts/arial.ttf':text='${escapeDrawtext(job.timestampLabel)}':fontcolor=white@0.68:fontsize=28:x=78:y=(h-text_h)/2+92`,
+    'format=yuv420p',
+  ].join(',');
+
+  if (withLogo && job.logoPath) {
+    return [
+      '-y',
+      '-f',
+      'lavfi',
+      '-i',
+      `color=c=0x080E1A:s=${CONCAT_WIDTH}x${CONCAT_HEIGHT}:r=${CONCAT_FPS}:d=${COMBINED_SEPARATOR_SECONDS}`,
+      '-f',
+      'lavfi',
+      '-i',
+      `anullsrc=channel_layout=stereo:sample_rate=48000:d=${COMBINED_SEPARATOR_SECONDS}`,
+      '-i',
+      job.logoPath,
+      '-filter_complex',
+      `[0:v]${baseFilter}[base];[2:v]scale=170:-1[logo];[base][logo]overlay=W-w-76:76[v]`,
+      '-map',
+      '[v]',
+      '-map',
+      '1:a',
+      '-t',
+      String(COMBINED_SEPARATOR_SECONDS),
+      '-c:v',
+      'libx264',
+      '-preset',
+      'veryfast',
+      '-crf',
+      '21',
+      '-c:a',
+      'aac',
+      '-ar',
+      '48000',
+      '-ac',
+      '2',
+      '-movflags',
+      '+faststart',
+      job.outputPath,
+    ];
+  }
+
+  return [
+    '-y',
+    '-f',
+    'lavfi',
+    '-i',
+    `color=c=0x080E1A:s=${CONCAT_WIDTH}x${CONCAT_HEIGHT}:r=${CONCAT_FPS}:d=${COMBINED_SEPARATOR_SECONDS}`,
+    '-f',
+    'lavfi',
+    '-i',
+    `anullsrc=channel_layout=stereo:sample_rate=48000:d=${COMBINED_SEPARATOR_SECONDS}`,
+    '-vf',
+    baseFilter,
+    '-map',
+    '0:v',
+    '-map',
+    '1:a',
+    '-t',
+    String(COMBINED_SEPARATOR_SECONDS),
+    '-c:v',
+    'libx264',
+    '-preset',
+    'veryfast',
+    '-crf',
+    '21',
+    '-c:a',
+    'aac',
+    '-ar',
+    '48000',
+    '-ac',
+    '2',
+    '-movflags',
+    '+faststart',
+    job.outputPath,
+  ];
+}
+
+/**
+ * @param {{outputPath: string, clipNumber: number, totalClips: number, title: string, timestampLabel: string, logoPath?: string|null, state: object, ffmpegPath?: string}} job
+ * @returns {Promise<void>}
+ */
+async function defaultRunSeparator(job) {
+  const ffmpegPath = job.ffmpegPath || getDefaultFfmpegPath();
+  try {
+    await runFfmpegArgs(ffmpegPath, buildSeparatorFfmpegArgs(job, Boolean(job.logoPath)), job.state, 'ffmpeg no pudo crear el separador.');
+  } catch (error) {
+    if (job.state.cancelled || !job.logoPath) throw error;
+    await runFfmpegArgs(ffmpegPath, buildSeparatorFfmpegArgs(job, false), job.state, 'ffmpeg no pudo crear el separador.');
+  }
+}
+
+/**
+ * @param {string} filePath
+ * @returns {string}
+ */
+function formatConcatFilePath(filePath) {
+  return String(filePath).replace(/\\/g, '/').replace(/'/g, "'\\''");
+}
+
+/**
+ * @param {{inputs: Array<string>, listPath: string, outputPath: string, state: object, ffmpegPath?: string}} job
+ * @returns {Promise<void>}
+ */
+async function defaultRunConcat(job) {
+  const ffmpegPath = job.ffmpegPath || getDefaultFfmpegPath();
+  const list = job.inputs.map(input => `file '${formatConcatFilePath(input)}'`).join('\n');
+  await fs.writeFile(job.listPath, list, 'utf8');
+  await runFfmpegArgs(ffmpegPath, [
+    '-y',
+    '-f',
+    'concat',
+    '-safe',
+    '0',
+    '-i',
+    job.listPath,
+    '-c',
+    'copy',
+    '-movflags',
+    '+faststart',
+    job.outputPath,
+  ], job.state, 'ffmpeg no pudo unir los clips.');
+}
+
+/**
+ * @param {string} directory
+ */
+async function defaultCleanupTempDirectory(directory) {
+  await fs.rm(directory, { recursive: true, force: true });
 }
 
 /**
@@ -510,7 +794,8 @@ async function exportBatch(payload, deps) {
   const video = await resolveLocalVideo(match, deps);
   const events = filterEventsForClipExport(match.events || [], payload.filters || {}, match);
   if (events.length === 0) throw new Error(EMPTY_EXPORT_MESSAGE);
-  const selectedDir = payload.outputDir || await deps.selectOutputDirectory({ mode: 'batch', match, filters: payload.filters || {} });
+  const outputMode = normalizeOutputMode(payload.outputMode, settings.clipOutputModeDefault);
+  const selectedDir = payload.outputDir || await deps.selectOutputDirectory({ mode: 'batch', outputMode, match, filters: payload.filters || {} });
   if (!selectedDir) return { canceled: true };
 
   assertCanStart(deps.state);
@@ -520,25 +805,53 @@ async function exportBatch(payload, deps) {
   const files = [];
   const errors = [];
   let exported = 0;
+  let tempDir = null;
 
   try {
     await deps.ensureDirectory(outputDir);
-    const jobs = events.map((event, index) => buildClipJob(event, index + 1, video.path, outputDir, video.duration, settings));
+    const isCombined = outputMode === 'combined';
+    tempDir = isCombined ? path.join(outputDir, buildCombinedTempFolderName(jobId)) : null;
+    if (tempDir) await deps.ensureDirectory(tempDir);
+    const clipOutputDir = tempDir || outputDir;
+    const jobs = events.map((event, index) => buildClipJob(event, index + 1, video.path, clipOutputDir, video.duration, settings));
+    const concatInputs = [];
+    const logoCandidatePath = deps.logoPath === null ? null : (deps.logoPath || getDefaultLogoPath());
+    const logoPath = isCombined && logoCandidatePath && await deps.pathExists(logoCandidatePath) ? logoCandidatePath : null;
 
     for (let index = 0; index < jobs.length; index += 1) {
       if (active.cancelled) break;
       const job = jobs[index];
       notify(deps, 'clips:export-progress', {
         jobId,
-        total: jobs.length,
+        total: isCombined ? jobs.length + 1 : jobs.length,
         current: index + 1,
         currentClipName: job.fileName,
-        message: `Exportando ${index + 1} / ${jobs.length} clips`,
+        message: `Exportando ${index + 1}/${jobs.length} clips`,
       });
       try {
-        await deps.runClip({ ...job, quality: settings.clipExportQuality, state: active, ffmpegPath: deps.ffmpegPath });
+        await deps.runClip({
+          ...job,
+          quality: isCombined ? 'reencode' : settings.clipExportQuality,
+          normalizeForConcat: isCombined,
+          state: active,
+          ffmpegPath: deps.ffmpegPath,
+        });
+        if (isCombined) {
+          const separatorPath = path.join(tempDir, `${String(index + 1).padStart(3, '0')}_separator.mp4`);
+          await deps.runSeparator({
+            outputPath: separatorPath,
+            clipNumber: index + 1,
+            totalClips: jobs.length,
+            title: getSeparatorTitle(job.event),
+            timestampLabel: formatTimestampForSeparator(job.event.timestamp),
+            logoPath,
+            state: active,
+            ffmpegPath: deps.ffmpegPath,
+          });
+          concatInputs.push(separatorPath, job.outputPath);
+        }
         exported += 1;
-        files.push(job.outputPath);
+        if (!isCombined) files.push(job.outputPath);
         if (active.cancelled) break;
       } catch (error) {
         if (active.cancelled) break;
@@ -550,12 +863,34 @@ async function exportBatch(payload, deps) {
       }
     }
 
+    let outputFile = null;
+    if (isCombined && !active.cancelled && concatInputs.length > 0) {
+      outputFile = path.join(outputDir, buildCombinedClipFileName(match));
+      notify(deps, 'clips:export-progress', {
+        jobId,
+        total: jobs.length + 1,
+        current: jobs.length + 1,
+        currentClipName: path.basename(outputFile),
+        message: 'Armando video final...',
+      });
+      await deps.runConcat({
+        inputs: concatInputs,
+        listPath: path.join(tempDir, 'concat.txt'),
+        outputPath: outputFile,
+        state: active,
+        ffmpegPath: deps.ffmpegPath,
+      });
+      files.push(outputFile);
+    }
+
     const result = {
       canceled: active.cancelled,
       exported,
       failed: errors.length,
       total: jobs.length,
+      outputMode,
       outputDir,
+      outputFile,
       files,
       errors,
     };
@@ -565,6 +900,7 @@ async function exportBatch(payload, deps) {
     notify(deps, 'clips:export-error', { message: error.message || 'No se pudieron exportar los clips.' });
     throw error;
   } finally {
+    if (tempDir) await deps.cleanupTempDirectory(tempDir);
     finishExportState(deps.state);
   }
 }
@@ -583,6 +919,9 @@ function createClipExporter(dependencies = {}) {
     ensureDirectory: defaultEnsureDirectory,
     getVideoDuration: defaultGetVideoDuration,
     runClip: defaultRunClip,
+    runSeparator: defaultRunSeparator,
+    runConcat: defaultRunConcat,
+    cleanupTempDirectory: defaultCleanupTempDirectory,
     ...dependencies,
     state,
   };
@@ -620,6 +959,9 @@ module.exports = {
   MISSING_VIDEO_MESSAGE,
   YOUTUBE_CLIP_EXPORT_MESSAGE,
   buildBatchFolderName,
+  buildClipFfmpegArgs,
+  buildCombinedClipFileName,
+  buildSeparatorFfmpegArgs,
   calculateClipRange,
   createClipExporter,
   filterEventsForClipExport,

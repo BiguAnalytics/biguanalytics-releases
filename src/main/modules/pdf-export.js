@@ -1,10 +1,12 @@
 // @ts-check
 const path = require('path');
 const fs = require('fs/promises');
+const os = require('os');
 const { calculateMatchStats } = require('./analytics');
 const { getMatchById } = require('./storage');
 const { getSettings } = require('./settings');
 const { getAnnotatedFramesForPdf } = require('./drawings');
+const { resolvePdfTemplateForExport } = require('./pdf-templates');
 
 /**
  * @param {string} value
@@ -131,6 +133,17 @@ const PDF_PRINT_OPTIONS = {
 
 /**
  * @param {object} payload
+ * @returns {object}
+ */
+function getPdfPrintOptions(payload = {}) {
+  return {
+    ...PDF_PRINT_OPTIONS,
+    landscape: payload.pdfTemplateLayout?.orientation === 'portrait' ? false : PDF_PRINT_OPTIONS.landscape,
+  };
+}
+
+/**
+ * @param {object} payload
  * @param {{
  *   BrowserWindow?: typeof import('electron').BrowserWindow,
  *   printFile?: string,
@@ -152,7 +165,7 @@ async function renderDashboardPdfBuffer(payload, options = {}) {
     await renderPrintPayload(pdfWindow.webContents, payload);
 
     try {
-      const pdfBuffer = await pdfWindow.webContents.printToPDF(PDF_PRINT_OPTIONS);
+      const pdfBuffer = await pdfWindow.webContents.printToPDF(getPdfPrintOptions(payload));
       const buffer = Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer);
       if (buffer.length === 0) throw new Error('PDF vacio.');
       return buffer;
@@ -195,18 +208,37 @@ async function choosePdfPath(dialog, browserWindow, stats) {
 }
 
 /**
+ * @returns {object}
+ */
+function createPreviewMatch() {
+  return {
+    id: 'pdf-template-preview',
+    homeTeam: 'Bigua',
+    awayTeam: 'Rival',
+    date: new Date().toISOString().slice(0, 10),
+    competition: 'Preview',
+    events: [
+      { id: 'e1', type: 'ruck', team: 'home', result: 'ganado', timestamp: 120, zone: 'opp_22' },
+      { id: 'e2', type: 'kick', team: 'home', result: 'favorable', timestamp: 220, zone: 'midfield' },
+      { id: 'e3', type: 'penal', team: 'away', result: 'cometido', timestamp: 320, zone: 'own_22' },
+      { id: 'e4', type: 'break-line', team: 'home', result: 'try', timestamp: 440, zone: 'opp_22' },
+    ],
+    sequences: [],
+    possession: [],
+    coachNotes: 'Notas de ejemplo para previsualizar el bloque del entrenador.',
+  };
+}
+
+/**
  * @param {string} matchId
  * @param {object} printPayload
  * @param {{
- *   dialog: object,
- *   browserWindow: object|null,
- *   BrowserWindow?: typeof import('electron').BrowserWindow,
- *   fsImpl?: object,
  *   data?: {match: object, settings: object, drawingFramePayload?: object|Array<object>},
+ *   resolveForExport?: function(string|undefined): Promise<object>,
  * }} options
- * @returns {Promise<{canceled: boolean, filePath?: string}>}
+ * @returns {Promise<{payload: object, stats: object}>}
  */
-async function exportDashboardPdf(matchId, printPayload = {}, options) {
+async function buildDashboardPdfPayload(matchId, printPayload = {}, options = {}) {
   const data = options.data;
   const [match, settings] = data
     ? [data.match, data.settings || {}]
@@ -221,22 +253,73 @@ async function exportDashboardPdf(matchId, printPayload = {}, options) {
     ? drawingFramePayload
     : drawingFramePayload.frames || [];
   const stats = calculateMatchStats(match, settings, printPayload.filters || settings.dashboard?.filters || {});
+  const resolveForExport = options.resolveForExport || resolvePdfTemplateForExport;
+  const pdfTemplateLayout = printPayload.pdfTemplateLayout || await resolveForExport(printPayload.templateId);
+  return {
+    stats,
+    payload: {
+      ...printPayload,
+      pdfTemplateLayout,
+      stats,
+      match: {
+        ...match,
+        coachNotes: match.coachNotes || '',
+      },
+      drawingFrames,
+      drawingFrameWarning: drawingFramePayload.warning || '',
+    },
+  };
+}
+
+/**
+ * @param {string} matchId
+ * @param {object} printPayload
+ * @param {{
+ *   dialog: object,
+ *   browserWindow: object|null,
+ *   BrowserWindow?: typeof import('electron').BrowserWindow,
+ *   fsImpl?: object,
+ *   data?: {match: object, settings: object, drawingFramePayload?: object|Array<object>},
+ *   resolveForExport?: function(string|undefined): Promise<object>,
+ * }} options
+ * @returns {Promise<{canceled: boolean, filePath?: string}>}
+ */
+async function exportDashboardPdf(matchId, printPayload = {}, options) {
+  const { payload, stats } = await buildDashboardPdfPayload(matchId, printPayload, options);
   const saveResult = await choosePdfPath(options.dialog, options.browserWindow, stats);
   if (saveResult.canceled || !saveResult.filePath) return { canceled: true };
 
-  const pdfBuffer = await renderDashboardPdfBuffer({
-    ...printPayload,
-    stats,
-    match: {
-      ...match,
-      coachNotes: match.coachNotes || '',
-    },
-    drawingFrames,
-    drawingFrameWarning: drawingFramePayload.warning || '',
-  }, options);
+  const pdfBuffer = await renderDashboardPdfBuffer(payload, options);
   await savePdfBuffer(saveResult.filePath, pdfBuffer, options.fsImpl || fs);
 
   return { canceled: false, filePath: saveResult.filePath };
+}
+
+/**
+ * @param {string} matchId
+ * @param {object} printPayload
+ * @param {{
+ *   BrowserWindow?: typeof import('electron').BrowserWindow,
+ *   fsImpl?: object,
+ *   data?: {match: object, settings: object, drawingFramePayload?: object|Array<object>},
+ *   resolveForExport?: function(string|undefined): Promise<object>,
+ * }} [options]
+ * @returns {Promise<{canceled: boolean, filePath: string}>}
+ */
+async function previewDashboardPdf(matchId = '', printPayload = {}, options = {}) {
+  const data = options.data || (!matchId ? {
+    match: createPreviewMatch(),
+    settings: {},
+    drawingFramePayload: [],
+  } : undefined);
+  const { payload } = await buildDashboardPdfPayload(matchId || 'pdf-template-preview', printPayload, {
+    ...options,
+    data,
+  });
+  const pdfBuffer = await renderDashboardPdfBuffer(payload, options);
+  const outputPath = path.join(os.tmpdir(), `BiguAnalytics-preview-${Date.now()}.pdf`);
+  await savePdfBuffer(outputPath, pdfBuffer, options.fsImpl || fs);
+  return { canceled: false, filePath: outputPath };
 }
 
 module.exports = {
@@ -244,6 +327,7 @@ module.exports = {
   createHiddenPdfWindow,
   exportDashboardPdf,
   getDashboardPrintFilePath,
+  previewDashboardPdf,
   renderDashboardPdfBuffer,
   savePdfBuffer,
 };

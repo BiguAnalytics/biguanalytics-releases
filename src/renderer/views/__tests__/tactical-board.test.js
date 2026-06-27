@@ -53,6 +53,63 @@ describe('tactical board view', () => {
     expect(tacticalCss).toContain('grid-template-columns: minmax(0, 1fr) 280px');
   });
 
+  it('supports explicit grow and shrink controls for selected tactical players and elements', () => {
+    expect(drawingEditorSource).toContain('data-size-down');
+    expect(drawingEditorSource).toContain('data-size-up');
+    expect(drawingEditorSource).toContain('scaleSelection(0.85)');
+    expect(drawingEditorSource).toContain('scaleSelection(1.15)');
+    expect(drawingEditorSource).toContain("event.key === '['");
+    expect(drawingEditorSource).toContain("event.key === ']'");
+    expect(drawingEditorCss).toContain('.drawing-size-shortcut');
+  });
+
+  it('supports Canva-style corner resize handles on selected tactical elements', () => {
+    expect(drawingEditorSource).toContain('drawSelectionResizeHandle');
+    expect(drawingEditorSource).toContain('hitTestSelectionResizeHandle');
+    expect(drawingEditorSource).toContain('scaleStrokesFromSelectionHandle');
+    expect(drawingEditorSource).toContain("state.dragMode = 'resize'");
+    expect(drawingEditorSource).toContain('state.selectionResizeStart');
+    expect(drawingEditorSource).toContain('state.selectionResizeBounds');
+    expect(drawingEditorCss).toContain('.drawing-editor-shell[data-resize-handle="true"] .drawing-editor-canvas');
+    expect(drawingEditorCss).toContain('cursor: nwse-resize');
+  });
+
+  it('draws the selected resize handle as a red circle centered on the selection corner', () => {
+    const handleStart = drawingEditorSource.indexOf('function drawSelectionResizeHandle');
+    const handleEnd = drawingEditorSource.indexOf('function drawSelectionRect', handleStart);
+    const handleSource = drawingEditorSource.slice(handleStart, handleEnd);
+    const outlineStart = drawingEditorSource.indexOf('function drawSelectionOutlines');
+    const outlineEnd = drawingEditorSource.indexOf('function drawSelectionResizeHandle', outlineStart);
+    const outlineSource = drawingEditorSource.slice(outlineStart, outlineEnd);
+
+    expect(drawingEditorSource).toContain('const SELECTION_OUTLINE_PADDING = 8;');
+    expect(outlineSource).toContain('bounds.x - SELECTION_OUTLINE_PADDING');
+    expect(outlineSource).toContain('bounds.width + SELECTION_OUTLINE_PADDING * 2');
+    expect(handleSource).toContain('const x = bounds.x + bounds.width + SELECTION_OUTLINE_PADDING;');
+    expect(handleSource).toContain('const y = bounds.y + bounds.height + SELECTION_OUTLINE_PADDING;');
+    expect(handleSource).toContain("ctx.fillStyle = '#C8102E';");
+    expect(handleSource).toContain('ctx.arc(x, y, 8, 0, Math.PI * 2);');
+  });
+
+  it('uses a high-density canvas backing store while keeping tactical coordinates logical', () => {
+    expect(drawingEditorSource).toContain('const canvasPixelRatio = Math.max(1, Math.min(3, Number(window.devicePixelRatio) || 1));');
+    expect(drawingEditorSource).toContain('canvas.width = Math.round(width * canvasPixelRatio);');
+    expect(drawingEditorSource).toContain('canvas.height = Math.round(height * canvasPixelRatio);');
+    expect(drawingEditorSource).toContain('ctx.setTransform(canvasPixelRatio, 0, 0, canvasPixelRatio, 0, 0);');
+    expect(drawingEditorSource).toContain('getCanvasPoint(canvas, event, width, height)');
+    expect(drawingEditorSource).toContain('serializeDrawing(state.strokes, { width, height })');
+    expect(drawingEditorSource).toContain('output.width = width;');
+    expect(drawingEditorSource).toContain('output.height = height;');
+  });
+
+  it('uses SVG thumbnails for tactical cuadros so markers stay sharp in the library', () => {
+    expect(tacticalSource).toContain("import { drawStrokes, serializeDrawingSvg }");
+    expect(tacticalSource).toContain('return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;');
+    expect(tacticalSource).toContain('generateCuadroThumbnail');
+    expect(tacticalSource).toContain('serializeDrawingSvg(');
+    expect(tacticalSource).not.toContain('return output.toDataURL(\'image/png\');');
+  });
+
   it('supports static-board field options without showing live duration controls', () => {
     expect(tacticalSource).toContain('data-board-background');
     expect(tacticalSource).toContain('data-board-template');

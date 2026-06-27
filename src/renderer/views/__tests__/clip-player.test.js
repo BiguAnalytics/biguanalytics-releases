@@ -11,6 +11,7 @@ const clipPlayerCss = readFileSync(new URL('../../../styles/components/clip-play
 const {
   buildClipPlayerState,
   calculateClipPlayerRange,
+  getClipExportProgressMessage,
   getClipQueuePageWindow,
   getSelectedClipIdsForExport,
 } = clipPlayer;
@@ -89,6 +90,28 @@ describe('clip player queue generation', () => {
         note: '5m defensivo',
       }),
     ]);
+  });
+
+  it('defaults an empty custom time range to the full local video duration', () => {
+    const state = buildClipPlayerState?.({
+      ...BASE_MATCH,
+      video: {
+        type: 'local',
+        path: 'C:\\Partidos\\fecha-3.mp4',
+        duration: 100,
+      },
+    }, { clipOutputModeDefault: 'combined' }, {
+      clipPeriod: 'custom',
+      clipFrom: '',
+      clipTo: '',
+    });
+
+    expect(state?.request).toEqual(expect.objectContaining({
+      period: 'custom',
+      fromSeconds: 0,
+      toSeconds: 100,
+    }));
+    expect(state?.outputMode).toBe('combined');
   });
 
   it('returns the real no-video cause before evaluating clip filters', () => {
@@ -199,6 +222,18 @@ describe('clip player queue generation', () => {
       { id: 'clip-11' },
     ], new Set(['clip-02', 'clip-11', 'clip-missing']))).toEqual(['clip-02', 'clip-11']);
   });
+
+  it('formats export progress as an obvious file-saving state', () => {
+    expect(getClipExportProgressMessage?.({
+      current: 1,
+      total: 3,
+      message: 'Exportando 1/3 clips',
+    })).toBe('Guardando archivo - Exportando 1/3 clips');
+
+    expect(getClipExportProgressMessage?.({
+      message: 'Armando video final...',
+    })).toBe('Guardando archivo - Armando video final...');
+  });
 });
 
 describe('clip player playback wiring', () => {
@@ -219,10 +254,18 @@ describe('clip player playback wiring', () => {
     expect(clipPlayerSource).toContain('data-clip-filter-period');
     expect(clipPlayerSource).toContain('data-clip-preroll-seconds');
     expect(clipPlayerSource).toContain('data-clip-postroll-seconds');
+    expect(clipPlayerSource).toContain('data-clip-output-mode');
+    expect(clipPlayerSource).toContain('\\u00danico MP4');
+    expect(clipPlayerSource).toContain('Clips separados');
+    expect(clipPlayerSource).toContain('data-clip-export-progress');
+    expect(clipPlayerSource).toContain('data-clip-export-progress-label');
+    expect(clipPlayerSource).toContain('aria-live="polite"');
+    expect(clipPlayerSource).toContain('updateExportProgress');
     expect(clipPlayerSource).toContain('class="clip-player-meta-grid"');
     expect(clipPlayerSource).toContain('class="clip-player-meta-item"');
     expect(clipPlayerSource).toContain('data-clip-export-selected');
-    expect(clipPlayerSource).toContain('Exportar clips seleccionados');
+    expect(clipPlayerSource).toContain('Exportar video unico');
+    expect(clipPlayerSource).toContain('outputMode: clipState.outputMode');
   });
 
   it('uses the YouTube seek API for YouTube clips', () => {
@@ -236,6 +279,12 @@ describe('clip player playback wiring', () => {
     expect(clipPlayerCss).toContain('aspect-ratio: 16 / 9;');
     expect(clipPlayerCss).toContain('height: auto;');
     expect(clipPlayerCss).not.toContain('min-height: 540px;');
+  });
+
+  it('styles export progress as a prominent state outside the export button', () => {
+    expect(clipPlayerCss).toContain('.clip-player-export-progress');
+    expect(clipPlayerCss).toContain('data-export-visible="true"');
+    expect(clipPlayerCss).toContain('box-shadow: 0 18px 42px');
   });
 
   it('renders the clips list as a full-width carousel below filters and player', () => {
