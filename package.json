@@ -1,6 +1,6 @@
 {
   "name": "biguanalytics",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Rugby match analysis tool for Bigua Rugby Club",
   "main": "src/main/main.js",
   "scripts": {
