@@ -964,6 +964,8 @@ export function renderClipPlayer(container, params = {}) {
       await window.api.clips.exportBatch({
         matchId: match.id,
         outputMode: clipState.outputMode,
+        clipPreRollSeconds: clipState.clipSettings.clipPreRollSeconds,
+        clipPostRollSeconds: clipState.clipSettings.clipPostRollSeconds,
         filters: {
           type: clipState.request.type,
           result: clipState.request.result,

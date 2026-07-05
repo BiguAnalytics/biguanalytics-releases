@@ -23,6 +23,11 @@ if (require('electron-squirrel-startup')) {
   app.quit();
 }
 
+const singleInstanceLock = app.requestSingleInstanceLock();
+if (!singleInstanceLock) {
+  app.quit();
+}
+
 let mainWindow;
 let backgroundUpdaterStarted = false;
 
@@ -122,7 +127,14 @@ const createWindow = () => {
   }
 };
 
-app.whenReady().then(() => {
+if (singleInstanceLock) {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.focus();
+  });
+
+  app.whenReady().then(() => {
   startupTimer.mark('electron:ready');
 
   ipcMain.handle('startup:mark', async (e, label, detail = {}) => {
@@ -167,7 +179,8 @@ app.whenReady().then(() => {
       createWindow();
     }
   });
-});
+  });
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {

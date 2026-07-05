@@ -197,6 +197,72 @@ describe('clip-exporter batch orchestration', () => {
     expect(result.errors).toHaveLength(1);
   });
 
+  it('uses caller-provided clip seconds instead of falling back to persisted defaults', async () => {
+    const runClip = vi.fn(async () => {});
+    const exporter = createTestExporter({ runClip });
+
+    await exporter.exportBatch({
+      matchId: 'match-1',
+      filters: { type: 'ruck' },
+      clipPreRollSeconds: 12,
+      clipPostRollSeconds: 4,
+    });
+
+    expect(runClip.mock.calls[0][0].range).toEqual({
+      start: 0,
+      end: 9,
+      duration: 9,
+    });
+    expect(runClip.mock.calls[1][0].range).toEqual({
+      start: 52,
+      end: 68,
+      duration: 16,
+    });
+  });
+
+  it('runs independent batch clip jobs with bounded parallelism before concatenating combined output', async () => {
+    const inFlight = [];
+    let maxInFlight = 0;
+    let releaseNext;
+    const waiters = [];
+    const runClip = vi.fn(async () => {
+      inFlight.push('clip');
+      maxInFlight = Math.max(maxInFlight, inFlight.length);
+      await new Promise(resolve => {
+        waiters.push(resolve);
+        releaseNext = () => waiters.shift()?.();
+      });
+      inFlight.pop();
+    });
+    const runSeparator = vi.fn(async () => {});
+    const runConcat = vi.fn(async () => {});
+    const exporter = createTestExporter({
+      getSettings: vi.fn(async () => ({
+        clipPreRollSeconds: 3,
+        clipPostRollSeconds: 10,
+        clipOutputModeDefault: 'combined',
+        clipExportQuality: 'copy',
+      })),
+      runClip,
+      runSeparator,
+      runConcat,
+      maxParallelClipExports: 2,
+    });
+
+    const exportPromise = exporter.exportBatch({ matchId: 'match-1', filters: { type: 'ruck' } });
+    await vi.waitUntil(() => runClip.mock.calls.length === 2);
+
+    expect(maxInFlight).toBe(2);
+    expect(runConcat).not.toHaveBeenCalled();
+
+    releaseNext();
+    releaseNext();
+    await exportPromise;
+
+    expect(runSeparator).toHaveBeenCalledTimes(2);
+    expect(runConcat).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects export when the original MP4 no longer exists', async () => {
     const exporter = createTestExporter({ pathExists: vi.fn(async () => false) });
 

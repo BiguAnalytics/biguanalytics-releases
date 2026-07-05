@@ -40,6 +40,13 @@ describe('startup performance contract', () => {
     expect(mainSource).not.toContain('setTimeout(showMainWindow');
   });
 
+  it('uses a single-instance lock so repeated launches focus the existing app window', () => {
+    expect(mainSource).toContain('app.requestSingleInstanceLock()');
+    expect(mainSource).toContain("app.on('second-instance'");
+    expect(mainSource).toContain('mainWindow.restore();');
+    expect(mainSource).toContain('mainWindow.focus();');
+  });
+
   it('mounts the app shell before profile settings persistence or cloud sync', () => {
     expect(appSource).toContain('app.appendChild(layout);');
     expect(appSource).toContain('scheduleShellBackgroundWork(accessState);');

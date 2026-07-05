@@ -1,5 +1,6 @@
 // @ts-check
 const fs = require('fs/promises');
+const os = require('os');
 const path = require('path');
 const { spawn } = require('child_process');
 const { getMatchById } = require('./storage');
@@ -17,6 +18,7 @@ const COMBINED_SEPARATOR_SECONDS = 2.85;
 const CONCAT_WIDTH = 1920;
 const CONCAT_HEIGHT = 1080;
 const CONCAT_FPS = 30;
+const DEFAULT_MAX_COMBINED_PARALLEL_EXPORTS = 3;
 
 /**
  * @param {number|string|null|undefined} value
@@ -41,6 +43,30 @@ function normalizeClipSettings(settings = {}) {
     clipOutputModeDefault: settings.clipOutputModeDefault === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE,
     clipExportQuality: settings.clipExportQuality === 'copy' ? 'copy' : 'reencode',
   };
+}
+
+/**
+ * @param {object} settings
+ * @param {object} payload
+ * @returns {{clipPreRollSeconds: number, clipPostRollSeconds: number, clipOutputModeDefault: 'combined'|'separate', clipExportQuality: string}}
+ */
+function getEffectiveClipSettings(settings = {}, payload = {}) {
+  return normalizeClipSettings({
+    ...settings,
+    clipPreRollSeconds: payload.clipPreRollSeconds ?? settings.clipPreRollSeconds,
+    clipPostRollSeconds: payload.clipPostRollSeconds ?? settings.clipPostRollSeconds,
+  });
+}
+
+/**
+ * @param {unknown} value
+ * @returns {number}
+ */
+function normalizeParallelLimit(value) {
+  const fallback = Math.min(DEFAULT_MAX_COMBINED_PARALLEL_EXPORTS, Math.max(1, os.cpus().length - 1));
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.max(1, Math.min(4, Math.round(numeric)));
 }
 
 /**
@@ -445,10 +471,12 @@ function runFfmpegArgs(ffmpegPath, args, state, fallbackMessage) {
   return new Promise((resolve, reject) => {
     const child = spawn(ffmpegPath, args, { windowsHide: true });
     state.activeProcess = child;
+    state.activeProcesses?.add?.(child);
     let stderr = '';
     child.stderr.on('data', chunk => { stderr += chunk.toString(); });
     child.on('error', reject);
     child.on('close', (code) => {
+      state.activeProcesses?.delete?.(child);
       state.activeProcess = null;
       if (state.cancelled) {
         const error = new Error('Exportación cancelada.');
@@ -693,6 +721,7 @@ function startExportState(state, jobId) {
     jobId,
     cancelled: false,
     activeProcess: null,
+    activeProcesses: new Set(),
   };
   return state.active;
 }
@@ -711,8 +740,33 @@ function finishExportState(state) {
 function cancelActiveExport(state) {
   if (!state.active) return { canceled: false };
   state.active.cancelled = true;
+  state.active.activeProcesses?.forEach(process => process?.kill?.('SIGKILL'));
   state.active.activeProcess?.kill?.('SIGKILL');
   return { canceled: true };
+}
+
+/**
+ * @template T
+ * @template R
+ * @param {Array<T>} items
+ * @param {number} limit
+ * @param {(item: T, index: number) => Promise<R>} worker
+ * @returns {Promise<Array<R|undefined>>}
+ */
+async function runWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(items.length, Math.max(1, limit));
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      results[index] = await worker(items[index], index);
+    }
+  }));
+
+  return results;
 }
 
 /**
@@ -742,7 +796,7 @@ function buildClipJob(event, index, inputPath, outputDir, videoDuration, setting
  */
 async function exportSingle(payload, deps) {
   const match = await deps.getMatchById(payload.matchId);
-  const settings = normalizeClipSettings(await deps.getSettings());
+  const settings = getEffectiveClipSettings(await deps.getSettings(), payload);
   const video = await resolveLocalVideo(match, deps);
   const event = (match.events || []).find(item => String(item.id) === String(payload.eventId));
   if (!event) throw new Error('Evento no encontrado.');
@@ -790,7 +844,7 @@ async function exportSingle(payload, deps) {
  */
 async function exportBatch(payload, deps) {
   const match = await deps.getMatchById(payload.matchId);
-  const settings = normalizeClipSettings(await deps.getSettings());
+  const settings = getEffectiveClipSettings(await deps.getSettings(), payload);
   const video = await resolveLocalVideo(match, deps);
   const events = filterEventsForClipExport(match.events || [], payload.filters || {}, match);
   if (events.length === 0) throw new Error(EMPTY_EXPORT_MESSAGE);
@@ -818,25 +872,28 @@ async function exportBatch(payload, deps) {
     const logoCandidatePath = deps.logoPath === null ? null : (deps.logoPath || getDefaultLogoPath());
     const logoPath = isCombined && logoCandidatePath && await deps.pathExists(logoCandidatePath) ? logoCandidatePath : null;
 
-    for (let index = 0; index < jobs.length; index += 1) {
-      if (active.cancelled) break;
-      const job = jobs[index];
-      notify(deps, 'clips:export-progress', {
-        jobId,
-        total: isCombined ? jobs.length + 1 : jobs.length,
-        current: index + 1,
-        currentClipName: job.fileName,
-        message: `Exportando ${index + 1}/${jobs.length} clips`,
-      });
-      try {
-        await deps.runClip({
-          ...job,
-          quality: isCombined ? 'reencode' : settings.clipExportQuality,
-          normalizeForConcat: isCombined,
-          state: active,
-          ffmpegPath: deps.ffmpegPath,
+    if (isCombined) {
+      const concatInputsByIndex = new Array(jobs.length);
+      let started = 0;
+      await runWithConcurrency(jobs, normalizeParallelLimit(deps.maxParallelClipExports), async (job, index) => {
+        if (active.cancelled) return;
+        started += 1;
+        notify(deps, 'clips:export-progress', {
+          jobId,
+          total: jobs.length + 1,
+          current: started,
+          currentClipName: job.fileName,
+          message: `Exportando ${started}/${jobs.length} clips`,
         });
-        if (isCombined) {
+        try {
+          await deps.runClip({
+            ...job,
+            quality: 'reencode',
+            normalizeForConcat: true,
+            state: active,
+            ffmpegPath: deps.ffmpegPath,
+          });
+          if (active.cancelled) return;
           const separatorPath = path.join(tempDir, `${String(index + 1).padStart(3, '0')}_separator.mp4`);
           await deps.runSeparator({
             outputPath: separatorPath,
@@ -848,18 +905,48 @@ async function exportBatch(payload, deps) {
             state: active,
             ffmpegPath: deps.ffmpegPath,
           });
-          concatInputs.push(separatorPath, job.outputPath);
+          concatInputsByIndex[index] = [separatorPath, job.outputPath];
+          exported += 1;
+        } catch (error) {
+          if (active.cancelled) return;
+          errors.push({
+            eventId: job.event.id,
+            fileName: job.fileName,
+            message: error.message || 'ffmpeg no pudo exportar el clip.',
+          });
         }
-        exported += 1;
-        if (!isCombined) files.push(job.outputPath);
+      });
+      concatInputs.push(...concatInputsByIndex.flat().filter(Boolean));
+    } else {
+      for (let index = 0; index < jobs.length; index += 1) {
         if (active.cancelled) break;
-      } catch (error) {
-        if (active.cancelled) break;
-        errors.push({
-          eventId: job.event.id,
-          fileName: job.fileName,
-          message: error.message || 'ffmpeg no pudo exportar el clip.',
+        const job = jobs[index];
+        notify(deps, 'clips:export-progress', {
+          jobId,
+          total: jobs.length,
+          current: index + 1,
+          currentClipName: job.fileName,
+          message: `Exportando ${index + 1}/${jobs.length} clips`,
         });
+        try {
+          await deps.runClip({
+            ...job,
+            quality: settings.clipExportQuality,
+            normalizeForConcat: false,
+            state: active,
+            ffmpegPath: deps.ffmpegPath,
+          });
+          exported += 1;
+          files.push(job.outputPath);
+          if (active.cancelled) break;
+        } catch (error) {
+          if (active.cancelled) break;
+          errors.push({
+            eventId: job.event.id,
+            fileName: job.fileName,
+            message: error.message || 'ffmpeg no pudo exportar el clip.',
+          });
+        }
       }
     }
 

@@ -266,6 +266,8 @@ describe('clip player playback wiring', () => {
     expect(clipPlayerSource).toContain('data-clip-export-selected');
     expect(clipPlayerSource).toContain('Exportar video unico');
     expect(clipPlayerSource).toContain('outputMode: clipState.outputMode');
+    expect(clipPlayerSource).toContain('clipPreRollSeconds: clipState.clipSettings.clipPreRollSeconds');
+    expect(clipPlayerSource).toContain('clipPostRollSeconds: clipState.clipSettings.clipPostRollSeconds');
   });
 
   it('uses the YouTube seek API for YouTube clips', () => {
