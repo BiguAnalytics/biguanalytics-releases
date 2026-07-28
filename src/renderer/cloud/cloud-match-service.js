@@ -300,7 +300,7 @@ function getCloudErrorMessage(error) {
  * @returns {Promise<object>}
  */
 async function fetchCloudMatchSummaries(client, page, pageSize, clubId = '') {
-  const query = client.from('matches').select('*, video_references(*)');
+  const query = client.from('matches').select('*, video_references(*), match_events(count)');
   let scoped = query;
   if (clubId && typeof scoped.eq === 'function') {
     scoped = scoped.eq('club_id', clubId);

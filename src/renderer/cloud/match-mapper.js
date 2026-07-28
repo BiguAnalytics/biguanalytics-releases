@@ -102,6 +102,19 @@ function buildScore(match, source = {}) {
 }
 
 /**
+ * @param {object} row
+ * @returns {number|undefined}
+ */
+function readRelationCount(row = {}) {
+  const relation = row.match_events;
+  const count = Array.isArray(relation)
+    ? relation[0]?.count
+    : relation?.count;
+  const numeric = Number(count);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : undefined;
+}
+
+/**
  * @param {object} match
  * @returns {object}
  */
@@ -166,6 +179,7 @@ export function hydrateCloudMatch(row = {}) {
     coachNotes: '',
     createdAt: row.created_at || new Date().toISOString(),
     updatedAt: row.updated_at || row.created_at || new Date().toISOString(),
+    eventCount: readRelationCount(row),
     cloud: {
       clubId: row.club_id,
       createdBy: row.created_by,

@@ -350,7 +350,8 @@ describe('cloudMatchService', () => {
     ]);
   });
 
-  it('returns cloud matches without events even when the local cache read is stale', async () => {
+  it('uses cloud event counts in Home summaries without downloading event payloads', async () => {
+    const calls = [];
     const matchRow = {
       id: 'match-empty-events',
       club_id: 'club-1',
@@ -364,16 +365,20 @@ describe('cloudMatchService', () => {
       created_at: '2026-06-10T00:00:00.000Z',
       updated_at: '2026-06-10T00:00:00.000Z',
       video_references: [],
+      match_events: [{ count: 8 }],
     };
     const client = {
       from(table) {
         expect(table).toBe('matches');
         return {
-          select: () => ({
+          select: (columns) => {
+            calls.push({ method: 'select', columns });
+            return {
             order: () => ({
               range: async () => ({ data: [matchRow], error: null }),
             }),
-          }),
+          };
+          },
         };
       },
     };
@@ -401,10 +406,11 @@ describe('cloudMatchService', () => {
         id: 'match-empty-events',
         homeTeam: 'Bigua',
         awayTeam: 'Cardos',
-        eventCount: undefined,
+        eventCount: 8,
       }),
     ]);
     expect(matches[0].events).toBeUndefined();
+    expect(calls[0].columns).toContain('match_events(count)');
     expect(localApi.matches.upsertCache).toHaveBeenCalledWith(expect.not.objectContaining({
       events: expect.any(Array),
     }));
