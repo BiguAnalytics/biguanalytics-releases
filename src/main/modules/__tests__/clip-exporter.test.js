@@ -111,6 +111,37 @@ describe('clip-exporter filtering and names', () => {
     expect(filterEventsForClipExport(MATCH.events, { team: 'rival' }, MATCH).map(event => event.id)).toEqual(['e3']);
   });
 
+  it('filters exported clips with the same event aliases used by the playlist', () => {
+    const events = [
+      {
+        id: 'scrum-importado',
+        eventType: 'Scrum',
+        teamName: 'Los Cardos',
+        result: 'ganado',
+        timestamp: 42,
+      },
+      {
+        id: 'try-bigua',
+        type: 'try',
+        teamId: 'home',
+        result: 'positivo',
+        timestamp: 55,
+      },
+      {
+        id: 'line-out',
+        kind: 'set-piece',
+        subtype: 'line out',
+        team_name: 'Bigua',
+        result: 'perdido',
+        timestamp: 65,
+      },
+    ];
+
+    expect(filterEventsForClipExport(events, { type: 'scrum', team: 'rival' }, MATCH).map(event => event.id)).toEqual(['scrum-importado']);
+    expect(filterEventsForClipExport(events, { type: 'points', team: 'bigua' }, MATCH).map(event => event.id)).toEqual(['try-bigua']);
+    expect(filterEventsForClipExport(events, { type: 'lineout', team: 'bigua' }, MATCH).map(event => event.id)).toEqual(['line-out']);
+  });
+
   it('sanitizes Windows-safe ordered file names', () => {
     expect(sanitizeClipFileName(3, { type: 'penal', result: 'defensa', timestamp: 1102 })).toBe('003_penal_defensa_18-22.mp4');
     expect(sanitizeClipFileName(1, { type: 'line out', result: 'ganado:sucio?', timestamp: 3724 })).toBe('001_line_out_ganado_sucio_01-02-04.mp4');
@@ -216,6 +247,44 @@ describe('clip-exporter batch orchestration', () => {
     expect(runClip.mock.calls[1][0].range).toEqual({
       start: 52,
       end: 68,
+      duration: 16,
+    });
+  });
+
+  it('applies edited clip seconds when exporting selected playlist aliases', async () => {
+    const runClip = vi.fn(async () => {});
+    const exporter = createTestExporter({
+      getMatchById: vi.fn(async () => ({
+        ...MATCH,
+        events: [
+          {
+            id: 'scrum-importado',
+            eventType: 'Scrum',
+            teamName: 'Los Cardos',
+            result: 'ganado',
+            timestamp: 42,
+          },
+        ],
+      })),
+      runClip,
+    });
+
+    await exporter.exportBatch({
+      matchId: 'match-1',
+      filters: {
+        type: 'scrum',
+        team: 'rival',
+        result: 'ganado',
+        eventIds: ['scrum-importado'],
+      },
+      clipPreRollSeconds: 12,
+      clipPostRollSeconds: 4,
+    });
+
+    expect(runClip).toHaveBeenCalledTimes(1);
+    expect(runClip.mock.calls[0][0].range).toEqual({
+      start: 30,
+      end: 46,
       duration: 16,
     });
   });

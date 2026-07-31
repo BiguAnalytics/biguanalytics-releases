@@ -19,6 +19,39 @@ const CONCAT_WIDTH = 1920;
 const CONCAT_HEIGHT = 1080;
 const CONCAT_FPS = 30;
 const DEFAULT_MAX_COMBINED_PARALLEL_EXPORTS = 3;
+const CLIP_TYPE_ALIASES = {
+  break: 'break-line',
+  breakline: 'break-line',
+  'break-line': 'break-line',
+  'break-lines': 'break-line',
+  breaklines: 'break-line',
+  card: 'card',
+  cards: 'card',
+  kick: 'kick',
+  kicks: 'kick',
+  line: 'lineout',
+  'line-out': 'lineout',
+  lineout: 'lineout',
+  lineouts: 'lineout',
+  maul: 'maul',
+  mauls: 'maul',
+  note: 'note',
+  notes: 'note',
+  penal: 'penal',
+  penales: 'penal',
+  penalties: 'penal',
+  penalty: 'penal',
+  point: 'points',
+  points: 'points',
+  ruck: 'ruck',
+  rucks: 'ruck',
+  scrum: 'scrum',
+  scrums: 'scrum',
+  try: 'points',
+  tries: 'points',
+  turnover: 'turnover',
+  turnovers: 'turnover',
+};
 
 /**
  * @param {number|string|null|undefined} value
@@ -129,7 +162,17 @@ function normalizeKey(value) {
     .toLowerCase()
     .normalize('NFD')
     .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[_/]+/g, '-')
     .replace(/\s+/g, '-');
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+function normalizeClipType(value) {
+  const normalized = normalizeKey(value).replace(/-+/g, '-');
+  return CLIP_TYPE_ALIASES[normalized] || normalized;
 }
 
 /**
@@ -154,6 +197,98 @@ function identifyBiguaTeam(match = {}) {
 }
 
 /**
+ * @param {unknown} value
+ * @param {Array<unknown>} targetValues
+ * @returns {boolean}
+ */
+function valueMatchesAny(value, targetValues) {
+  const normalized = normalizeKey(value);
+  return Boolean(normalized) && targetValues.some(target => normalizeKey(target) === normalized);
+}
+
+/**
+ * @param {object} match
+ * @returns {{home: Array<unknown>, away: Array<unknown>}}
+ */
+function getTeamIdentityValues(match = {}) {
+  return {
+    home: [
+      'home',
+      'local',
+      match.homeTeam,
+      match.localTeam,
+      match.homeTeamId,
+      match.localTeamId,
+      match.homeTeamSlug,
+    ],
+    away: [
+      'away',
+      'rival',
+      'visitante',
+      'opponent',
+      match.awayTeam,
+      match.rivalTeam,
+      match.awayTeamId,
+      match.rivalTeamId,
+      match.awayTeamSlug,
+    ],
+  };
+}
+
+/**
+ * @param {unknown} value
+ * @returns {Array<unknown>}
+ */
+function getObjectTeamValues(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return [value];
+  return [
+    value.id,
+    value.teamId,
+    value.team_id,
+    value.name,
+    value.teamName,
+    value.team_name,
+    value.label,
+    value.slug,
+  ];
+}
+
+/**
+ * @param {Array<unknown>} values
+ * @param {object} match
+ * @returns {'home'|'away'|null}
+ */
+function resolveTeamSideFromValues(values, match = {}) {
+  const identities = getTeamIdentityValues(match);
+  const biguaTeam = identifyBiguaTeam(match);
+  for (const value of values.flatMap(getObjectTeamValues)) {
+    const normalized = normalizeKey(value);
+    if (!normalized) continue;
+    if (normalized === 'bigua') return biguaTeam;
+    if (normalized === 'rival' || normalized === 'opponent') return biguaTeam === 'home' ? 'away' : 'home';
+    if (valueMatchesAny(normalized, identities.home)) return 'home';
+    if (valueMatchesAny(normalized, identities.away)) return 'away';
+  }
+  return null;
+}
+
+/**
+ * @param {object} event
+ * @param {object} match
+ * @returns {'home'|'away'|null}
+ */
+function resolveEventTeam(event = {}, match = {}) {
+  return resolveTeamSideFromValues([
+    event.team,
+    event.teamId,
+    event.team_id,
+    event.teamName,
+    event.team_name,
+    event.equipo,
+  ], match);
+}
+
+/**
  * @param {string|null|undefined} team
  * @param {object} match
  * @returns {'home'|'away'|null}
@@ -161,11 +296,45 @@ function identifyBiguaTeam(match = {}) {
 function resolveTeamFilter(team, match = {}) {
   const normalized = normalizeKey(team || 'all');
   if (!normalized || normalized === 'all' || normalized === 'todos') return null;
-  if (normalized === 'home' || normalized === 'away') return normalized;
-  const biguaTeam = identifyBiguaTeam(match);
-  if (normalized === 'bigua') return biguaTeam;
-  if (normalized === 'rival') return biguaTeam === 'home' ? 'away' : 'home';
-  return null;
+  return resolveTeamSideFromValues([team], match);
+}
+
+/**
+ * @param {object} event
+ * @returns {string}
+ */
+function resolveEventType(event = {}) {
+  const rawType = event.type ?? event.eventType ?? event.event_type ?? event.kind ?? event.category;
+  const normalized = normalizeClipType(rawType);
+  if ((normalized === 'set-piece' || normalized === 'setpiece') && normalizeKey(event.subtype).includes('scrum')) {
+    return 'scrum';
+  }
+  if ((normalized === 'set-piece' || normalized === 'setpiece') && normalizeKey(event.subtype).includes('line')) {
+    return 'lineout';
+  }
+  if ((normalized === 'set-piece' || normalized === 'setpiece') && normalizeKey(event.subtype).includes('maul')) {
+    return 'maul';
+  }
+  return normalized;
+}
+
+/**
+ * @param {object} event
+ * @returns {Array<unknown>}
+ */
+function getEventResultValues(event = {}) {
+  const values = [
+    event.result,
+    event.outcome,
+    event.subtype,
+    event.subType,
+    event.resultType,
+    event.result_type,
+  ];
+  if (Array.isArray(event.subtypes)) values.push(...event.subtypes);
+  if (Array.isArray(event.tags)) values.push(...event.tags);
+  if (normalizeClipType(event.type ?? event.eventType ?? event.event_type) === 'points') values.push('try');
+  return values;
 }
 
 /**
@@ -176,11 +345,7 @@ function resolveTeamFilter(team, match = {}) {
 function eventMatchesResult(event, resultFilter) {
   if (!resultFilter || resultFilter === 'all' || resultFilter === 'todos') return true;
   const normalized = normalizeKey(resultFilter);
-  return [
-    event.result,
-    event.outcome,
-    event.subtype,
-  ].some(value => normalizeKey(value) === normalized);
+  return getEventResultValues(event).some(value => normalizeKey(value) === normalized);
 }
 
 /**
@@ -205,9 +370,9 @@ function filterEventsForClipExport(events = [], filters = {}, match = {}) {
       if (!hasValidTimestamp(event?.timestamp)) return false;
       if (selectedIds && !selectedIds.has(String(event.id))) return false;
       const timestamp = Number(event.timestamp);
-      if (type && type !== 'all' && normalizeKey(event.type) !== type) return false;
+      if (type && type !== 'all' && resolveEventType(event) !== normalizeClipType(type)) return false;
       if (!eventMatchesResult(event, filters.result || 'all')) return false;
-      if (team && event.team !== team) return false;
+      if (team && resolveEventTeam(event, match) !== team) return false;
       if (hasFrom && timestamp < fromSeconds) return false;
       if (hasTo && timestamp > toSeconds) return false;
       return true;
