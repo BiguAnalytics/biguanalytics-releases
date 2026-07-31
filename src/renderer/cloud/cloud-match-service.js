@@ -207,6 +207,23 @@ function buildFullSyncOperations(context, match) {
 /**
  * @param {object} context
  * @param {object} match
+ * @returns {Array<object>}
+ */
+function buildFullDetailSyncOperations(context, match) {
+  return [
+    ...buildFullSyncOperations(context, match),
+    ...buildUpdateOperations(context, match, {
+      events: match.events || [],
+      possession: match.possession,
+      sequences: match.sequences || [],
+      coachNotes: match.coachNotes || '',
+    }),
+  ];
+}
+
+/**
+ * @param {object} context
+ * @param {object} match
  * @param {object} updates
  * @returns {Array<object>}
  */
@@ -400,6 +417,19 @@ export function createCloudMatchService(deps = {}) {
     }
   }
 
+  async function applyBackfillOperations(operations, context) {
+    let appliedAll = true;
+    for (const operation of operations) {
+      try {
+        await applyCloudOperation(context.client, operation);
+      } catch {
+        appliedAll = false;
+        await activeSyncService.enqueue(operation);
+      }
+    }
+    return appliedAll;
+  }
+
   async function downloadMatchDetail(matchId) {
     const context = await resolveCloudContext(deps);
     const [matchResult, eventsResult, possessionsResult, sequencesResult, notesResult] = await Promise.all([
@@ -487,6 +517,49 @@ export function createCloudMatchService(deps = {}) {
   }
 
   /**
+   * @param {Array<object>} cachedMatches
+   * @param {Set<string>} cloudIds
+   * @param {object} context
+   * @returns {Promise<{backfilled: number, errors: Array<object>}>}
+   */
+  async function backfillLegacyLocalMatches(cachedMatches, cloudIds, context) {
+    if (typeof localApi.matches?.getById !== 'function') return { backfilled: 0, errors: [] };
+    let backfilled = 0;
+    const errors = [];
+    const candidates = cachedMatches.filter(match => (
+      match?.id
+      && !match.corrupt
+      && !match.cloud?.clubId
+      && !cloudIds.has(String(match.id))
+    ));
+
+    for (const candidate of candidates) {
+      try {
+        const fullMatch = await localApi.matches.getById(candidate.id);
+        if (!fullMatch?.id || fullMatch.cloud?.clubId) continue;
+        const applied = await applyBackfillOperations(buildFullDetailSyncOperations(context, fullMatch), context);
+        if (applied && typeof localApi.matches?.upsertCache === 'function') {
+          await localApi.matches.upsertCache({
+            ...fullMatch,
+            cloud: {
+              clubId: context.clubId,
+              createdBy: fullMatch.createdBy || fullMatch.cloud?.createdBy || context.userId,
+            },
+          });
+        }
+        if (applied) backfilled += 1;
+      } catch (error) {
+        errors.push({
+          matchId: candidate.id,
+          message: getCloudErrorMessage(error),
+        });
+      }
+    }
+
+    return { backfilled, errors };
+  }
+
+  /**
    * @param {{page: number, pageSize: number, cacheKey: string, forceRefresh?: boolean, announce?: boolean}} options
    * @returns {Promise<Array<object>>}
    */
@@ -532,22 +605,26 @@ export function createCloudMatchService(deps = {}) {
           }
           refreshedCloudMatches = refreshed;
           await removeDeletedCloudMatches(cachedBefore, rows, context, page, pageSize);
+          const backfillResult = page === 0
+            ? await backfillLegacyLocalMatches(cachedBefore, new Set(rows.map(row => String(row.id || '')).filter(Boolean)), context)
+            : { backfilled: 0, errors: [] };
           listCache = {
             key: scopedCacheKey,
             fetchedAt: now(),
           };
           setLastListStatus({
             source: 'cloud',
-            partial: errors.length > 0,
+            partial: errors.length + backfillResult.errors.length > 0,
             total: rows.length,
             cached,
+            backfilled: backfillResult.backfilled,
             page,
             pageSize,
             hasMore: rows.length === pageSize,
             fromCache: false,
             initialCloudSyncPending: false,
             hasCloudSession: true,
-            errors,
+            errors: [...errors, ...backfillResult.errors],
           });
           markCloud('cloud:home:matches-count', { count: rows.length, cached });
         } else {

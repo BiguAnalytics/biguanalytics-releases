@@ -646,6 +646,114 @@ describe('cloudMatchService', () => {
     });
   });
 
+  it('backfills legacy local matches to cloud with full detail on the first online refresh', async () => {
+    const calls = [];
+    const legacyMatch = {
+      id: '11111111-1111-4111-8111-111111111111',
+      homeTeam: 'Bigua',
+      awayTeam: 'Legacy Rival',
+      date: '2026-05-20',
+      competition: 'Regional',
+      venue: 'home',
+      status: 'tagging',
+      cloud: null,
+      video: { type: 'youtube', url: 'https://youtu.be/abc123', videoId: 'abc123' },
+      events: [{ id: '22222222-2222-4222-8222-222222222222', timestamp: 42, type: 'ruck', team: 'home', result: 'ganado' }],
+      possession: { intervals: [{ team: 'home', start: 10, end: 30 }] },
+      sequences: [{ id: '33333333-3333-4333-8333-333333333333', start: 12, end: 28, team: 'home', result: 'positivo', phases: 3 }],
+      coachNotes: 'Subir partido viejo completo.',
+      score: {
+        local: 7,
+        rival: 0,
+        bigua: 7,
+        opponent: 0,
+        winnerTeam: 'Bigua',
+        resultForBigua: 'win',
+        updatedAt: '2026-05-20T12:00:00.000Z',
+      },
+    };
+    const client = {
+      from(table) {
+        if (table === 'matches') {
+          return {
+            select: () => ({
+              eq: () => ({
+                order: () => ({
+                  range: async () => ({ data: [], error: null }),
+                }),
+              }),
+              order: () => ({
+                range: async () => ({ data: [], error: null }),
+              }),
+            }),
+            upsert: async (payload) => {
+              calls.push({ table, method: 'upsert', payload });
+              return { data: payload, error: null };
+            },
+          };
+        }
+        return {
+          upsert: async (payload) => {
+            calls.push({ table, method: 'upsert', payload });
+            return { data: payload, error: null };
+          },
+          insert: async (payload) => {
+            calls.push({ table, method: 'insert', payload });
+            return { data: payload, error: null };
+          },
+          delete: () => ({
+            eq: async (column, value) => {
+              calls.push({ table, method: 'delete:eq', column, value });
+              return { error: null };
+            },
+          }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getAll: vi.fn(async () => [legacyMatch]),
+        getById: vi.fn(async () => legacyMatch),
+        upsertCache: vi.fn(async match => match),
+        delete: vi.fn(async () => {}),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService: { enqueue: vi.fn(), flushPendingSync: vi.fn(async () => ({ applied: 0, failed: 0 })) },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await service.listMatches({ forceRefresh: true });
+
+    expect(calls).toEqual(expect.arrayContaining([
+      expect.objectContaining({ table: 'matches', method: 'upsert' }),
+      expect.objectContaining({ table: 'video_references', method: 'upsert' }),
+      expect.objectContaining({ table: 'match_events', method: 'upsert' }),
+      expect.objectContaining({ table: 'match_possessions', method: 'insert' }),
+      expect.objectContaining({ table: 'match_sequences', method: 'insert' }),
+      expect.objectContaining({ table: 'match_notes', method: 'insert' }),
+    ]));
+    expect(calls.find(call => call.table === 'match_events' && call.method === 'upsert')?.payload).toEqual([
+      expect.objectContaining({
+        id: '22222222-2222-4222-8222-222222222222',
+        match_id: legacyMatch.id,
+        club_id: 'club-1',
+        created_by: 'user-1',
+        event_type: 'ruck',
+      }),
+    ]);
+    expect(localApi.matches.upsertCache).toHaveBeenCalledWith(expect.objectContaining({
+      id: legacyMatch.id,
+      cloud: { clubId: 'club-1', createdBy: 'user-1' },
+    }));
+  });
+
   it('removes cached cloud-origin matches missing from a complete cloud refresh', async () => {
     let cached = [
       { id: 'cloud-old', cloud: { clubId: 'club-1' } },
