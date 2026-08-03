@@ -25,8 +25,9 @@ describe('global motion system', () => {
     const transitions = getCssFiles(stylesRoot)
       .flatMap((path) => readFileSync(path, 'utf8').match(/transition(?:-[a-z-]+)?\s*:[^;{}]+/g) || []);
 
-    const unscopedTransitions = transitions.filter((transition) => {
-      if (transition.includes('transition: none') || /\b(?:0|1)ms\b/.test(transition)) return false;
+      const unscopedTransitions = transitions.filter((transition) => {
+        if (transition.startsWith('transition-name')) return false;
+        if (transition.includes('transition: none') || /\b(?:0|1)ms\b/.test(transition)) return false;
       if (!transition.includes('var(--duration-')) return true;
       return /^\s*transition\s*:/.test(transition) && !transition.includes('var(--ease-smooth)');
     });

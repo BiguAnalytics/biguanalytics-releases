@@ -297,6 +297,47 @@ body[data-route="dashboard"] .ambient-glow-blue {
 }
 
 /* Screen transitions */
+#main-content-body {
+  view-transition-name: route-content;
+}
+
+::view-transition-old(route-content),
+::view-transition-new(route-content) {
+  animation-duration: var(--duration-base);
+  animation-timing-function: var(--ease-smooth);
+  animation-fill-mode: both;
+}
+
+::view-transition-old(route-content) {
+  animation-name: route-content-out;
+}
+
+::view-transition-new(route-content) {
+  animation-name: route-content-in;
+}
+
+@keyframes route-content-out {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, -8px, 0);
+  }
+}
+
+@keyframes route-content-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 12px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 .view-enter {
   opacity: 1;
 }
@@ -497,6 +538,11 @@ body[data-route="dashboard"] .ambient-glow-blue {
 
   .route-transition-layer {
     transition: opacity var(--duration-fast) var(--ease-smooth) !important;
+  }
+
+  ::view-transition-old(route-content),
+  ::view-transition-new(route-content) {
+    animation: none;
   }
 
   .route-transition-enter.is-route-entering,

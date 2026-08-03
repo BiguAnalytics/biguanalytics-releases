@@ -1,0 +1,23 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
+import { describe, expect, it } from 'vitest';
+
+const root = process.cwd();
+const routerSource = readFileSync(resolve(root, 'src/renderer/router.js'), 'utf8');
+const baseCss = readFileSync(resolve(root, 'src/styles/base.css'), 'utf8');
+
+describe('native route view transitions', () => {
+  it('wraps route DOM updates with the native API and has a direct fallback', () => {
+    expect(routerSource).toContain('function runRouteViewTransition(update)');
+    expect(routerSource).toContain("typeof document.startViewTransition !== 'function'");
+    expect(routerSource).toContain('return update();');
+    expect(routerSource).toContain('document.startViewTransition(() => update())');
+  });
+
+  it('assigns a dedicated route transition name and motion treatment', () => {
+    expect(baseCss).toContain('view-transition-name: route-content;');
+    expect(baseCss).toContain('::view-transition-old(route-content)');
+    expect(baseCss).toContain('::view-transition-new(route-content)');
+  });
+});

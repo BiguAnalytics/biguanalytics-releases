@@ -66,6 +66,27 @@ function prefersReducedMotion() {
 }
 
 /**
+ * Runs a route DOM update through the native Chromium transition when available.
+ * Reduced-motion users and older Electron builds update the DOM directly.
+ * @param {() => unknown} update
+ * @returns {unknown}
+ */
+function runRouteViewTransition(update) {
+  if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
+    return update();
+  }
+
+  try {
+    return document.startViewTransition(() => update());
+  } catch (error) {
+    window.dispatchEvent(new CustomEvent('bigu:view-transition-error', {
+      detail: { error },
+    }));
+    return update();
+  }
+}
+
+/**
  * @param {HTMLElement} container
  */
 function clearRouteTransitionState(container) {
@@ -151,11 +172,13 @@ function runRouteCleanup() {
  * @param {object} params
  * @param {unknown} cleanup
  * @param {number} token
+ * @param {boolean} animate
  */
-function finalizeRouteRender(container, route, params, cleanup, token) {
+function finalizeRouteRender(container, route, params, cleanup, token, animate = true) {
   if (token !== transitionToken) return;
   if (typeof cleanup === 'function') currentCleanup = cleanup;
-  startRouteEnter(container);
+  if (animate) startRouteEnter(container);
+  else clearRouteTransitionState(container);
   dispatchRouteChanged(route, params);
 }
 
@@ -163,10 +186,12 @@ function finalizeRouteRender(container, route, params, cleanup, token) {
  * @param {HTMLElement} container
  * @param {unknown} error
  * @param {number} token
+ * @param {boolean} animate
  */
-function handleRouteRenderError(container, error, token) {
+function handleRouteRenderError(container, error, token, animate = true) {
   if (token !== transitionToken) return;
-  startRouteEnter(container);
+  if (animate) startRouteEnter(container);
+  else clearRouteTransitionState(container);
   window.setTimeout(() => {
     throw error;
   });
@@ -178,8 +203,9 @@ function handleRouteRenderError(container, error, token) {
  * @param {object} params
  * @param {function} renderFn
  * @param {number} token
+ * @param {boolean} animate
  */
-function renderRoute(container, route, params, renderFn, token) {
+function renderRoute(container, route, params, renderFn, token, animate = true) {
   runRouteCleanup();
 
   currentRoute = route;
@@ -189,23 +215,23 @@ function renderRoute(container, route, params, renderFn, token) {
   if (window.location.hash !== currentHash) window.location.hash = currentHash;
 
   clearRouteTransitionState(container);
-  prepareRouteEnter(container);
+  if (animate) prepareRouteEnter(container);
   let cleanup;
   try {
     cleanup = renderFn(container, params);
   } catch (error) {
-    handleRouteRenderError(container, error, token);
+    handleRouteRenderError(container, error, token, animate);
     return;
   }
 
   if (cleanup && typeof cleanup.then === 'function') {
     cleanup
-      .then((resolvedCleanup) => finalizeRouteRender(container, route, params, resolvedCleanup, token))
-      .catch((error) => handleRouteRenderError(container, error, token));
+      .then((resolvedCleanup) => finalizeRouteRender(container, route, params, resolvedCleanup, token, animate))
+      .catch((error) => handleRouteRenderError(container, error, token, animate));
     return;
   }
 
-  finalizeRouteRender(container, route, params, cleanup, token);
+  finalizeRouteRender(container, route, params, cleanup, token, animate);
 }
 
 /**
@@ -227,22 +253,21 @@ export function navigate(route, params = {}) {
   if (renderFn) {
     const token = ++transitionToken;
     const hasMountedRoute = Boolean(currentRoute);
+    const updateRouteDom = () => {
+      if (token !== transitionToken) return;
+      setSidebarActive(route);
+      document.body.dataset.route = route;
+      currentHash = buildHash(route, params);
+      if (window.location.hash !== currentHash) window.location.hash = currentHash;
+      renderRoute(container, route, params, renderFn, token, false);
+    };
 
-    setSidebarActive(route);
-    document.body.dataset.route = route;
-    currentHash = buildHash(route, params);
-    if (window.location.hash !== currentHash) window.location.hash = currentHash;
-
-    if (hasMountedRoute && !prefersReducedMotion()) {
-      startRouteExit(container);
-      window.setTimeout(() => {
-        if (token !== transitionToken) return;
-        renderRoute(container, route, params, renderFn, token);
-      }, ROUTE_TRANSITION_MS);
+    if (hasMountedRoute) {
+      runRouteViewTransition(updateRouteDom);
       return;
     }
 
-    renderRoute(container, route, params, renderFn, token);
+    updateRouteDom();
   }
 }
 
