@@ -893,6 +893,10 @@ export function renderTagging(container, params = {}) {
   let nativeSpeechResultCleanup = null;
   let nativeSpeechErrorCleanup = null;
   let nativeSpeechStatusCleanup = null;
+  let eventSaveState = 'idle';
+  let eventSaveStatusMessage = '';
+  let pendingEventSaves = 0;
+  let eventSaveStatusTimer = 0;
 
   const cleanup = () => {
     disposed = true;
@@ -906,6 +910,10 @@ export function renderTagging(container, params = {}) {
     if (pendingPossessionSaveTimer) {
       window.clearTimeout(pendingPossessionSaveTimer);
       pendingPossessionSaveTimer = 0;
+    }
+    if (eventSaveStatusTimer) {
+      window.clearTimeout(eventSaveStatusTimer);
+      eventSaveStatusTimer = 0;
     }
     if (liveDrawingAnimationFrame) window.cancelAnimationFrame(liveDrawingAnimationFrame);
     if (mediaResizeCleanup) mediaResizeCleanup();
@@ -923,7 +931,10 @@ export function renderTagging(container, params = {}) {
 
   container.innerHTML = `
     <section class="tagging-view view-enter" tabindex="-1">
-      <div class="tagging-loading">Cargando partido...</div>
+      <div class="tagging-loading" role="status" aria-live="polite">
+        <span class="tagging-loading-indicator" aria-hidden="true"></span>
+        <span>Cargando partido...</span>
+      </div>
     </section>
   `;
 
@@ -1116,6 +1127,7 @@ export function renderTagging(container, params = {}) {
                   <span>Estado del partido</span>
                   <strong>Tagging en vivo</strong>
                 </div>
+                <div class="tagging-save-status" id="tagging-save-status" role="status" aria-live="polite" hidden></div>
                 <section class="status-card status-score-card" aria-label="Marcador manual">
                   <div class="scoreboard-compact">
                     <div class="score-team-control">
@@ -1478,12 +1490,22 @@ export function renderTagging(container, params = {}) {
 
   function renderAll() {
     renderControls();
+    renderEventSaveStatus();
     renderScoreboard();
     renderPopup();
     renderSequencePrompt();
     renderEventInspector();
     renderPossession();
     renderTimelineView();
+  }
+
+  function renderEventSaveStatus() {
+    const status = container.querySelector('#tagging-save-status');
+    if (!(status instanceof HTMLElement)) return;
+    status.hidden = eventSaveState === 'idle';
+    status.dataset.saveState = eventSaveState;
+    status.setAttribute('aria-busy', String(eventSaveState === 'saving'));
+    status.textContent = eventSaveStatusMessage;
   }
 
   /**
@@ -3178,43 +3200,83 @@ export function renderTagging(container, params = {}) {
     return parsed.valid ? parsed.seconds : null;
   }
 
-  async function handlePopupOption(value) {
+  function handlePopupOption(value) {
     const result = selectPopupOption(state, value);
     state = result.state;
     if (result.completed && result.event) {
       stopSpeechNote();
-      await saveEvent(result.event);
+      void persistTaggedEvent(result.event);
+      return;
     }
     renderAll();
   }
 
-  async function completeActivePopup() {
+  function completeActivePopup() {
     const result = completePopup(state);
     state = result.state;
     if (result.completed && result.event) {
       stopSpeechNote();
-      await saveEvent(result.event);
+      void persistTaggedEvent(result.event);
+      return;
     }
     renderAll();
   }
 
+  async function persistTaggedEvent(event) {
+    pendingEventSaves += 1;
+    eventSaveState = 'saving';
+    eventSaveStatusMessage = 'Guardando evento...';
+    window.clearTimeout(eventSaveStatusTimer);
+    eventSaveStatusTimer = 0;
+    renderAll();
+
+    try {
+      const saved = await saveEvent(event);
+      if (saved === false) {
+        eventSaveState = 'error';
+        eventSaveStatusMessage = 'Revisá los datos del evento.';
+      }
+    } catch (error) {
+      eventSaveState = 'error';
+      eventSaveStatusMessage = 'No se pudo guardar el evento.';
+      const detail = error instanceof Error ? ` ${error.message}` : '';
+      showTaggingFeedback(`${eventSaveStatusMessage}${detail}`, 'error');
+    } finally {
+      pendingEventSaves = Math.max(0, pendingEventSaves - 1);
+      if (pendingEventSaves === 0) {
+        if (eventSaveState !== 'error') {
+          eventSaveState = 'saved';
+          eventSaveStatusMessage = 'Evento guardado';
+        }
+        renderAll();
+        eventSaveStatusTimer = window.setTimeout(() => {
+          eventSaveState = 'idle';
+          eventSaveStatusMessage = '';
+          renderEventSaveStatus();
+        }, 1200);
+      } else {
+        renderEventSaveStatus();
+      }
+    }
+  }
+
   async function saveEvent(event) {
-    if (!match) return;
+    if (!match) return false;
     const eventPayload = buildEventPayload(event);
-    if (!eventPayload) return;
+    if (!eventPayload) return false;
     if (statsOnlyMode) {
       const manual = /** @type {HTMLInputElement|null} */ (container.querySelector('#manual-timestamp'));
       const timestampValidation = validateManualTimestampInput(manual?.value || '', { statsOnlyMode: true, duration });
       if (!timestampValidation.valid) {
         showTaggingFeedback(timestampValidation.message, 'error');
-        return;
+        return false;
       }
       eventPayload.timestamp = timestampValidation.seconds;
     } else {
       const timestampValidation = validateManualTimestampInput(String(eventPayload.timestamp ?? ''), { statsOnlyMode: false, duration });
       if (!timestampValidation.valid) {
         showTaggingFeedback(timestampValidation.message, 'error');
-        return;
+        return false;
       }
       eventPayload.timestamp = timestampValidation.seconds;
     }
@@ -3228,6 +3290,7 @@ export function renderTagging(container, params = {}) {
     if (pointsDelta > 0) {
       renderScoreboard();
     }
+    return true;
   }
 
   async function savePossession() {

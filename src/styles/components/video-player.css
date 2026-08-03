@@ -22,12 +22,22 @@
 
 .tagging-loading {
   display: grid;
+  gap: var(--space-3);
   place-items: center;
   height: 100%;
   color: var(--color-text-secondary);
   font: 700 13px var(--font-brand);
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.tagging-loading-indicator {
+  width: 24px;
+  height: 24px;
+  border: 2px solid rgba(138, 155, 176, 0.24);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-full);
+  animation: spin 650ms linear infinite;
 }
 
 .tagging-match-select-view {
@@ -257,6 +267,44 @@ button.tagging-match-card {
   min-height: 0;
   overflow-y: hidden;
   padding-bottom: 0;
+}
+
+.tagging-save-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 30px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid rgba(138, 155, 176, 0.12);
+  border-radius: var(--radius-md);
+  background: rgba(13, 24, 41, 0.46);
+  color: var(--color-text-secondary);
+  font: 700 11px var(--font-ui);
+}
+
+.tagging-save-status[hidden] {
+  display: none;
+}
+
+.tagging-save-status[data-save-state="saving"]::before {
+  width: 11px;
+  height: 11px;
+  flex: 0 0 auto;
+  content: '';
+  border: 2px solid rgba(138, 155, 176, 0.28);
+  border-top-color: var(--color-accent);
+  border-radius: var(--radius-full);
+  animation: spin 650ms linear infinite;
+}
+
+.tagging-save-status[data-save-state="saved"] {
+  border-color: rgba(29, 185, 84, 0.28);
+  color: #8fe0ad;
+}
+
+.tagging-save-status[data-save-state="error"] {
+  border-color: rgba(200, 16, 46, 0.3);
+  color: var(--color-accent-hover);
 }
 
 .tagging-side-panel [hidden] {

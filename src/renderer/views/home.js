@@ -424,11 +424,17 @@ function updateHomeSyncNotice(homeRoot, message) {
  */
 function renderMatchLoading(matchSection, title, text) {
   const empty = document.createElement('div');
-  empty.className = 'empty-state';
+  empty.className = 'empty-state home-loading-state';
   empty.setAttribute('aria-live', 'polite');
+  empty.setAttribute('role', 'status');
   empty.innerHTML = `
+    <div class="home-loading-skeleton" aria-hidden="true">
+      <span class="home-loading-skeleton-card"></span>
+      <span class="home-loading-skeleton-card"></span>
+      <span class="home-loading-skeleton-card"></span>
+    </div>
     <h3 class="empty-state-title">${title}</h3>
-    <p class="empty-state-text">${text}</p>
+    <p class="empty-state-text"><span class="home-loading-spinner" aria-hidden="true"></span>${text}</p>
   `;
   matchSection.appendChild(empty);
 }

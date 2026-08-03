@@ -133,10 +133,14 @@ function showStartupSplash() {
   splash.className = 'bigu-startup-splash';
   splash.setAttribute('role', 'status');
   splash.setAttribute('aria-live', 'polite');
+  splash.dataset.startupStage = 'loading';
   splash.innerHTML = `
     <div class="bigu-startup-brand">
       ${renderBiguLogo({ className: 'bigu-startup-logo', ariaHidden: true })}
       <div class="bigu-startup-wordmark">Bigu<span>Analytics</span></div>
+      <div class="bigu-startup-progress" aria-hidden="true">
+        <span class="bigu-startup-progress-indicator"></span>
+      </div>
       <div class="bigu-startup-status">Cargando...</div>
     </div>
   `;
@@ -164,6 +168,10 @@ function hideStartupSplash(splash) {
  */
 function setStartupSplashStatus(splash, text) {
   const status = splash?.querySelector?.('.bigu-startup-status');
+  if (splash) {
+    const normalized = String(text || '').toLowerCase();
+    splash.dataset.startupStage = normalized.includes('verificado') ? 'verified' : 'checking';
+  }
   if (status) status.textContent = text;
 }
 

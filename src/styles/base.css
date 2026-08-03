@@ -408,7 +408,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
 .bigu-startup-splash {
   position: fixed;
   inset: 0;
-  z-index: 6000;
+  z-index: var(--z-splash);
   display: grid;
   place-items: center;
   background:
@@ -449,11 +449,34 @@ body[data-route="dashboard"] .ambient-glow-blue {
   color: var(--color-accent);
 }
 
+.bigu-startup-progress {
+  width: min(180px, 60vw);
+  height: 3px;
+  overflow: hidden;
+  border-radius: var(--radius-full);
+  background: rgba(138, 155, 176, 0.18);
+}
+
+.bigu-startup-progress-indicator {
+  display: block;
+  width: 42%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-accent);
+  box-shadow: 0 0 16px rgba(200, 16, 46, 0.5);
+  animation: bigu-startup-progress-indicator 1200ms var(--ease-smooth) infinite;
+}
+
 .bigu-startup-status {
   font: 700 12px var(--font-ui);
   color: var(--color-text-secondary);
   text-transform: uppercase;
   letter-spacing: 0.12em;
+}
+
+@keyframes bigu-startup-progress-indicator {
+  0% { transform: translateX(-125%); }
+  100% { transform: translateX(365%); }
 }
 
 /* Utility classes */

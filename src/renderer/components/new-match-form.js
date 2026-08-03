@@ -173,6 +173,7 @@ function buildMatchFormHtml({ mode, match = null, today }) {
         </div>
       </div>
       <div id="form-errors"></div>
+      <div class="match-form-status" id="match-form-status" role="status" aria-live="polite" hidden></div>
     </form>
   `;
 }
@@ -193,7 +194,16 @@ function openMatchModal({ mode, match = null, onSaved }) {
     const form = document.getElementById('new-match-form');
     const errorsEl = document.getElementById('form-errors');
     const submitButton = /** @type {HTMLButtonElement|null} */ (document.getElementById(isEdit ? 'save-match-btn' : 'create-match-btn'));
+    const formStatus = document.getElementById('match-form-status');
     if (!(form instanceof HTMLElement) || !errorsEl) return;
+
+    const setFormStatus = (message, tone = 'info') => {
+      if (!(formStatus instanceof HTMLElement)) return;
+      formStatus.hidden = !message;
+      formStatus.dataset.tone = tone;
+      formStatus.textContent = message;
+    };
+
     clearFormErrors(form);
     errorsEl.innerHTML = '';
 
@@ -220,14 +230,19 @@ function openMatchModal({ mode, match = null, onSaved }) {
     }
 
     try {
+      form.setAttribute('aria-busy', 'true');
       if (submitButton) {
         submitButton.disabled = true;
+        submitButton.classList.add('is-loading');
+        submitButton.setAttribute('aria-busy', 'true');
         submitButton.textContent = isEdit ? 'Guardando...' : 'Creando...';
       }
+      setFormStatus('Validando video...');
 
       const video = activeVideoTab === 'youtube'
         ? await window.api.media.normalizeYouTube(youtubeUrl)
         : selectedLocalVideo || (isEdit ? buildPendingLocalVideo(match?.video?.type === 'local' ? match.video : null) : null);
+      setFormStatus(isEdit ? 'Guardando cambios...' : 'Guardando partido...');
 
       if (isEdit && match?.id) {
         const updatedMatch = await cloudMatchService.updateMatch(match.id, {
@@ -255,10 +270,15 @@ function openMatchModal({ mode, match = null, onSaved }) {
       modal.close();
       onSaved(createdMatch);
     } catch (error) {
-      errorsEl.innerHTML = `<p class="form-error">Error al ${isEdit ? 'guardar' : 'crear'} el partido: ${escapeHtml(error.message)}</p>`;
+      const message = error instanceof Error ? error.message : String(error || 'No se pudo completar la operación.');
+      errorsEl.innerHTML = `<p class="form-error">Error al ${isEdit ? 'guardar' : 'crear'} el partido: ${escapeHtml(message)}</p>`;
+      setFormStatus(`No se pudo ${isEdit ? 'guardar' : 'crear'} el partido.`, 'error');
     } finally {
+      form.removeAttribute('aria-busy');
       if (submitButton) {
         submitButton.disabled = false;
+        submitButton.classList.remove('is-loading');
+        submitButton.removeAttribute('aria-busy');
         submitButton.textContent = isEdit ? 'Guardar cambios' : 'Crear Partido';
       }
     }
