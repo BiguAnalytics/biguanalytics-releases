@@ -245,6 +245,7 @@ button.tagging-match-card {
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  isolation: isolate;
 }
 
 .tagging-status-panel {
@@ -256,47 +257,32 @@ button.tagging-match-card {
   min-height: 0;
   overflow-y: hidden;
   padding-bottom: 0;
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
-.tagging-side-panel.has-active-popup .tagging-status-panel {
-  display: none;
+.tagging-side-panel [hidden] {
+  display: none !important;
+  pointer-events: none !important;
 }
 
-.tagging-side-panel.has-event-inspector .tagging-status-panel {
-  display: none;
+.tagging-side-panel [data-panel-surface] {
+  position: relative;
+  z-index: var(--z-panel-surface);
+}
+
+.tagging-side-panel [data-panel-surface][data-panel-state="active"] {
+  pointer-events: auto;
 }
 
 .tagging-side-panel .tag-popup-host,
 .tagging-side-panel .event-inspector-host {
-  display: none;
+  display: flex;
+  flex: 1 1 100%;
   align-items: center;
   justify-content: center;
   width: 100%;
   min-width: 0;
   min-height: 0;
   padding: 0;
-  z-index: 20;
-}
-
-.tagging-side-panel .tag-popup-host {
-  display: none;
-}
-
-.tagging-side-panel .event-inspector-host {
-  display: none;
-}
-
-.tagging-side-panel.has-active-popup .tag-popup-host:not(:empty) {
-  display: flex;
-  pointer-events: auto;
-}
-
-.tagging-side-panel.has-event-inspector .event-inspector-host:not(:empty) {
-  display: flex;
-  pointer-events: auto;
 }
 
 .event-inspector {

@@ -388,7 +388,7 @@ describe('tagging side inspector layout', () => {
 
   it('keeps operational status in the stable right-side panel', () => {
     expect(taggingSource).toContain('class="tagging-side-panel"');
-    expect(taggingSource).toContain('<div class="tagging-status-panel" id="tagging-status-panel">');
+    expect(taggingSource).toContain('<div class="tagging-status-panel" id="tagging-status-panel"');
     expect(taggingSource).toContain('class="status-panel-heading"');
     expect(taggingSource).toContain('class="status-card status-score-card"');
     expect(taggingSource).toContain('class="status-card status-possession-card"');
@@ -410,7 +410,7 @@ describe('tagging side inspector layout', () => {
     expect(popupIndex).toBeGreaterThan(statusIndex);
     expect(sequencePopupIndex).toBeGreaterThan(popupIndex);
     expect(taggingSource).toContain('function syncSidePanelMode()');
-    expect(taggingSource).toContain('has-active-popup');
+    expect(taggingSource).toContain('data-panel-mode');
   });
 
   it('adds a simplified manual scoreboard without duplicated score readouts', () => {
@@ -568,7 +568,7 @@ describe('tagging event inspector', () => {
   it('renders timeline event detail in the right inspector surface', () => {
     expect(taggingSource).toContain('id="event-inspector-host"');
     expect(taggingSource).toContain('function renderEventInspector()');
-    expect(taggingSource).toContain('has-event-inspector');
+    expect(taggingSource).toContain('data-panel-surface="inspector"');
     expect(taggingSource).toContain('data-event-note-edit');
     expect(taggingSource).toContain('data-event-save');
     expect(taggingSource).toContain('data-event-delete');

@@ -100,6 +100,16 @@
   --timeline-height:    140px;
   --tagging-panel-popup-w: 280px;
   --titlebar-height:    32px;
+
+  /* Z-index layers: content < controls < panels < floating < overlays < modal < splash. */
+  --z-content:       1;
+  --z-controls:      10;
+  --z-panel-surface: 20;
+  --z-floating:      80;
+  --z-topbar:        100;
+  --z-overlay:       1000;
+  --z-modal:         2000;
+  --z-splash:        6000;
 }
 
 :root[data-theme="light"] {

@@ -41,9 +41,9 @@ describe('video player layout CSS', () => {
   });
 
   it('replaces the status inspector with popups inside the same right panel', () => {
-    expect(css).toMatch(/\.tagging-side-panel\.has-active-popup\s+\.tagging-status-panel\s*{[^}]*display:\s*none;/s);
-    expect(css).toMatch(/\.tagging-side-panel\.has-active-popup\s+\.tag-popup-host:not\(:empty\)\s*{[^}]*display:\s*flex;/s);
-    expect(css).toMatch(/\.tagging-side-panel\s+\.tag-popup-host\s*{[^}]*display:\s*none;/s);
+    expect(css).toContain('.tagging-side-panel [hidden]');
+    expect(css).toContain('display: none !important;');
+    expect(css).toMatch(/\.tagging-side-panel\s+\[data-panel-surface\]\s*{[^}]*z-index:\s*var\(--z-panel-surface\);/s);
   });
 
   it('gives edit forms breathing room below the inspector header', () => {

@@ -1111,7 +1111,7 @@ export function renderTagging(container, params = {}) {
               <div class="tagging-timecode tabular-nums" id="tagging-timecode">00:00</div>
             </div>
             <aside class="tagging-side-panel" id="tagging-side-panel" aria-label="Panel operativo de tagging">
-              <div class="tagging-status-panel" id="tagging-status-panel">
+              <div class="tagging-status-panel" id="tagging-status-panel" data-panel-surface="status" aria-hidden="false">
                 <div class="status-panel-heading">
                   <span>Estado del partido</span>
                   <strong>Tagging en vivo</strong>
@@ -1166,9 +1166,9 @@ export function renderTagging(container, params = {}) {
                   </label>
                 ` : ''}
               </div>
-              <div class="tag-popup-host" id="tag-popup-host"></div>
-              <div class="tag-popup-host sequence-popup-host" id="sequence-popup-host"></div>
-              <div class="event-inspector-host" id="event-inspector-host"></div>
+              <div class="tag-popup-host" id="tag-popup-host" data-panel-surface="tag-popup" hidden aria-hidden="true"></div>
+              <div class="tag-popup-host sequence-popup-host" id="sequence-popup-host" data-panel-surface="sequence" hidden aria-hidden="true"></div>
+              <div class="event-inspector-host" id="event-inspector-host" data-panel-surface="inspector" hidden aria-hidden="true"></div>
             </aside>
           </div>
           <div class="video-controls" id="video-controls">
@@ -1768,8 +1768,8 @@ export function renderTagging(container, params = {}) {
         errorMessage: speechErrorMessage,
       },
     });
-    focusFirstPopupControl(host);
     syncSidePanelMode();
+    if (!host.hidden) focusFirstPopupControl(host);
   }
 
   function renderSequencePrompt() {
@@ -1813,8 +1813,8 @@ export function renderTagging(container, params = {}) {
       button.addEventListener('click', () => saveSequence(button.dataset.sequenceResult));
     });
     wireInspectorZonePickers(host);
-    focusFirstPopupControl(host);
     syncSidePanelMode();
+    if (!host.hidden) focusFirstPopupControl(host);
   }
 
   function renderEventInspector() {
@@ -2043,10 +2043,37 @@ export function renderTagging(container, params = {}) {
 
   function syncSidePanelMode() {
     const sidePanel = container.querySelector('#tagging-side-panel');
-    const hasActivePopup = Boolean(state.activePopup || sequencePrompt);
-    const hasEventInspector = Boolean((selectedTimelineEventId || selectedTimelineSequenceKey) && !hasActivePopup);
-    sidePanel?.classList.toggle('has-active-popup', hasActivePopup);
-    sidePanel?.classList.toggle('has-event-inspector', hasEventInspector);
+    if (!sidePanel) return;
+
+    const hasTagPopup = Boolean(state.activePopup);
+    const hasSequencePrompt = Boolean(sequencePrompt);
+    const hasEventInspector = Boolean((selectedTimelineEventId || selectedTimelineSequenceKey)
+      && !hasTagPopup
+      && !hasSequencePrompt);
+    const panelMode = hasTagPopup
+      ? 'tag-popup'
+      : hasSequencePrompt
+        ? 'sequence'
+        : hasEventInspector
+          ? 'inspector'
+          : 'status';
+    sidePanel.setAttribute('data-panel-mode', panelMode);
+    sidePanel.dataset.panelMode = panelMode;
+
+    const surfaces = [
+      ['status', sidePanel.querySelector('#tagging-status-panel')],
+      ['tag-popup', sidePanel.querySelector('#tag-popup-host')],
+      ['sequence', sidePanel.querySelector('#sequence-popup-host')],
+      ['inspector', sidePanel.querySelector('#event-inspector-host')],
+    ];
+    surfaces.forEach(([mode, surface]) => {
+      if (!(surface instanceof HTMLElement)) return;
+      const isActive = mode === panelMode;
+      surface.hidden = !isActive;
+      surface.dataset.panelState = isActive ? 'active' : 'inactive';
+      surface.setAttribute('aria-hidden', String(!isActive));
+      if (!isActive) surface.replaceChildren();
+    });
   }
 
   /**
