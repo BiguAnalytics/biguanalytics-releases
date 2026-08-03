@@ -296,3 +296,12 @@ describe('settings theme selection', () => {
     })).toBe('dark');
   });
 });
+
+describe('settings interaction polish', () => {
+  it('keeps the save action visible while the settings content scrolls', () => {
+    expect(settingsSource).toContain('settings-save-bar');
+    expect(settingsSource).toContain('Guardar ajustes');
+    expect(layoutSource).toMatch(/\.settings-save-bar\s*{[\s\S]*position:\s*sticky;[\s\S]*top:\s*var\(--space-2\)/s);
+    expect(layoutSource).toContain('.settings-save-bar .settings-feedback');
+  });
+});

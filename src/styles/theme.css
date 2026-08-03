@@ -129,6 +129,12 @@
   border-color: var(--color-border);
 }
 
+:root[data-theme="light"] .settings-save-bar {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 12px 28px rgba(15, 35, 64, 0.12);
+}
+
 :root[data-theme="light"] .settings-theme-option:has(input:checked),
 :root[data-theme="light"] .settings-hotkey-record.is-recording,
 :root[data-theme="light"] .settings-microphone-test[aria-pressed="true"] {

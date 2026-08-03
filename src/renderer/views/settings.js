@@ -755,6 +755,10 @@ export async function renderSettings(container) {
         <h1 class="construction-title">Preferencias de tagging</h1>
         <p class="construction-text">Opciones operativas para el flujo de analisis durante el partido.</p>
         <form class="settings-form" id="settings-form">
+          <div class="settings-save-bar">
+            <button class="btn btn-primary" type="submit">Guardar ajustes</button>
+            <p class="settings-feedback" id="settings-feedback" role="status"></p>
+          </div>
           <fieldset class="settings-theme-field">
             <legend class="form-label">Tema visual</legend>
             <div class="settings-theme-grid">
@@ -973,8 +977,6 @@ export async function renderSettings(container) {
               </div>
             </div>
           </fieldset>
-          <button class="btn btn-primary" type="submit">Guardar ajustes</button>
-          <p class="settings-feedback" id="settings-feedback" role="status"></p>
         </form>
       </div>
     </section>

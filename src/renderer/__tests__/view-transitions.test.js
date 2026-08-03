@@ -20,4 +20,14 @@ describe('native route view transitions', () => {
     expect(baseCss).toContain('::view-transition-old(route-content)');
     expect(baseCss).toContain('::view-transition-new(route-content)');
   });
+
+  it('keeps native transition layers transparent to pointer input', () => {
+    expect(baseCss).toMatch(/::view-transition-(group|image-pair|old|new)\([^)]*\)[\s\S]*pointer-events:\s*none;/s);
+  });
+
+  it('interrupts an active route transition when the user navigates again', () => {
+    expect(routerSource).toContain('let activeRouteViewTransition = null;');
+    expect(routerSource).toContain('if (activeRouteViewTransition) return update();');
+    expect(routerSource).toContain('activeRouteViewTransition = transition;');
+  });
 });

@@ -1053,7 +1053,7 @@ export function renderTagging(container, params = {}) {
         </header>
         <div class="tagging-match-select-grid" aria-label="Videos disponibles para tagging">
           ${items.map(item => `
-            <article class="tagging-match-card" aria-label="${escapeHtml(item.title)}">
+            <article class="tagging-match-card" data-tagging-match-card-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
               <button class="tagging-match-edit-button" type="button" data-tagging-edit-match-id="${escapeHtml(item.id)}" aria-label="Editar partido ${escapeHtml(item.title)}" title="Editar partido">
                 ${MATCH_EDIT_ICON}
               </button>
@@ -1077,6 +1077,23 @@ export function renderTagging(container, params = {}) {
       button.addEventListener('click', () => {
         const selected = items.find(item => item.id === button.dataset.taggingMatchId);
         if (selected) navigate('tagging', { matchId: selected.id });
+      });
+    });
+
+    host.querySelectorAll('[data-tagging-match-card-id]').forEach((card) => {
+      const openSelectedMatch = () => {
+        const selected = items.find(item => item.id === card.dataset.taggingMatchCardId);
+        if (selected) navigate('tagging', { matchId: selected.id });
+      };
+      card.addEventListener('click', (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest('button')) return;
+        openSelectedMatch();
+      });
+      card.addEventListener('keydown', (event) => {
+        if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+        event.preventDefault();
+        openSelectedMatch();
       });
     });
 

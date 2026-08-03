@@ -458,7 +458,7 @@ function renderDashboardSelection(container, matches, targetRoute = 'dashboard')
             </span>
           </button>
         ` : items.map(item => `
-          <article class="tagging-match-card" aria-label="${escapeHtml(item.title)}">
+          <article class="tagging-match-card" data-dashboard-match-card-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
             <button class="tagging-match-edit-button" type="button" data-dashboard-edit-match-id="${escapeHtml(item.id)}" aria-label="Editar partido ${escapeHtml(item.title)}" title="Editar partido">
               ${MATCH_EDIT_ICON}
             </button>
@@ -481,6 +481,22 @@ function renderDashboardSelection(container, matches, targetRoute = 'dashboard')
   container.querySelector('[data-dashboard-home]')?.addEventListener('click', () => navigate('home'));
   container.querySelectorAll('[data-dashboard-match-id]').forEach(button => {
     button.addEventListener('click', () => navigate(targetRoute, { matchId: button.dataset.dashboardMatchId }));
+  });
+  container.querySelectorAll('[data-dashboard-match-card-id]').forEach((card) => {
+    const openSelectedMatch = () => {
+      const matchId = card.dataset.dashboardMatchCardId;
+      if (matchId) navigate(targetRoute, { matchId });
+    };
+    card.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('button')) return;
+      openSelectedMatch();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      openSelectedMatch();
+    });
   });
   container.querySelectorAll('[data-dashboard-edit-match-id]').forEach(button => {
     button.addEventListener('click', () => {

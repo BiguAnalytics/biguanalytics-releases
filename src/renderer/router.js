@@ -27,6 +27,7 @@ let currentHash = null;
 let currentCleanup = null;
 let transitionToken = 0;
 let routerInitialized = false;
+let activeRouteViewTransition = null;
 
 const ROUTE_TRANSITION_MS = 600;
 const ROUTE_LAYER_CLASS = 'route-transition-layer';
@@ -75,9 +76,20 @@ function runRouteViewTransition(update) {
   if (prefersReducedMotion() || typeof document.startViewTransition !== 'function') {
     return update();
   }
+  if (activeRouteViewTransition) return update();
 
   try {
-    return document.startViewTransition(() => update());
+    const transition = document.startViewTransition(() => update());
+    activeRouteViewTransition = transition;
+    Promise.resolve(transition?.finished).then(
+      () => {
+        if (activeRouteViewTransition === transition) activeRouteViewTransition = null;
+      },
+      () => {
+        if (activeRouteViewTransition === transition) activeRouteViewTransition = null;
+      },
+    );
+    return transition;
   } catch (error) {
     window.dispatchEvent(new CustomEvent('bigu:view-transition-error', {
       detail: { error },

@@ -207,6 +207,13 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain('videoReferenceService.ensurePlayableLocalVideo(match.video)');
   });
 
+  it('opens a selected match from any non-control area of the selection card', () => {
+    expect(taggingSource).toContain('data-tagging-match-card-id');
+    expect(taggingSource).toContain("card.addEventListener('click'");
+    expect(taggingSource).toContain("target?.closest('button')");
+    expect(taggingSource).toContain("card.addEventListener('keydown'");
+  });
+
   it('shows a non-blocking missing-video notice with a change route action for stale MP4 paths', () => {
     expect(taggingSource).toContain('showMissingLocalVideoNotice');
     expect(taggingSource).toContain('video-missing-notice');

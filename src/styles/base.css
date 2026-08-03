@@ -59,6 +59,36 @@ button {
   color: inherit;
 }
 
+:where(
+  button:not(:disabled),
+  a[href],
+  summary,
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(input:not(:disabled))
+) {
+  cursor: pointer;
+  transition: filter var(--duration-fast) var(--ease-smooth);
+}
+
+:where(
+  button:not(:disabled),
+  a[href],
+  summary,
+  select:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  label:has(input:not(:disabled))
+):hover {
+  filter: brightness(1.04);
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
 button:focus {
   outline: none;
 }
@@ -306,6 +336,12 @@ body[data-route="dashboard"] .ambient-glow-blue {
   animation-duration: var(--duration-module-slide);
   animation-timing-function: var(--ease-smooth);
   animation-fill-mode: both;
+  pointer-events: none;
+}
+
+::view-transition-group(route-content),
+::view-transition-image-pair(route-content) {
+  pointer-events: none;
 }
 
 ::view-transition-old(route-content) {

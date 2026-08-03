@@ -4,6 +4,7 @@ import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 const stylesRoot = resolve(process.cwd(), 'src/styles');
+const baseCss = readFileSync(resolve(stylesRoot, 'base.css'), 'utf8');
 
 function getCssFiles(directory) {
   return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -33,5 +34,11 @@ describe('global motion system', () => {
     });
 
     expect(unscopedTransitions).toEqual([]);
+  });
+
+  it('gives enabled interactive controls a pointer cursor and hover feedback', () => {
+    expect(baseCss).toMatch(/button:not\(:disabled\)/);
+    expect(baseCss).toMatch(/:where\([\s\S]*button:not\(:disabled\)[\s\S]*\):hover/);
+    expect(baseCss).toMatch(/\[role="button"\]:not\(\[aria-disabled="true"\]\)/);
   });
 });

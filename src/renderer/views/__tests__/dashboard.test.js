@@ -43,6 +43,12 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(taggingSource).toContain("navigate('dashboard', { matchId: match.id })");
   });
 
+  it('opens a selected analysis match from the card surface, not only its button', () => {
+    expect(dashboardSource).toContain('data-dashboard-match-card-id');
+    expect(dashboardSource).toContain("card.addEventListener('click'");
+    expect(dashboardSource).toContain("target?.closest('button')");
+  });
+
   it('wires dashboard event rows back to Tagging with exact seek timestamps', () => {
     expect(dashboardSource).toContain('function buildDashboardEventLinks');
     expect(dashboardSource).toContain('data-dashboard-seek-event');
