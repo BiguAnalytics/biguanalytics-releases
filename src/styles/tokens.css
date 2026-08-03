@@ -101,13 +101,17 @@
   --tagging-panel-popup-w: 280px;
   --titlebar-height:    32px;
 
-  /* Z-index layers: content < controls < panels < floating < overlays < modal < splash. */
+  /* Z-index layers: content < controls < panels < floating < topbar < overlays < modal < splash. */
   --z-content:       1;
   --z-controls:      10;
   --z-panel-surface: 20;
+  --z-sidebar:       50;
   --z-floating:      80;
   --z-topbar:        100;
+  --z-titlebar:      200;
   --z-overlay:       1000;
+  --z-overlay-high:  1200;
+  --z-walkthrough:   1600;
   --z-modal:         2000;
   --z-splash:        6000;
 }

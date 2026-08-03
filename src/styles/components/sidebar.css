@@ -9,7 +9,7 @@
   overflow: hidden;
   flex-shrink: 0;
   position: relative;
-  z-index: 50;
+  z-index: var(--z-sidebar);
 }
 
 .sidebar.expanded {
@@ -330,7 +330,7 @@
 .account-profile-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 2000;
+  z-index: var(--z-modal);
   display: grid;
   place-items: center;
   padding: var(--space-5);

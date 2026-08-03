@@ -219,7 +219,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
   justify-content: flex-end;
   -webkit-app-region: drag;
   position: relative;
-  z-index: 200;
+  z-index: var(--z-titlebar);
 }
 
 .titlebar-buttons {
@@ -257,7 +257,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
   position: fixed;
   right: var(--space-6);
   bottom: var(--space-6);
-  z-index: 1200;
+  z-index: var(--z-overlay-high);
   max-width: min(420px, calc(100vw - var(--space-8)));
   min-height: 44px;
   display: flex;

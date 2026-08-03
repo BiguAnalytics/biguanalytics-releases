@@ -1320,7 +1320,7 @@ button.tagging-match-card {
 /* Phase 4 timeline context menu and drawing modals */
 .timeline-context-menu {
   position: fixed;
-  z-index: 1200;
+  z-index: var(--z-overlay-high);
   min-width: 220px;
   display: grid;
   gap: 2px;

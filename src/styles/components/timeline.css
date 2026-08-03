@@ -544,7 +544,7 @@
   position: fixed;
   right: var(--space-6);
   bottom: calc(var(--space-6) + 64px);
-  z-index: 1200;
+  z-index: var(--z-overlay-high);
   min-height: 44px;
   display: flex;
   align-items: center;
