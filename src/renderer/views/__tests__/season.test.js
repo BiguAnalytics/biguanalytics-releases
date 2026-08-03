@@ -14,7 +14,7 @@ describe('season view', () => {
 
   it('renders sortable table, competition filter, KPI averages and evolution charts', () => {
     expect(seasonSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
-    expect(seasonSource).toContain('cloudMatchService.listMatches()');
+    expect(seasonSource).toContain('cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true })');
     expect(seasonSource).toContain('window.api.analytics.getSeasonStats');
     expect(seasonSource).toContain('data-season-sort');
     expect(seasonSource).toContain('data-season-competition');

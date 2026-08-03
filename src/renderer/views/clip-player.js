@@ -820,13 +820,13 @@ export function renderClipPlayer(container, params = {}) {
   async function load() {
     try {
       if (!currentParams.matchId) {
-        const matches = await cloudMatchService.listMatches();
+        const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
         if (!disposed) renderClipMatchSelection(container, matches);
         return;
       }
 
       const [loadedMatch, loadedSettings] = await Promise.all([
-        cloudMatchService.getMatchById(currentParams.matchId),
+        cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true }),
         window.api.settings.get(),
       ]);
       if (disposed) return;

@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
+import { getSidebarIndicatorPosition } from '../sidebar.js';
+
 const sidebarSource = readFileSync(new URL('../sidebar.js', import.meta.url), 'utf8');
 const routerSource = readFileSync(new URL('../../router.js', import.meta.url), 'utf8');
 const sidebarCss = readFileSync(new URL('../../../styles/components/sidebar.css', import.meta.url), 'utf8');
@@ -32,9 +34,29 @@ describe('sidebar active route', () => {
   it('uses the primary button gradient for the selected module', () => {
     const primaryGradient = /linear-gradient\(\s*110deg,\s*var\(--color-brand-red\)\s*0%,\s*var\(--color-brand-navy\)\s*48%,\s*var\(--color-brand-red\)\s*100%\s*\)/s;
 
-    expect(sidebarCss).toMatch(new RegExp(`\\.sidebar-item\\.active\\s*{[\\s\\S]*${primaryGradient.source}`));
-    expect(sidebarCss).toMatch(/\.sidebar-item\.active\s*{[\s\S]*box-shadow:\s*0 14px 34px rgba\(200,\s*16,\s*46,\s*0\.18\)/);
-    expect(themeCss).toMatch(new RegExp(`:root\\[data-theme="light"\\]\\s+\\.sidebar-item\\.active\\s*{[\\s\\S]*${primaryGradient.source}`));
+    expect(sidebarCss).toMatch(new RegExp(`\\.sidebar-active-indicator\\s*{[\\s\\S]*${primaryGradient.source}`));
+    expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*box-shadow:\s*0 14px 34px rgba\(200,\s*16,\s*46,\s*0\.18\)/);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active\s*{[\s\S]*background:\s*transparent/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active:hover\s*{[\s\S]*background:\s*transparent/s);
+  });
+
+  it('keeps one active indicator and previews the target while dragging', () => {
+    expect(sidebarSource).toContain('data-sidebar-active-indicator');
+    expect(sidebarSource).toContain('pointerdown');
+    expect(sidebarSource).toContain('pointermove');
+    expect(sidebarSource).toContain('pointerup');
+    expect(sidebarSource).toContain('setPointerCapture');
+    expect(sidebarSource).toContain('elementFromPoint');
+    expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*transform:\s*translate3d\(/s);
+    expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*transition:[\s\S]*transform/s);
+    expect(sidebarCss).toMatch(/\.sidebar-item\.active\s*{[\s\S]*background:\s*transparent/s);
+  });
+
+  it('calculates the indicator position relative to the nav viewport', () => {
+    expect(getSidebarIndicatorPosition(
+      { left: 18, top: 96, width: 220, height: 44 },
+      { left: 10, top: 24 },
+    )).toEqual({ x: 8, y: 72, width: 220, height: 44 });
   });
 
   it('hydrates the sidebar profile from licensed personal data saved in settings', () => {

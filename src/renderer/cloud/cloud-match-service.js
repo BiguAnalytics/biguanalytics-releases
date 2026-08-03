@@ -740,7 +740,15 @@ export function createCloudMatchService(deps = {}) {
       }
       return match;
     },
-    async getMatchById(matchId) {
+    async getMatchById(matchId, options = {}) {
+      if (options.localFirst && typeof localApi.matches?.getById === 'function') {
+        try {
+          const cachedMatch = await timeStartup('data:match-local-cache', () => localApi.matches.getById(matchId));
+          if (cachedMatch) return cachedMatch;
+        } catch {
+          // Continue with the cloud detail path when the local cache is unavailable.
+        }
+      }
       if (!isBrowserOffline()) {
         try {
           return await downloadMatchDetail(matchId);

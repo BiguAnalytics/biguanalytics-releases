@@ -577,6 +577,28 @@ describe('cloudMatchService', () => {
     expect(syncService.flushPendingSync).not.toHaveBeenCalled();
   });
 
+  it('returns cached match detail before network when local-first entry is requested', async () => {
+    const localApi = {
+      matches: {
+        getById: vi.fn(async () => ({ id: 'cached-match', homeTeam: 'Bigua', awayTeam: 'Rival', events: [] })),
+      },
+    };
+    const clientSource = vi.fn(async () => {
+      throw new Error('Detail refresh must not block the tagging panel.');
+    });
+    const service = createCloudMatchService({
+      clientSource,
+      localApi,
+      syncService: { enqueue: vi.fn() },
+    });
+
+    await expect(service.getMatchById('cached-match', { localFirst: true })).resolves.toEqual(
+      expect.objectContaining({ id: 'cached-match', homeTeam: 'Bigua' }),
+    );
+    expect(localApi.matches.getById).toHaveBeenCalledWith('cached-match');
+    expect(clientSource).not.toHaveBeenCalled();
+  });
+
   it('returns local cache immediately and refreshes cloud summaries in the background', async () => {
     let cached = [{ id: 'cached-match', homeTeam: 'Bigua', awayTeam: 'Old', cloud: null }];
     const client = {

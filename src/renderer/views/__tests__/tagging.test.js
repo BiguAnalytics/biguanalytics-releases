@@ -200,7 +200,7 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain("import { cloudEventService } from '../cloud/cloud-event-service.js';");
     expect(taggingSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
     expect(taggingSource).toContain("import { videoReferenceService } from '../cloud/video-reference-service.js';");
-    expect(taggingSource).toContain('cloudMatchService.getMatchById(params.matchId)');
+    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
     expect(taggingSource).toContain('cloudEventService.addEvent(match.id, eventPayload)');
     expect(taggingSource).toContain('cloudEventService.updateEvent(match.id, selectedTimelineEventId');
     expect(taggingSource).toContain('cloudEventService.deleteEvent(match.id, selectedTimelineEventId)');
@@ -549,14 +549,14 @@ describe('tagging match selection entrypoint', () => {
     expect(taggingSource).toContain("import { openEditMatchModal } from '../components/new-match-form.js';");
     expect(taggingSource).toContain('openEditMatchModal(matchToEdit, async () => {');
     expect(taggingSource).toContain("navigate('tagging', { matchId: selected.id })");
-    expect(taggingSource).toContain('const matches = await cloudMatchService.listMatches();');
+    expect(taggingSource).toContain('const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });');
     expect(taggingSource).toContain('renderMatchSelection(container, matches);');
     expect(taggingSource).not.toContain('matches.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0].id');
   });
 
   it('keeps direct match entry loading the requested match instead of the selector', () => {
     expect(taggingSource).toContain('if (params.matchId) {');
-    expect(taggingSource).toContain('cloudMatchService.getMatchById(params.matchId)');
+    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
     expect(taggingSource).toContain('initializeMatch(loadedMatch);');
   });
 });

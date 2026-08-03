@@ -209,7 +209,7 @@ export function renderSeason(container) {
 
   async function load() {
     try {
-      await cloudMatchService.listMatches();
+      await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
       state.season = await window.api.analytics.getSeasonStats(year);
       applyFilters();
       render();

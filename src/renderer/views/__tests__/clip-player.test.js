@@ -304,11 +304,15 @@ describe('clip player playback wiring', () => {
 
   it('renders a match selector when Clips is opened from the sidebar without a match id', () => {
     expect(clipPlayerSource).toContain('function renderClipMatchSelection(container, matches)');
-    expect(clipPlayerSource).toContain('const matches = await cloudMatchService.listMatches();');
+    expect(clipPlayerSource).toContain('const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });');
     expect(clipPlayerSource).toContain('renderClipMatchSelection(container, matches);');
     expect(clipPlayerSource).toContain('data-clip-match-id');
     expect(clipPlayerSource).toContain("navigate('clips', { matchId: button.dataset.clipMatchId })");
     expect(clipPlayerSource).toContain('Ver clips');
+  });
+
+  it('opens a cached match before optional cloud detail refresh for direct clips entry', () => {
+    expect(clipPlayerSource).toContain("cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true })");
   });
 
   it('uses HTML video currentTime for local MP4 clips', () => {

@@ -18,7 +18,7 @@ const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'ut
 describe('dashboard phase 3 renderer wiring', () => {
   it('downloads cloud match detail before rendering stats and syncs coach notes through cloudMatchService', () => {
     expect(dashboardSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
-    expect(dashboardSource).toContain('cloudMatchService.getMatchById(params.matchId)');
+    expect(dashboardSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
     expect(dashboardSource).toContain('cloudMatchService.updateMatch(state.match.id, { coachNotes })');
     expect(dashboardSource).not.toContain('window.api.matches.update(state.match.id, { coachNotes })');
   });
@@ -32,6 +32,10 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain("import { ensureChartJs } from '../vendor-loader.js';");
     expect(dashboardSource).toContain('await ensureChartJs();');
     expect(indexHtml).toContain('../styles/components/clip-player.css');
+  });
+
+  it('renders the dashboard shell before optional AI analysis finishes', () => {
+    expect(dashboardSource).toContain('renderLoadedDashboard(container, state);\n      void refreshAIAnalysis(state)');
   });
 
   it('adds tagging to dashboard navigation for the active match', () => {

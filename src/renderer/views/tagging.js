@@ -966,7 +966,7 @@ export function renderTagging(container, params = {}) {
   async function loadTaggingEntrypoint() {
     if (params.matchId) {
       const [loadedMatch, loadedSettings] = await Promise.all([
-        cloudMatchService.getMatchById(params.matchId),
+        cloudMatchService.getMatchById(params.matchId, { localFirst: true }),
         window.api.settings.get(),
       ]);
       if (disposed) return;
@@ -975,7 +975,7 @@ export function renderTagging(container, params = {}) {
       return;
     }
 
-    const matches = await cloudMatchService.listMatches();
+    const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
     if (disposed) return;
     if (matches.length === 0) {
       renderNoMatch(container);

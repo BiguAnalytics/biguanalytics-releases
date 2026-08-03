@@ -3017,13 +3017,13 @@ export function renderDashboard(container, params = {}) {
   async function load() {
     try {
       if (!params.matchId) {
-        const matches = await cloudMatchService.listMatches();
+        const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
         if (!disposed) renderDashboardSelection(container, matches, state.focusSection === 'heatmap' ? 'heatmap' : 'dashboard');
         return;
       }
 
       const [match, settings, pdfTemplates] = await Promise.all([
-        cloudMatchService.getMatchById(params.matchId),
+        cloudMatchService.getMatchById(params.matchId, { localFirst: true }),
         window.api.settings.get(),
         loadPdfTemplatesForExport(),
       ]);
@@ -3034,7 +3034,7 @@ export function renderDashboard(container, params = {}) {
       state.exportTemplateId = getDefaultExportTemplateId(state.exportTemplates);
       state.selectedView = getViewFromPreferences(state.preferences);
       await reloadDashboardStats(state);
-      await refreshAIAnalysis(state);
+      if (disposed) return;
       state.settingsCleanup = window.api.settings.onChanged?.(async (nextSettings) => {
         if (disposed || !state.match?.id) return;
         state.preferences = normalizeDashboardPreferences(nextSettings.dashboard);
@@ -3044,6 +3044,9 @@ export function renderDashboard(container, params = {}) {
         renderLoadedDashboard(container, state);
       });
       renderLoadedDashboard(container, state);
+      void refreshAIAnalysis(state).then(() => {
+        if (!disposed) renderLoadedDashboard(container, state);
+      });
     } catch (error) {
       if (disposed) return;
       const detail = error instanceof Error ? error.message : 'Error desconocido';

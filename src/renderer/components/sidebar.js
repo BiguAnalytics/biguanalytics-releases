@@ -35,6 +35,198 @@ const SIDEBAR_TOUR_IDS = {
 
 let isExpanded = true; // Start expanded on Home
 
+const SIDEBAR_ITEM_SELECTOR = '.sidebar-item:not(.disabled)';
+const SIDEBAR_DRAG_THRESHOLD = 4;
+
+/**
+ * Calculates the active indicator geometry in the sidebar nav coordinate space.
+ * @param {{left?: number, top?: number, width?: number, height?: number}} itemRect
+ * @param {{left?: number, top?: number}} navRect
+ * @returns {{x: number, y: number, width: number, height: number}}
+ */
+export function getSidebarIndicatorPosition(itemRect = {}, navRect = {}) {
+  return {
+    x: Number(itemRect.left || 0) - Number(navRect.left || 0),
+    y: Number(itemRect.top || 0) - Number(navRect.top || 0),
+    width: Number(itemRect.width || 0),
+    height: Number(itemRect.height || 0),
+  };
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {string} activeId
+ * @returns {void}
+ */
+function applySidebarActiveClasses(sidebar, activeId) {
+  sidebar.querySelectorAll('.sidebar-item').forEach((item) => {
+    item.classList.toggle('active', item.dataset.nav === activeId);
+  });
+}
+
+/**
+ * @param {HTMLElement} nav
+ * @returns {HTMLElement}
+ */
+function ensureSidebarActiveIndicator(nav) {
+  let indicator = nav.querySelector('[data-sidebar-active-indicator]');
+  if (indicator instanceof HTMLElement) return indicator;
+
+  indicator = document.createElement('div');
+  indicator.className = 'sidebar-active-indicator';
+  indicator.setAttribute('data-sidebar-active-indicator', 'true');
+  indicator.setAttribute('aria-hidden', 'true');
+  nav.prepend(indicator);
+  return indicator;
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {string} activeId
+ * @param {{animate?: boolean}} [options]
+ * @returns {void}
+ */
+function syncSidebarActiveIndicator(sidebar, activeId, options = {}) {
+  const nav = sidebar.querySelector('.sidebar-nav');
+  const activeItem = sidebar.querySelector(`.sidebar-item[data-nav="${CSS.escape(activeId)}"]`);
+  if (!(nav instanceof HTMLElement) || !(activeItem instanceof HTMLElement)) return;
+
+  const indicator = ensureSidebarActiveIndicator(nav);
+  const position = getSidebarIndicatorPosition(activeItem.getBoundingClientRect(), nav.getBoundingClientRect());
+  indicator.hidden = false;
+  indicator.style.setProperty('--sidebar-indicator-x', `${position.x}px`);
+  indicator.style.setProperty('--sidebar-indicator-y', `${position.y}px`);
+  indicator.style.setProperty('--sidebar-indicator-width', `${position.width}px`);
+  indicator.style.setProperty('--sidebar-indicator-height', `${position.height}px`);
+  if (options.animate === false) {
+    indicator.classList.remove('is-ready');
+    window.requestAnimationFrame?.(() => indicator.classList.add('is-ready'));
+  } else {
+    indicator.classList.add('is-ready');
+  }
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {number} clientX
+ * @param {number} clientY
+ * @param {EventTarget|null} fallbackTarget
+ * @returns {HTMLElement|null}
+ */
+function getSidebarItemAtPoint(sidebar, clientX, clientY, fallbackTarget = null) {
+  const pointed = document.elementFromPoint?.(clientX, clientY);
+  const pointedItem = pointed?.closest?.(SIDEBAR_ITEM_SELECTOR);
+  if (pointedItem instanceof HTMLElement && sidebar.contains(pointedItem)) return pointedItem;
+
+  const fallbackItem = /** @type {Element|null} */ (fallbackTarget)?.closest?.(SIDEBAR_ITEM_SELECTOR);
+  return fallbackItem instanceof HTMLElement && sidebar.contains(fallbackItem) ? fallbackItem : null;
+}
+
+/**
+ * @param {HTMLElement} sidebar
+ * @param {function} onNavigate
+ * @returns {void}
+ */
+function wireSidebarDrag(sidebar, onNavigate) {
+  const nav = sidebar.querySelector('.sidebar-nav');
+  if (!(nav instanceof HTMLElement)) return;
+
+  let pointerId = null;
+  let originId = '';
+  let previewId = '';
+  let didDrag = false;
+  let startX = 0;
+  let startY = 0;
+  let suppressClick = false;
+
+  const getCommittedId = () => sidebar.dataset.activeNav || sidebar.querySelector('.sidebar-item.active')?.dataset.nav || '';
+  const releasePointer = () => {
+    if (pointerId === null) return;
+    if (nav.hasPointerCapture?.(pointerId)) nav.releasePointerCapture(pointerId);
+    pointerId = null;
+  };
+  const resetPreview = () => {
+    nav.classList.remove('is-dragging');
+    previewId = '';
+    applySidebarActiveClasses(sidebar, getCommittedId());
+    syncSidebarActiveIndicator(sidebar, getCommittedId());
+  };
+
+  nav.addEventListener('pointerdown', (event) => {
+    if (!event.isPrimary || pointerId !== null) return;
+    if (event.pointerType === 'mouse' && event.button !== 0) return;
+    const item = getSidebarItemAtPoint(sidebar, event.clientX, event.clientY, event.target);
+    if (!item) return;
+
+    pointerId = event.pointerId;
+    originId = getCommittedId();
+    previewId = item.dataset.nav || originId;
+    startX = event.clientX;
+    startY = event.clientY;
+    didDrag = false;
+    nav.setPointerCapture?.(event.pointerId);
+  });
+
+  nav.addEventListener('pointermove', (event) => {
+    if (pointerId !== event.pointerId) return;
+    const moved = Math.hypot(event.clientX - startX, event.clientY - startY);
+    if (!didDrag && moved < SIDEBAR_DRAG_THRESHOLD) return;
+
+    didDrag = true;
+    event.preventDefault();
+    nav.classList.add('is-dragging');
+    const item = getSidebarItemAtPoint(sidebar, event.clientX, event.clientY, event.target);
+    const nextId = item?.dataset.nav || '';
+    if (!nextId || nextId === previewId) return;
+    previewId = nextId;
+    applySidebarActiveClasses(sidebar, previewId);
+    syncSidebarActiveIndicator(sidebar, previewId);
+  }, { passive: false });
+
+  nav.addEventListener('pointerup', (event) => {
+    if (pointerId !== event.pointerId) return;
+    const wasDrag = didDrag;
+    const nextId = previewId;
+    releasePointer();
+    nav.classList.remove('is-dragging');
+    if (wasDrag) {
+      event.preventDefault();
+      suppressClick = true;
+      window.setTimeout(() => { suppressClick = false; }, 0);
+      if (nextId) {
+        setSidebarActive(nextId);
+        onNavigate(nextId);
+      } else {
+        setSidebarActive(originId);
+      }
+    }
+    originId = '';
+    previewId = '';
+    didDrag = false;
+  });
+
+  nav.addEventListener('pointercancel', (event) => {
+    if (pointerId !== event.pointerId) return;
+    releasePointer();
+    resetPreview();
+    originId = '';
+    didDrag = false;
+  });
+
+  nav.addEventListener('click', (event) => {
+    if (suppressClick) {
+      event.preventDefault();
+      suppressClick = false;
+      return;
+    }
+    const item = getSidebarItemAtPoint(sidebar, event.clientX, event.clientY, event.target);
+    const navId = item?.dataset.nav;
+    if (!navId) return;
+    setSidebarActive(navId);
+    onNavigate(navId);
+  });
+}
+
 export function getBiguLogoSvg() {
   return ICONS.logo;
 }
@@ -291,6 +483,7 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
       <div class="sidebar-logo-icon">${ICONS.logo}</div>
     </div>
     <nav class="sidebar-nav">
+      <div class="sidebar-active-indicator" data-sidebar-active-indicator="true" aria-hidden="true"></div>
       ${NAV_ITEMS.map(item => `
         <div class="sidebar-item${item.id === activeId ? ' active' : ''}${!item.enabled ? ' disabled' : ''}" data-nav="${item.id}" data-tour-id="${getSidebarTourId(item.id)}">
           <div class="sidebar-item-icon">${ICONS[item.icon]}</div>
@@ -325,16 +518,12 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
   toggleBtn.addEventListener('click', () => {
     isExpanded = !isExpanded;
     sidebar.classList.toggle('expanded', isExpanded);
+    window.requestAnimationFrame?.(() => syncSidebarActiveIndicator(sidebar, sidebar.dataset.activeNav || activeId));
   });
 
-  // Event: nav item click
-  sidebar.querySelectorAll('.sidebar-item:not(.disabled)').forEach(item => {
-    item.addEventListener('click', () => {
-      const navId = item.dataset.nav;
-      setSidebarActive(navId);
-      onNavigate(navId);
-    });
-  });
+  sidebar.dataset.activeNav = activeId;
+  wireSidebarDrag(sidebar, onNavigate);
+  window.requestAnimationFrame?.(() => syncSidebarActiveIndicator(sidebar, activeId, { animate: false }));
 
   const profileButton = sidebar.querySelector('[data-profile-open]');
   profileButton?.addEventListener('click', () => openAccountProfileModal(sidebar));
@@ -357,6 +546,7 @@ export function setSidebarExpanded(expanded) {
   const sidebar = document.getElementById('sidebar');
   if (sidebar) {
     sidebar.classList.toggle('expanded', isExpanded);
+    window.requestAnimationFrame?.(() => syncSidebarActiveIndicator(sidebar, sidebar.dataset.activeNav || 'home'));
   }
 }
 
@@ -368,7 +558,7 @@ export function setSidebarActive(activeId) {
   const sidebar = document.getElementById('sidebar');
   if (!sidebar) return;
 
-  sidebar.querySelectorAll('.sidebar-item').forEach((item) => {
-    item.classList.toggle('active', item.dataset.nav === activeId);
-  });
+  sidebar.dataset.activeNav = activeId;
+  applySidebarActiveClasses(sidebar, activeId);
+  syncSidebarActiveIndicator(sidebar, activeId);
 }
