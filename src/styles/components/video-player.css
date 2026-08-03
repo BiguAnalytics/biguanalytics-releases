@@ -92,7 +92,7 @@
   cursor: default;
   text-align: left;
   backdrop-filter: blur(18px);
-  transition: transform 140ms ease, border-color 140ms ease, background 140ms ease;
+  transition: transform var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
 }
 
 button.tagging-match-card {
@@ -164,7 +164,7 @@ button.tagging-match-card {
   color: rgba(138, 155, 176, 0.72);
   cursor: pointer;
   opacity: 0.72;
-  transition: opacity 140ms ease, color 140ms ease, background 140ms ease, border-color 140ms ease;
+  transition: opacity var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth);
 }
 
 .tagging-match-edit-button:hover,
@@ -258,7 +258,7 @@ button.tagging-match-card {
   padding-bottom: 0;
   opacity: 1;
   transform: translateY(0);
-  transition: opacity 140ms ease, transform 140ms ease;
+  transition: opacity var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tagging-side-panel.has-active-popup .tagging-status-panel {
@@ -856,7 +856,7 @@ button.tagging-match-card {
 .possession-meter span {
   display: block;
   min-width: 0;
-  transition: width 180ms ease;
+  transition: width var(--duration-fast) var(--ease-smooth);
 }
 
 #possession-home-bar {
@@ -973,7 +973,7 @@ button.tagging-match-card {
   text-transform: uppercase;
   letter-spacing: 0.08em;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
 }
 
 .youtube-loading-state.hidden {

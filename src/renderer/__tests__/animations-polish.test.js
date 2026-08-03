@@ -62,7 +62,7 @@ describe('animations and premium polish', () => {
     expect(routerSource).toContain('finalizeRouteRender');
     expect(routerSource).toContain('document.body.dataset.route = route');
     expect(routerSource).toContain('bigu:route-changed');
-    expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*transition:[^}]*opacity 200ms cubic-bezier\(0\.4,\s*0,\s*0\.2,\s*1\)[^}]*transform 200ms cubic-bezier\(0\.4,\s*0,\s*0\.2,\s*1\)/s);
+    expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*transition:[^}]*opacity var\(--duration-base\) var\(--ease-smooth\)[^}]*transform var\(--duration-base\) var\(--ease-smooth\)/s);
     expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*backface-visibility:\s*hidden/s);
     expect(baseCss).toContain('translate3d(0, 12px, 0)');
     expect(baseCss).toContain('translate3d(0, -8px, 0)');
@@ -81,8 +81,8 @@ describe('animations and premium polish', () => {
     expect(matchCardCss).toMatch(/\.match-card\.is-pressing\s*{[^}]*scale\(0\.98\)/s);
     expect(baseCss).toContain('.btn-primary.is-loading');
     expect(baseCss).toContain('bigu-button-spinner');
-    expect(sidebarCss).toMatch(/\.sidebar\s*{[^}]*width 250ms cubic-bezier\(0\.4,\s*0,\s*0\.2,\s*1\)/s);
-    expect(sidebarCss).toMatch(/\.sidebar\.expanded \.sidebar-item-label\s*{[^}]*transition-delay:\s*80ms/s);
+    expect(sidebarCss).toMatch(/\.sidebar\s*{[^}]*width var\(--duration-base\) var\(--ease-smooth\)/s);
+    expect(sidebarCss).toMatch(/\.sidebar\.expanded \.sidebar-item-label\s*{[^}]*transition-delay:\s*var\(--duration-fast\)/s);
     expect(sidebarCss).toContain('@keyframes sidebar-active-rail-in');
   });
 
@@ -92,7 +92,7 @@ describe('animations and premium polish', () => {
     expect(tagPopupCss).toContain('calc(var(--popup-option-index, 0) * 30ms)');
     expect(timelineSource).toContain('newEventIds');
     expect(timelineSource).toContain('is-new');
-    expect(timelineCss).toMatch(/\.timeline-playhead\s*{[^}]*transition:\s*left 100ms linear/s);
+    expect(timelineCss).toMatch(/\.timeline-playhead\s*{[^}]*transition:\s*left var\(--duration-fast\) var\(--ease-smooth\)/s);
     expect(timelineCss).toContain('@keyframes timeline-block-scale-in');
     expect(kpiSource).toContain('data-count-up-value');
     expect(dashboardSource).toContain('animateDashboardKpis');

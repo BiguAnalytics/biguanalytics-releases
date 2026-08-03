@@ -95,7 +95,7 @@ body.modal-open {
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: background 150ms, color 150ms;
+  transition: background var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
 }
 
 .modal-close:hover {
@@ -162,7 +162,7 @@ body.modal-open {
   outline: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   color-scheme: dark;
-  transition: background 150ms, box-shadow 150ms, transform 150ms;
+  transition: background var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .form-input:focus,
@@ -228,7 +228,7 @@ body.modal-open {
   cursor: pointer;
   filter: invert(1);
   opacity: 0.78;
-  transition: opacity 150ms, background 150ms;
+  transition: opacity var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
 }
 
 .form-input[type="date"]::-webkit-calendar-picker-indicator:hover {
@@ -298,7 +298,7 @@ body.modal-open {
   text-transform: uppercase;
   letter-spacing: 0.03em;
   cursor: pointer;
-  transition: background-position 220ms ease, border-color 150ms, color 150ms, transform 150ms ease, box-shadow 150ms ease;
+  transition: background-position var(--duration-base) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth);
   border: 1px solid transparent;
   white-space: nowrap;
 }
@@ -328,7 +328,7 @@ body.modal-open {
 
 .btn-primary:active {
   transform: scale(0.96);
-  transition-duration: 100ms;
+  transition-duration: var(--duration-fast);
 }
 
 .btn-secondary {

@@ -156,7 +156,7 @@
   box-shadow: 0 0 18px rgba(200, 16, 46, 0.42);
   z-index: 6;
   pointer-events: none;
-  transition: left 100ms linear;
+  transition: left var(--duration-fast) var(--ease-smooth);
 }
 
 .timeline-preview {
@@ -436,7 +436,7 @@
   color: var(--color-text-primary);
   cursor: pointer;
   box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
-  transition: border-color 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+  transition: border-color var(--duration-fast) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth);
   touch-action: manipulation;
   transform-origin: left center;
 }
@@ -590,7 +590,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .timeline-playhead {
-    transition: opacity 100ms ease;
+    transition: opacity var(--duration-fast) var(--ease-smooth);
   }
 
   .timeline-block.is-new,

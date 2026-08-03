@@ -139,7 +139,7 @@
   background: rgba(8, 14, 26, 0.42);
   color: var(--color-text-primary);
   font: 900 11px var(--font-brand);
-  transition: border-color 150ms, background 150ms, color 150ms, transform 150ms;
+  transition: border-color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .clip-filter-chip:hover,
@@ -345,7 +345,7 @@
   color: var(--color-text-primary);
   font: 900 22px var(--font-brand);
   line-height: 1;
-  transition: border-color 150ms, background 150ms, color 150ms;
+  transition: border-color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
 }
 
 .clip-player-carousel-button:hover:not(:disabled) {
@@ -382,7 +382,7 @@
   border-radius: var(--radius-md);
   background: rgba(8, 14, 26, 0.36);
   text-align: left;
-  transition: background 150ms, border-color 150ms, transform 150ms;
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .clip-player-queue-item:hover,

@@ -108,7 +108,7 @@
   color: var(--color-text-primary);
   text-align: left;
   cursor: pointer;
-  transition: border-color 120ms, background 120ms, transform 120ms;
+  transition: border-color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
   opacity: 0;
   animation: tag-popup-option-in 120ms ease-out forwards;
   animation-delay: calc(var(--popup-option-index, 0) * 30ms);
@@ -174,7 +174,7 @@
   background: rgba(8, 14, 26, 0.32);
   color: var(--color-text-secondary);
   cursor: pointer;
-  transition: color 150ms ease, border-color 150ms ease, background 150ms ease, transform 120ms ease;
+  transition: color var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tag-popup-mic:hover {
@@ -277,7 +277,7 @@
   line-height: 1.15;
   text-align: center;
   cursor: pointer;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease, transform 120ms ease;
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tag-popup-zone-cell:hover,

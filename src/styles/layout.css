@@ -173,7 +173,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-1);
-  transition: opacity 150ms;
+  transition: opacity var(--duration-fast) var(--ease-smooth);
   animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
@@ -495,7 +495,7 @@
   color: var(--color-accent-hover);
   font: 900 12px var(--font-brand);
   cursor: pointer;
-  transition: background 150ms, border-color 150ms, color 150ms, transform 150ms;
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .settings-onboarding-actions {
@@ -579,7 +579,7 @@
   height: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 80ms linear, background 120ms ease;
+  transition: transform var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
   background: var(--tag-ganado);
 }
 
@@ -681,7 +681,7 @@
   height: 100%;
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 180ms ease;
+  transition: transform var(--duration-fast) var(--ease-smooth);
   background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-white), var(--color-brand-navy));
 }
 

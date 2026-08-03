@@ -77,7 +77,7 @@ input, select, textarea {
   border-radius: var(--radius-md);
   padding: var(--space-2) var(--space-3);
   outline: none;
-  transition: border-color 150ms;
+  transition: border-color var(--duration-fast) var(--ease-smooth);
   user-select: text;
 }
 
@@ -161,9 +161,9 @@ input::placeholder, textarea::placeholder {
   pointer-events: none;
   z-index: 0;
   transition:
-    top 320ms cubic-bezier(0.4, 0, 0.2, 1),
-    left 320ms cubic-bezier(0.4, 0, 0.2, 1),
-    opacity 320ms cubic-bezier(0.4, 0, 0.2, 1);
+    top var(--duration-base) var(--ease-smooth),
+    left var(--duration-base) var(--ease-smooth),
+    opacity var(--duration-base) var(--ease-smooth);
 }
 
 .ambient-glow-blue {
@@ -178,9 +178,9 @@ input::placeholder, textarea::placeholder {
   pointer-events: none;
   z-index: 0;
   transition:
-    opacity 320ms cubic-bezier(0.4, 0, 0.2, 1),
-    top 320ms cubic-bezier(0.4, 0, 0.2, 1),
-    left 320ms cubic-bezier(0.4, 0, 0.2, 1);
+    opacity var(--duration-base) var(--ease-smooth),
+    top var(--duration-base) var(--ease-smooth),
+    left var(--duration-base) var(--ease-smooth);
 }
 
 body[data-route="home"] {
@@ -234,7 +234,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
   align-items: center;
   justify-content: center;
   color: var(--color-text-secondary);
-  transition: background 100ms, color 100ms;
+  transition: background var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
   cursor: pointer;
 }
 
@@ -308,8 +308,8 @@ body[data-route="dashboard"] .ambient-glow-blue {
   contain: paint;
   will-change: opacity, transform;
   transition:
-    opacity 200ms cubic-bezier(0.4, 0, 0.2, 1),
-    transform 200ms cubic-bezier(0.4, 0, 0.2, 1);
+    opacity var(--duration-base) var(--ease-smooth),
+    transform var(--duration-base) var(--ease-smooth);
 }
 
 .route-transition-enter.is-route-entering {
@@ -325,10 +325,10 @@ body[data-route="dashboard"] .ambient-glow-blue {
 
 .btn-primary {
   transition:
-    filter 150ms ease,
-    transform 150ms ease,
-    box-shadow 150ms ease,
-    background-position 220ms ease;
+    filter var(--duration-fast) var(--ease-smooth),
+    transform var(--duration-fast) var(--ease-smooth),
+    box-shadow var(--duration-fast) var(--ease-smooth),
+    background-position var(--duration-base) var(--ease-smooth);
 }
 
 .btn-primary:hover {
@@ -338,7 +338,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
 
 .btn-primary:active {
   transform: scale(0.96);
-  transition-duration: 100ms;
+  transition-duration: var(--duration-fast);
 }
 
 .btn-primary.is-loading,
@@ -376,7 +376,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
     var(--color-bg-base);
   color: var(--color-text-primary);
   opacity: 1;
-  transition: opacity 180ms ease-out, visibility 180ms ease-out;
+  transition: opacity var(--duration-fast) var(--ease-smooth), visibility var(--duration-fast) var(--ease-smooth);
 }
 
 .bigu-startup-splash.is-hiding {
@@ -496,7 +496,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
   }
 
   .route-transition-layer {
-    transition: opacity 120ms ease-out !important;
+    transition: opacity var(--duration-fast) var(--ease-smooth) !important;
   }
 
   .route-transition-enter.is-route-entering,

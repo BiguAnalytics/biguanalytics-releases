@@ -1,6 +1,11 @@
 :root {
   --theme-color-scheme: dark;
 
+  /* Motion system */
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+
   /* Fondos */
   --color-bg-base:        #080E1A;
   --color-bg-surface:     #0D1829;

@@ -205,7 +205,7 @@ describe('tactical board view', () => {
     expect(tacticalSource).toMatch(/data-cuadro-add[^\n]+[\s\S]*?button\.addEventListener\('click', \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?void addFrame/s);
     expect(tacticalSource).toMatch(/data-cuadro-duplicate[^\n]+[\s\S]*?button\.addEventListener\('click', \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?void duplicateFrameFromToken/s);
     expect(tacticalSource).toMatch(/data-cuadro-delete[^\n]+[\s\S]*?button\.addEventListener\('click', \(event\) => \{[\s\S]*?event\.preventDefault\(\);[\s\S]*?event\.stopPropagation\(\);[\s\S]*?void deleteFrameFromToken/s);
-    expect(tacticalCss).toMatch(/\.tactical-cuadro-hover-actions\s*{[^}]*pointer-events:\s*none;[^}]*transition:\s*opacity 120ms/s);
+    expect(tacticalCss).toMatch(/\.tactical-cuadro-hover-actions\s*{[^}]*pointer-events:\s*none;[^}]*transition:\s*opacity var\(--duration-fast\) var\(--ease-smooth\)/s);
     expect(tacticalCss).toMatch(/\.tactical-cuadro-row:hover \.tactical-cuadro-hover-actions,[\s\S]*?\.tactical-cuadro-row:focus-within \.tactical-cuadro-hover-actions\s*{[^}]*pointer-events:\s*auto;/s);
     expect(tacticalCss).toMatch(/\.tactical-cuadro-icon\s*{[^}]*padding:\s*0 var\(--space-2\);[^}]*border-radius:\s*var\(--radius-md\);/s);
   });

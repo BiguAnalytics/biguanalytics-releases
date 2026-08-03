@@ -6,7 +6,7 @@
   border-radius: 16px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 200ms, transform 200ms, box-shadow 200ms;
+  transition: border-color var(--duration-base) var(--ease-smooth), transform var(--duration-base) var(--ease-smooth), box-shadow var(--duration-base) var(--ease-smooth);
   position: relative;
   box-shadow: 0 18px 54px rgba(0, 0, 0, 0.28);
 }
@@ -62,7 +62,7 @@
 
 .match-card.is-pressing {
   transform: scale(0.98);
-  transition-duration: 100ms;
+  transition-duration: var(--duration-fast);
 }
 
 .match-card-thumbnail {
@@ -347,7 +347,7 @@
   border-radius: var(--radius-md);
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: background 150ms, color 150ms;
+  transition: background var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
   opacity: 0;
   flex: 0 0 28px;
 }
@@ -394,7 +394,7 @@
   min-height: 192px;
   color: var(--color-text-muted);
   cursor: pointer;
-  transition: color 200ms, border-color 200ms, background 200ms, transform 200ms;
+  transition: color var(--duration-base) var(--ease-smooth), border-color var(--duration-base) var(--ease-smooth), background var(--duration-base) var(--ease-smooth), transform var(--duration-base) var(--ease-smooth);
   border-radius: var(--radius-lg);
 }
 
@@ -427,7 +427,7 @@
 @media (prefers-reduced-motion: reduce) {
   .match-card,
   .match-card-new {
-    transition: border-color 120ms ease, box-shadow 120ms ease, background 120ms ease;
+    transition: border-color var(--duration-fast) var(--ease-smooth), box-shadow var(--duration-fast) var(--ease-smooth), background var(--duration-fast) var(--ease-smooth);
   }
 
   .match-card:hover,
