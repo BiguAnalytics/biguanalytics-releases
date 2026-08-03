@@ -521,6 +521,11 @@ export function createSidebar(activeId = 'home', onNavigate = () => {}) {
     window.requestAnimationFrame?.(() => syncSidebarActiveIndicator(sidebar, sidebar.dataset.activeNav || activeId));
   });
 
+  sidebar.addEventListener('transitionend', (event) => {
+    if (event.target !== sidebar || event.propertyName !== 'width') return;
+    syncSidebarActiveIndicator(sidebar, sidebar.dataset.activeNav || activeId);
+  });
+
   sidebar.dataset.activeNav = activeId;
   wireSidebarDrag(sidebar, onNavigate);
   window.requestAnimationFrame?.(() => syncSidebarActiveIndicator(sidebar, activeId, { animate: false }));

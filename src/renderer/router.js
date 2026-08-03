@@ -28,7 +28,7 @@ let currentCleanup = null;
 let transitionToken = 0;
 let routerInitialized = false;
 
-const ROUTE_TRANSITION_MS = 200;
+const ROUTE_TRANSITION_MS = 600;
 const ROUTE_LAYER_CLASS = 'route-transition-layer';
 const ROUTE_ENTER_CLASS = 'route-transition-enter';
 const ROUTE_EXIT_CLASS = 'route-transition-exit';

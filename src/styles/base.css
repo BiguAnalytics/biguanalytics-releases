@@ -303,7 +303,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
 
 ::view-transition-old(route-content),
 ::view-transition-new(route-content) {
-  animation-duration: var(--duration-base);
+  animation-duration: var(--duration-module-slide);
   animation-timing-function: var(--ease-smooth);
   animation-fill-mode: both;
 }
@@ -349,8 +349,8 @@ body[data-route="dashboard"] .ambient-glow-blue {
   contain: paint;
   will-change: opacity, transform;
   transition:
-    opacity var(--duration-base) var(--ease-smooth),
-    transform var(--duration-base) var(--ease-smooth);
+    opacity var(--duration-module-slide) var(--ease-smooth),
+    transform var(--duration-module-slide) var(--ease-smooth);
 }
 
 .route-transition-enter.is-route-entering {

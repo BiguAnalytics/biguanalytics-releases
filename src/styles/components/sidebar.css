@@ -81,15 +81,19 @@
     0
   );
   transition:
-    transform var(--duration-base) var(--ease-smooth),
-    width var(--duration-base) var(--ease-smooth),
-    height var(--duration-base) var(--ease-smooth),
+    transform var(--duration-module-slide) var(--ease-smooth),
+    width var(--duration-module-slide) var(--ease-smooth),
+    height var(--duration-module-slide) var(--ease-smooth),
     opacity var(--duration-fast) var(--ease-smooth);
   will-change: transform;
   pointer-events: none;
   z-index: 0;
   opacity: 0;
   animation: club-gradient-shift 7s ease-in-out infinite;
+}
+
+.sidebar.expanded .sidebar-active-indicator {
+  width: calc(100% - (var(--space-2) * 2));
 }
 
 .sidebar-active-indicator.is-ready {
@@ -185,7 +189,7 @@
 }
 
 .sidebar-nav.is-dragging .sidebar-active-indicator {
-  transition-duration: var(--duration-fast);
+  transition-duration: var(--duration-base);
 }
 
 .sidebar-item.active {

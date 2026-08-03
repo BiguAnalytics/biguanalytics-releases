@@ -6,6 +6,9 @@ import { getSidebarIndicatorPosition } from '../sidebar.js';
 
 const sidebarSource = readFileSync(new URL('../sidebar.js', import.meta.url), 'utf8');
 const routerSource = readFileSync(new URL('../../router.js', import.meta.url), 'utf8');
+const tokensCss = readFileSync(new URL('../../../styles/tokens.css', import.meta.url), 'utf8');
+const baseCss = readFileSync(new URL('../../../styles/base.css', import.meta.url), 'utf8');
+const layoutCss = readFileSync(new URL('../../../styles/layout.css', import.meta.url), 'utf8');
 const sidebarCss = readFileSync(new URL('../../../styles/components/sidebar.css', import.meta.url), 'utf8');
 const themeCss = readFileSync(new URL('../../../styles/theme.css', import.meta.url), 'utf8');
 
@@ -50,6 +53,18 @@ describe('sidebar active route', () => {
     expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*transform:\s*translate3d\(/s);
     expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*transition:[\s\S]*transform/s);
     expect(sidebarCss).toMatch(/\.sidebar-item\.active\s*{[\s\S]*background:\s*transparent/s);
+  });
+
+  it('slows module slides and fills the active module when the sidebar expands', () => {
+    expect(tokensCss).toContain('--duration-module-slide: 600ms;');
+    expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*transform var\(--duration-module-slide\)/s);
+    expect(sidebarCss).toMatch(/\.sidebar\.expanded\s+\.sidebar-active-indicator\s*{[\s\S]*width:\s*calc\(100%\s*-/s);
+    expect(layoutCss).toMatch(/\.main-content-body\.is-route-swipe-committing[\s\S]*transition:\s*transform var\(--duration-module-slide\)/s);
+    expect(baseCss).toMatch(/::view-transition-old\(route-content\),[\s\S]*animation-duration:\s*var\(--duration-module-slide\)/s);
+    expect(baseCss).toMatch(/\.route-transition-layer\s*{[\s\S]*transform var\(--duration-module-slide\)/s);
+    expect(routerSource).toContain('const ROUTE_TRANSITION_MS = 600;');
+    expect(sidebarSource).toContain("sidebar.addEventListener('transitionend'");
+    expect(sidebarSource).toContain("event.propertyName !== 'width'");
   });
 
   it('calculates the indicator position relative to the nav viewport', () => {

@@ -61,7 +61,7 @@
 
 .main-content-body.is-route-swipe-committing > *,
 .main-content-body.is-route-swipe-cancelling > * {
-  transition: transform var(--duration-fast) var(--ease-smooth);
+  transition: transform var(--duration-module-slide) var(--ease-smooth);
 }
 
 .main-content-body.is-route-swipe-blocked > * {

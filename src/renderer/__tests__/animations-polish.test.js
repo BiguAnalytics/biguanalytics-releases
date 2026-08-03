@@ -52,7 +52,7 @@ describe('animations and premium polish', () => {
   });
 
   it('centralizes flicker-free route transitions and ambient route state in the router', () => {
-    expect(routerSource).toContain('const ROUTE_TRANSITION_MS = 200');
+    expect(routerSource).toContain('const ROUTE_TRANSITION_MS = 600');
     expect(routerSource).toContain('route-transition-layer');
     expect(routerSource).toContain('route-transition-exit');
     expect(routerSource).toContain('route-transition-enter');
@@ -62,7 +62,7 @@ describe('animations and premium polish', () => {
     expect(routerSource).toContain('finalizeRouteRender');
     expect(routerSource).toContain('document.body.dataset.route = route');
     expect(routerSource).toContain('bigu:route-changed');
-    expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*transition:[^}]*opacity var\(--duration-base\) var\(--ease-smooth\)[^}]*transform var\(--duration-base\) var\(--ease-smooth\)/s);
+    expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*transition:[^}]*opacity var\(--duration-module-slide\) var\(--ease-smooth\)[^}]*transform var\(--duration-module-slide\) var\(--ease-smooth\)/s);
     expect(baseCss).toMatch(/\.route-transition-layer\s*{[^}]*backface-visibility:\s*hidden/s);
     expect(baseCss).toContain('translate3d(0, 12px, 0)');
     expect(baseCss).toContain('translate3d(0, -8px, 0)');
