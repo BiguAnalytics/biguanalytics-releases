@@ -2094,7 +2094,7 @@ export function renderTagging(container, params = {}) {
       surface.hidden = !isActive;
       surface.dataset.panelState = isActive ? 'active' : 'inactive';
       surface.setAttribute('aria-hidden', String(!isActive));
-      if (!isActive) surface.replaceChildren();
+      if (!isActive && mode !== 'status') surface.replaceChildren();
     });
   }
 

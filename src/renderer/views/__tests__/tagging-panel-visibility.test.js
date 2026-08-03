@@ -16,7 +16,7 @@ describe('tagging side-panel visibility contract', () => {
     expect(taggingSource).toContain('data-panel-surface="sequence"');
     expect(taggingSource).toContain('data-panel-surface="inspector"');
     expect(taggingSource).toContain('surface.hidden = !isActive;');
-    expect(taggingSource).toContain('if (!isActive) surface.replaceChildren();');
+    expect(taggingSource).toContain("if (!isActive && mode !== 'status') surface.replaceChildren();");
   });
 
   it('uses hidden as the sole visibility gate and removes the old overlapping selectors', () => {
