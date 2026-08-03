@@ -17,8 +17,11 @@
 .main-content-body {
   flex: 1;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
   position: relative;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  touch-action: pan-y;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(138, 155, 176, 0.42) transparent;
@@ -26,6 +29,43 @@
     radial-gradient(ellipse at 50% 2%, rgba(15, 35, 64, 0.68), transparent 46%),
     radial-gradient(ellipse at 86% 14%, rgba(200, 16, 46, 0.13), transparent 34%),
     linear-gradient(180deg, rgba(8, 14, 26, 0.16), rgba(8, 14, 26, 0.72));
+}
+
+.main-content-body > * {
+  min-width: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+}
+
+.main-content-body.is-route-swipe-ready {
+  cursor: grab;
+}
+
+.main-content-body.is-route-swiping,
+.main-content-body.is-route-swipe-committing,
+.main-content-body.is-route-swipe-cancelling {
+  cursor: grabbing;
+  user-select: none;
+}
+
+.main-content-body.is-route-swiping > *,
+.main-content-body.is-route-swipe-committing > *,
+.main-content-body.is-route-swipe-cancelling > * {
+  transform: translate3d(var(--route-swipe-offset, 0px), 0, 0);
+  will-change: transform;
+}
+
+.main-content-body.is-route-swiping > * {
+  transition: none;
+}
+
+.main-content-body.is-route-swipe-committing > *,
+.main-content-body.is-route-swipe-cancelling > * {
+  transition: transform var(--duration-fast) var(--ease-smooth);
+}
+
+.main-content-body.is-route-swipe-blocked > * {
+  filter: saturate(calc(1 - (var(--route-swipe-progress, 0) * 0.24)));
 }
 
 .main-content-body::-webkit-scrollbar {
