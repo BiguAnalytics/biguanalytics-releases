@@ -40,6 +40,15 @@ describe('home match navigation', () => {
     });
   });
 
+  it('opens the match in tagging from the card surface and reserves analysis for its action', async () => {
+    const homeSource = await import('node:fs').then(fs => fs.readFileSync(new URL('../home.js', import.meta.url), 'utf8'));
+
+    expect(homeSource).toContain("onClick: (m) => {");
+    expect(homeSource).toContain("navigate('tagging', { matchId: m.id })");
+    expect(homeSource).toContain('onAction: (m) => {');
+    expect(homeSource).toContain('getMatchDestination(m)');
+  });
+
   it('summarizes partial cloud list errors without blocking cached matches', () => {
     expect(getCloudListStatusMessage?.({
       partial: true,

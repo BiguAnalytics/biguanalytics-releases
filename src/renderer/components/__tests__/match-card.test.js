@@ -97,6 +97,18 @@ describe('match card derived match state', () => {
     expect(createMatchCardSource).toContain('textContent');
   });
 
+  it('keeps the full card surface and the analysis action as separate interactions', () => {
+    const createMatchCardSource = matchCardSource.slice(
+      matchCardSource.indexOf('export function createMatchCard'),
+      matchCardSource.indexOf('export function createNewMatchCard')
+    );
+
+    expect(createMatchCardSource).toContain("card.setAttribute('data-match-card', 'true')");
+    expect(createMatchCardSource).toContain("createElement('button', 'match-card-action'");
+    expect(createMatchCardSource).toContain("action.addEventListener('click'");
+    expect(createMatchCardSource).toContain('onAction');
+  });
+
   it('spaces club names and score digits clearly in the match card summary', () => {
     expect(matchCardCss).toMatch(/\.match-card-title\s*{[^}]*display:\s*flex;[^}]*column-gap:\s*var\(--space-2\);/s);
     expect(matchCardCss).toMatch(/\.match-card-result-score\s*{[^}]*gap:\s*var\(--space-3\);/s);

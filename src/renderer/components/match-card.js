@@ -155,16 +155,18 @@ function appendStaticIcon(target, icon) {
  * @param {object} match - Match data
  * @param {object} handlers
  * @param {function} handlers.onClick - Called when card is clicked
+ * @param {function} [handlers.onAction] - Called when the primary card action is clicked
  * @param {function} [handlers.onEdit] - Called when edit is clicked
  * @param {function} [handlers.onExport] - Called when export is clicked
  * @param {function} handlers.onDelete - Called when delete is clicked
  * @returns {HTMLElement}
  */
-export function createMatchCard(match, { onClick, onEdit, onExport, onDelete }) {
+export function createMatchCard(match, { onClick, onAction, onEdit, onExport, onDelete }) {
   const card = document.createElement('div');
   card.textContent = '';
   card.className = `match-card ${getToneClass(match)}`;
   card.id = `match-card-${match.id}`;
+  card.setAttribute('data-match-card', 'true');
 
   const result = getResultBadge(match);
   const status = getStatusBadge(match);
@@ -210,7 +212,9 @@ export function createMatchCard(match, { onClick, onEdit, onExport, onDelete }) 
   const footer = createElement('div', 'match-card-footer');
   const badges = createElement('div', 'match-card-badges');
   if (result) badges.appendChild(createElement('span', `badge ${result.className}`, result.label));
-  const action = createElement('span', 'match-card-action', `${actionLabel} `);
+  const action = createElement('button', 'match-card-action', `${actionLabel} `);
+  action.type = 'button';
+  action.setAttribute('aria-label', actionLabel);
   appendStaticIcon(action, ARROW_ICON);
   const editButton = createElement('button', 'match-card-edit');
   editButton.type = 'button';
@@ -238,8 +242,17 @@ export function createMatchCard(match, { onClick, onEdit, onExport, onDelete }) 
   card.appendChild(thumbnail);
   card.appendChild(body);
 
+  action.addEventListener('click', (event) => {
+    event.stopPropagation();
+    if (onAction) {
+      onAction(match);
+      return;
+    }
+    onClick(match);
+  });
+
   card.addEventListener('click', (event) => {
-    if (!event.target.closest('.match-card-delete, .match-card-edit, .match-card-export')) {
+    if (!event.target.closest('.match-card-action, .match-card-delete, .match-card-edit, .match-card-export')) {
       onClick(match);
     }
   });

@@ -322,9 +322,14 @@
   align-items: center;
   gap: var(--space-1);
   margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
   color: var(--color-text-secondary);
   font: 700 12px var(--font-brand);
   white-space: nowrap;
+  cursor: pointer;
+  transition: color var(--duration-fast) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth);
 }
 
 .match-card-action svg {

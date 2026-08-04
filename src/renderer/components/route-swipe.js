@@ -23,6 +23,7 @@ const SWIPE_EXCLUDED_SELECTOR = [
   '[contenteditable="true"]',
   '[data-no-route-swipe]',
   '[data-settings-choice-card]',
+  '[data-match-card]',
 ].join(',');
 
 /**

@@ -508,6 +508,9 @@ export function updateHomeMatches(homeRoot, matches = [], status = {}) {
             ));
             return;
           }
+          pressMatchCardBeforeNavigate(card, () => navigate('tagging', { matchId: m.id }));
+        },
+        onAction: (m) => {
           const destination = getMatchDestination(m);
           pressMatchCardBeforeNavigate(card, () => navigate(destination.route, destination.params));
         },
