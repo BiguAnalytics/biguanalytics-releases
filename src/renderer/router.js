@@ -15,6 +15,7 @@ const routes = {
   home: renderHome,
   tagging: renderTagging,
   dashboard: renderDashboard,
+  heatmap: (container, params) => renderDashboard(container, { ...params, focusSection: 'heatmap' }),
   clips: renderClipPlayer,
   tactical: renderTacticalBoard,
   season: renderSeason,

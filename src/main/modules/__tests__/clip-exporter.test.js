@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import path from 'node:path';
 
 import {
   buildClipFfmpegArgs,
@@ -44,7 +45,7 @@ function createTestExporter(overrides = {}) {
       clipOutputModeDefault: 'separate',
       clipExportQuality: 'copy',
     })),
-    selectOutputDirectory: vi.fn(async () => 'C:\\Exports'),
+    selectOutputDirectory: vi.fn(async () => path.join('C:', 'Exports')),
     pathExists: vi.fn(async () => true),
     ensureDirectory: vi.fn(async () => {}),
     getVideoDuration: vi.fn(async () => 100),
@@ -207,7 +208,7 @@ describe('clip-exporter batch orchestration', () => {
       exported: 2,
       failed: 0,
       total: 2,
-      outputDir: 'C:\\Exports\\BiguAnalytics_Clips_Bigua_vs_Los_Cardos_2026-05-31',
+      outputDir: path.join('C:', 'Exports', 'BiguAnalytics_Clips_Bigua_vs_Los_Cardos_2026-05-31'),
     }));
     expect(runClip).toHaveBeenCalledTimes(2);
     expect(runClip.mock.calls[0][0].outputPath).toContain('001_ruck_ganado_00-05.mp4');
