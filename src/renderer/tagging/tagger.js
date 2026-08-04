@@ -217,7 +217,7 @@ export function createTaggerState(options = {}) {
     activePopup: null,
     blockedHotkey: null,
     autoCloseMs: options.autoCloseMs ?? 8000,
-    autoCloseEnabled: options.autoCloseEnabled !== false,
+    autoCloseEnabled: options.autoCloseEnabled === true,
     pauseVideoOnPopup: options.pauseVideoOnPopup === true,
     defaultTeam: normalizeTeam(options.defaultTeam),
     eventDefinitions: options.eventDefinitions || EVENT_DEFINITIONS,

@@ -110,6 +110,10 @@ describe('settings.js', () => {
     }));
   });
 
+  it('keeps popup auto-close disabled in the default settings', () => {
+    expect(mergeSettings().tagging.autoCloseEnabled).toBe(false);
+  });
+
   it('provides and deeply merges microphone settings for voice dictation', () => {
     expect(mergeSettings().microphone).toEqual({
       deviceId: '',

@@ -23,6 +23,8 @@ const {
   validateManualTimestampInput,
   calculateVirtualClipRange,
   getSpeechErrorMessage,
+  getBestSpeechTranscript,
+  shouldAcceptSpeechResult,
   getPossessionPersistenceFingerprint,
   shouldSavePossessionSnapshot,
   isPopupInputFocused,
@@ -838,6 +840,17 @@ describe('tagging event inspector', () => {
     expect(getSpeechErrorMessage?.({ error: 'network' })).toBe(
       'El servicio de dictado de Chromium no inicio en Electron. Reinicia BiguAnalytics y proba de nuevo.',
     );
+  });
+
+  it('prefers the highest-confidence Web Speech alternative and rejects weak final native results', () => {
+    expect(getBestSpeechTranscript?.([
+      { transcript: 'ruido', confidence: 0.22 },
+      { transcript: 'ruck ganado', confidence: 0.84 },
+    ])).toBe('ruck ganado');
+    expect(shouldAcceptSpeechResult?.({ transcript: 'ruido', isFinal: true, confidence: 0.22 })).toBe(false);
+    expect(shouldAcceptSpeechResult?.({ transcript: 'ruck ganado', isFinal: true, confidence: 0.84 })).toBe(true);
+    expect(shouldAcceptSpeechResult?.({ transcript: 'hipotesis', isFinal: false, confidence: 0 })).toBe(true);
+    expect(taggingSource).toContain('recognition.maxAlternatives = 3');
   });
 
   it('keeps plain Enter inside popup textareas and saves multiline notes with Ctrl+Enter', () => {

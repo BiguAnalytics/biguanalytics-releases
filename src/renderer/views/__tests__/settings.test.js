@@ -16,6 +16,7 @@ const {
   getAISettingsPayload,
   getDefaultHotkeyLabelPayload,
   getHotkeySettingsPayload,
+  wireSettingsChoiceCards,
   getUpdaterProgressPercent,
   getReadableUpdaterError,
 } = settingsModule;
@@ -55,6 +56,28 @@ describe('settings auto close unit conversion', () => {
   it('exposes the popup video pause preference', () => {
     expect(settingsSource).toContain('id="tagging-pause-video-on-popup"');
     expect(settingsSource).toContain('pauseVideoOnPopup: pauseVideoOnPopup.checked');
+  });
+
+  it('activates checkbox and radio controls from any point in their option card', () => {
+    expect(settingsSource).toContain('function wireSettingsChoiceCards');
+    expect(settingsSource).toContain("label.settings-toggle, label.settings-theme-option");
+    expect(settingsSource).toContain('event.preventDefault();');
+    expect(settingsSource).toContain('input.click();');
+
+    const clickHandlers = [];
+    const input = { click: vi.fn() };
+    const label = {
+      dataset: {},
+      querySelector: () => input,
+      addEventListener: (type, handler) => {
+        if (type === 'click') clickHandlers.push(handler);
+      },
+    };
+
+    wireSettingsChoiceCards?.({ querySelectorAll: () => [label] });
+    clickHandlers[0]?.({ target: {}, preventDefault: vi.fn() });
+
+    expect(input.click).toHaveBeenCalledTimes(1);
   });
 });
 

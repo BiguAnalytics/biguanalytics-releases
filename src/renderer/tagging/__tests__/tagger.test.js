@@ -234,7 +234,7 @@ describe('tagger engine', () => {
   });
 
   it('does not auto-close while the popup note input is being edited', () => {
-    const opened = openTagPopup(createTaggerState({ autoCloseMs: 8000 }), 'N', 72);
+    const opened = openTagPopup(createTaggerState({ autoCloseEnabled: true, autoCloseMs: 8000 }), 'N', 72);
     const stalePopup = {
       ...opened,
       activePopup: {
@@ -257,6 +257,20 @@ describe('tagger engine', () => {
       },
     };
 
+    expect(shouldAutoClosePopup(stalePopup, 9_500)).toBe(false);
+  });
+
+  it('does not auto-close by default until the setting is explicitly enabled', () => {
+    const opened = openTagPopup(createTaggerState({ autoCloseMs: 8000 }), 'R', 72);
+    const stalePopup = {
+      ...opened,
+      activePopup: {
+        ...opened.activePopup,
+        lastInteractionAt: 1_000,
+      },
+    };
+
+    expect(stalePopup.autoCloseEnabled).toBe(false);
     expect(shouldAutoClosePopup(stalePopup, 9_500)).toBe(false);
   });
 

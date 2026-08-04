@@ -815,6 +815,38 @@ export function getSpeechErrorMessage(error) {
 }
 
 /**
+ * @param {Iterable<{transcript?: string, confidence?: number}>|null|undefined} result
+ * @returns {string}
+ */
+export function getBestSpeechTranscript(result) {
+  return Array.from(result || [])
+    .map((alternative, index) => ({
+      transcript: String(alternative?.transcript || '').trim(),
+      confidence: Number(alternative?.confidence),
+      index,
+    }))
+    .filter(alternative => alternative.transcript)
+    .sort((left, right) => {
+      const leftConfidence = Number.isFinite(left.confidence) ? left.confidence : -1;
+      const rightConfidence = Number.isFinite(right.confidence) ? right.confidence : -1;
+      return rightConfidence - leftConfidence || left.index - right.index;
+    })[0]?.transcript || '';
+}
+
+/**
+ * @param {{transcript?: string, isFinal?: boolean, confidence?: number}|null|undefined} payload
+ * @param {number} [minimumConfidence]
+ * @returns {boolean}
+ */
+export function shouldAcceptSpeechResult(payload, minimumConfidence = 0.35) {
+  if (!String(payload?.transcript || '').trim()) return false;
+  if (payload?.isFinal !== true) return true;
+  const confidence = Number(payload.confidence);
+  if (!Number.isFinite(confidence) || confidence <= 0) return true;
+  return confidence >= minimumConfidence;
+}
+
+/**
  * @param {number} start
  * @param {number} currentTime
  * @returns {number}
@@ -3562,12 +3594,13 @@ export function renderTagging(container, params = {}) {
   }
 
   /**
-   * @param {{transcript?: string, isFinal?: boolean}} payload
+   * @param {{transcript?: string, isFinal?: boolean, confidence?: number}} payload
    */
   function applyNativeSpeechResult(payload) {
     const noteInput = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('[data-popup-note]'));
     const transcript = String(payload?.transcript || '').trim();
     if (!noteInput || !transcript) return;
+    if (payload?.isFinal === true && !shouldAcceptSpeechResult(payload)) return;
 
     if (speechRenderedNote && noteInput.value !== speechRenderedNote) {
       resetSpeechSession(noteInput);
@@ -3721,7 +3754,7 @@ export function renderTagging(container, params = {}) {
     const startIndex = Number.isInteger(event.resultIndex) ? event.resultIndex : 0;
     for (let index = startIndex; index < event.results.length; index += 1) {
       const result = event.results[index];
-      const transcript = String(result?.[0]?.transcript || '').trim();
+      const transcript = getBestSpeechTranscript(result);
       if (!transcript) continue;
       if (result.isFinal) {
         speechFinalSegments.set(index, transcript);
@@ -3774,6 +3807,7 @@ export function renderTagging(container, params = {}) {
       recognition.lang = settings?.microphone?.language || 'es-AR';
       recognition.continuous = true;
       recognition.interimResults = true;
+      recognition.maxAlternatives = 3;
       recognition.onresult = applySpeechResult;
       recognition.onerror = (event) => {
         if (speechStopRequested && event.error === 'aborted') return;

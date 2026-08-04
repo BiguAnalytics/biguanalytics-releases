@@ -110,14 +110,12 @@ describe('speech dictation service', () => {
     expect(nativeScriptSource).not.toContain('"en-US"');
   });
 
-  it('loads a rugby terms grammar to bias Spanish dictation toward match vocabulary', () => {
-    expect(nativeScriptSource).toContain('$rugbyTerms = @(');
-    expect(nativeScriptSource).toContain('"ruck"');
-    expect(nativeScriptSource).toContain('"maul"');
-    expect(nativeScriptSource).toContain('"line out"');
-    expect(nativeScriptSource).toContain('"scrum"');
-    expect(nativeScriptSource).toContain('New-Object System.Speech.Recognition.Choices');
-    expect(nativeScriptSource).toContain('LoadGrammar($rugbyGrammar)');
+  it('uses free dictation without a competing one-word rugby grammar and filters weak results', () => {
+    expect(nativeScriptSource).toContain('DictationGrammar');
+    expect(nativeScriptSource).not.toContain('New-Object System.Speech.Recognition.Choices');
+    expect(nativeScriptSource).not.toContain('LoadGrammar($rugbyGrammar)');
+    expect(nativeScriptSource).toContain('$confidence = [double]$EventArgs.Result.Confidence');
+    expect(nativeScriptSource).toContain('if ($confidence -lt 0.35) { return }');
   });
 
   it('forces UTF-8 stdout so accented transcripts arrive intact in Electron', () => {

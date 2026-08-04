@@ -41,58 +41,6 @@ try {
   $engine = New-Object System.Speech.Recognition.SpeechRecognitionEngine($selectedRecognizer)
   $engine.LoadGrammar((New-Object System.Speech.Recognition.DictationGrammar))
 
-  $rugbyTerms = @(
-    "rugby",
-    "Bigua",
-    "ruck",
-    "maul",
-    "scrum",
-    "line out",
-    "lineout",
-    "try",
-    "conversion",
-    "penal",
-    "free kick",
-    "kick",
-    "turnover",
-    "break line",
-    "tackle",
-    "tackle alto",
-    "offside",
-    "forward pass",
-    "knock on",
-    "advantage",
-    "ventaja",
-    "amarilla",
-    "roja",
-    "ganado",
-    "perdido",
-    "sucio",
-    "limpio",
-    "ataque",
-    "defensa",
-    "posesion",
-    "salida",
-    "recepcion",
-    "apoyo",
-    "contacto",
-    "nueve",
-    "medio scrum",
-    "apertura",
-    "linea de ventaja",
-    "zona veintidos",
-    "campo rival",
-    "campo propio"
-  )
-  $rugbyChoices = New-Object System.Speech.Recognition.Choices
-  $rugbyChoices.Add($rugbyTerms) | Out-Null
-  $rugbyBuilder = New-Object System.Speech.Recognition.GrammarBuilder
-  $rugbyBuilder.Culture = $selectedRecognizer.Culture
-  $rugbyBuilder.Append($rugbyChoices)
-  $rugbyGrammar = New-Object System.Speech.Recognition.Grammar($rugbyBuilder)
-  $rugbyGrammar.Name = "BiguAnalytics Rugby"
-  $engine.LoadGrammar($rugbyGrammar)
-
   try {
     $engine.SetInputToDefaultAudioDevice()
   } catch {
@@ -116,12 +64,14 @@ try {
   } | Out-Null
 
   Register-ObjectEvent -InputObject $engine -EventName SpeechRecognized -Action {
+    $confidence = [double]$EventArgs.Result.Confidence
+    if ($confidence -lt 0.35) { return }
     $text = $EventArgs.Result.Text
     if ([string]::IsNullOrWhiteSpace($text)) { return }
     [Console]::Out.WriteLine((@{
       type = "result"
       transcript = $text
-      confidence = $EventArgs.Result.Confidence
+      confidence = $confidence
     } | ConvertTo-Json -Compress -Depth 4))
     [Console]::Out.Flush()
   } | Out-Null

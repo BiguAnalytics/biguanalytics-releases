@@ -88,7 +88,7 @@ const DEFAULT_SETTINGS = {
   pdfTemplateEditor: DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS,
   tagging: {
     autoCloseMs: 8000,
-    autoCloseEnabled: true,
+    autoCloseEnabled: false,
     pauseVideoOnPopup: false,
     hotkeyHintsCollapsed: false,
     hotkeys: DEFAULT_TAGGING_HOTKEYS,

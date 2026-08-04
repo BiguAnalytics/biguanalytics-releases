@@ -344,6 +344,25 @@ function buildHotkeySettingsMarkup(settings = {}) {
 }
 
 /**
+ * Keeps the whole settings choice card interactive, including its text and empty space.
+ * @param {{querySelectorAll?: function(string): ArrayLike<HTMLElement>}} container
+ */
+export function wireSettingsChoiceCards(container) {
+  if (typeof container?.querySelectorAll !== 'function') return;
+  container.querySelectorAll('label.settings-toggle, label.settings-theme-option').forEach((label) => {
+    if (label.dataset.choiceCardClickBound === 'true') return;
+    const input = label.querySelector('input[type="checkbox"], input[type="radio"]');
+    if (!input) return;
+    label.dataset.choiceCardClickBound = 'true';
+    label.addEventListener('click', (event) => {
+      if (event.target === input) return;
+      event.preventDefault();
+      input.click();
+    });
+  });
+}
+
+/**
  * @param {string|number|null|undefined} value
  * @param {number} fallback
  * @param {number} min
@@ -1048,6 +1067,7 @@ export async function renderSettings(container, params = {}) {
       child.remove();
     });
   }
+  wireSettingsChoiceCards(container);
 
   const statsOnly = /** @type {HTMLInputElement|null} */ (container.querySelector('#stats-only-mode'));
   const autoCloseEnabled = /** @type {HTMLInputElement|null} */ (container.querySelector('#tagging-auto-close-enabled'));
@@ -1063,7 +1083,7 @@ export async function renderSettings(container, params = {}) {
   const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
   if (themeInput) themeInput.checked = true;
   if (statsOnly) statsOnly.checked = Boolean(settings.statsOnlyMode);
-  if (autoCloseEnabled) autoCloseEnabled.checked = settings.tagging?.autoCloseEnabled !== false;
+  if (autoCloseEnabled) autoCloseEnabled.checked = settings.tagging?.autoCloseEnabled === true;
   if (autoCloseInput) autoCloseInput.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
   if (pauseVideoOnPopup) pauseVideoOnPopup.checked = settings.tagging?.pauseVideoOnPopup === true;
   if (clipPreRoll) clipPreRoll.value = String(settings.clipPreRollSeconds ?? DEFAULT_CLIP_PRE_ROLL_SECONDS);
