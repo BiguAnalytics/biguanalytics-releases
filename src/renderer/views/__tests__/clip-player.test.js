@@ -237,6 +237,13 @@ describe('clip player queue generation', () => {
 });
 
 describe('clip player playback wiring', () => {
+  it('opens a clip match from any non-control area of its selection card', () => {
+    expect(clipPlayerSource).toContain('data-clip-match-card-id');
+    expect(clipPlayerSource).toContain("card.addEventListener('click'");
+    expect(clipPlayerSource).toContain("const primaryAction = card.querySelector('[data-clip-match-id]')");
+    expect(clipPlayerSource).toContain('primaryAction?.click()');
+  });
+
   it('renders the dedicated Clips workspace controls and source states', () => {
     expect(clipPlayerSource).toContain('<h1>Clips</h1>');
     expect(clipPlayerSource).toContain('Reproducí segmentos del partido filtrados por evento.');

@@ -1116,9 +1116,9 @@ export function renderTagging(container, params = {}) {
     });
 
     host.querySelectorAll('[data-tagging-match-card-id]').forEach((card) => {
+      const primaryAction = card.querySelector('[data-tagging-match-id]');
       const openSelectedMatch = () => {
-        const selected = items.find(item => item.id === card.dataset.taggingMatchCardId);
-        if (selected) navigate('tagging', { matchId: selected.id });
+        primaryAction?.click();
       };
       card.addEventListener('click', (event) => {
         const target = event.target instanceof Element ? event.target : null;

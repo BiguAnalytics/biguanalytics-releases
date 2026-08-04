@@ -508,9 +508,9 @@ function renderDashboardSelection(container, matches, targetRoute = 'dashboard')
     button.addEventListener('click', () => navigate(targetRoute, { matchId: button.dataset.dashboardMatchId }));
   });
   container.querySelectorAll('[data-dashboard-match-card-id]').forEach((card) => {
+    const primaryAction = card.querySelector('[data-dashboard-match-id]');
     const openSelectedMatch = () => {
-      const matchId = card.dataset.dashboardMatchCardId;
-      if (matchId) navigate(targetRoute, { matchId });
+      primaryAction?.click();
     };
     card.addEventListener('click', (event) => {
       const target = event.target instanceof Element ? event.target : null;

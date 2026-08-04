@@ -24,6 +24,7 @@ const SWIPE_EXCLUDED_SELECTOR = [
   '[data-no-route-swipe]',
   '[data-settings-choice-card]',
   '[data-match-card]',
+  '[role="button"]',
 ].join(',');
 
 /**

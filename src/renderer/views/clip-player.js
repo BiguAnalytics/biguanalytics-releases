@@ -739,7 +739,7 @@ function renderClipMatchSelection(container, matches) {
             </span>
           </button>
         ` : items.map(item => `
-          <article class="tagging-match-card" aria-label="${escapeHtml(item.title)}">
+          <article class="tagging-match-card" data-clip-match-card-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
             <span class="tagging-match-card-kicker">${escapeHtml(item.statusLabel)}</span>
             <strong class="tagging-match-card-title">${escapeHtml(item.title)}</strong>
             <span class="tagging-match-card-video">${escapeHtml(item.videoLabel)}</span>
@@ -759,6 +759,20 @@ function renderClipMatchSelection(container, matches) {
   container.querySelector('[data-clip-home]')?.addEventListener('click', () => navigate('home'));
   container.querySelectorAll('[data-clip-match-id]').forEach(button => {
     button.addEventListener('click', () => navigate('clips', { matchId: button.dataset.clipMatchId }));
+  });
+  container.querySelectorAll('[data-clip-match-card-id]').forEach((card) => {
+    const primaryAction = card.querySelector('[data-clip-match-id]');
+    const openSelectedMatch = () => primaryAction?.click();
+    card.addEventListener('click', (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest('button')) return;
+      openSelectedMatch();
+    });
+    card.addEventListener('keydown', (event) => {
+      if (event.target !== card || (event.key !== 'Enter' && event.key !== ' ')) return;
+      event.preventDefault();
+      openSelectedMatch();
+    });
   });
 }
 

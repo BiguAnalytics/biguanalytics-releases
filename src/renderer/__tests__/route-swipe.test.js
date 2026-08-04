@@ -41,6 +41,10 @@ describe('route swipe navigation', () => {
     expect(swipeSource).toContain("'[data-match-card]'");
   });
 
+  it('does not capture pointer clicks on semantic button surfaces', () => {
+    expect(swipeSource).toContain("'[role=\"button\"]'");
+  });
+
   it('configures the main content viewport for horizontal snap behavior', () => {
     expect(layoutCss).toMatch(/\.main-content-body\s*{[^}]*scroll-snap-type:\s*x mandatory;/s);
     expect(layoutCss).toMatch(/\.main-content-body\s*{[^}]*overscroll-behavior-x:\s*contain;/s);

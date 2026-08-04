@@ -213,6 +213,8 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain('data-tagging-match-card-id');
     expect(taggingSource).toContain("card.addEventListener('click'");
     expect(taggingSource).toContain("target?.closest('button')");
+    expect(taggingSource).toContain("const primaryAction = card.querySelector('[data-tagging-match-id]')");
+    expect(taggingSource).toContain('primaryAction?.click()');
     expect(taggingSource).toContain("card.addEventListener('keydown'");
   });
 

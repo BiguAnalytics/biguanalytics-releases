@@ -284,6 +284,9 @@ export function createNewMatchCard(onClick) {
   const card = document.createElement('div');
   card.className = 'match-card-new';
   card.id = 'new-match-card';
+  card.setAttribute('role', 'button');
+  card.setAttribute('tabindex', '0');
+  card.setAttribute('data-no-route-swipe', 'true');
 
   card.innerHTML = `
     <div class="match-card-new-icon">
@@ -293,6 +296,11 @@ export function createNewMatchCard(onClick) {
   `;
 
   card.addEventListener('click', onClick);
+  card.addEventListener('keydown', (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onClick(event);
+  });
 
   return card;
 }

@@ -47,6 +47,8 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('data-dashboard-match-card-id');
     expect(dashboardSource).toContain("card.addEventListener('click'");
     expect(dashboardSource).toContain("target?.closest('button')");
+    expect(dashboardSource).toContain("const primaryAction = card.querySelector('[data-dashboard-match-id]')");
+    expect(dashboardSource).toContain('primaryAction?.click()');
   });
 
   it('wires dashboard event rows back to Tagging with exact seek timestamps', () => {
