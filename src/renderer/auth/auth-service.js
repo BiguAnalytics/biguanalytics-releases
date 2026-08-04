@@ -259,6 +259,22 @@ export function createAuthService(clientSource = getSupabaseClient) {
       await window.api?.authSession?.clear?.();
       return true;
     },
+
+    async deleteAccount() {
+      const client = await resolveClient(clientSource);
+      const { data, error } = await client.rpc('delete_own_account');
+      if (error) throw new Error(getAuthErrorMessage(error, 'No se pudo eliminar la cuenta.'));
+
+      // The account no longer exists after the RPC, so signOut is best effort.
+      try {
+        await client.auth.signOut();
+      } catch {
+        // Local auth state is still cleared below.
+      }
+      await window.api?.auth?.logout?.();
+      await window.api?.authSession?.clear?.();
+      return data || { deleted: true };
+    },
   };
 }
 

@@ -439,6 +439,17 @@ async function deleteMatch(id) {
 }
 
 /**
+ * Clears only the local account data directory after a confirmed account deletion.
+ * @returns {Promise<boolean>}
+ */
+async function clearLocalAccountData() {
+  const dataPath = getDataPath();
+  await fs.rm(dataPath, { recursive: true, force: true });
+  await ensureDataPath();
+  return true;
+}
+
+/**
  * @returns {Promise<Array<object>>}
  */
 async function readPendingSync(options = {}) {
@@ -545,6 +556,7 @@ module.exports = {
   getMatchById,
   updateMatch,
   deleteMatch,
+  clearLocalAccountData,
   enqueuePendingSync,
   getPendingSync,
   markPendingSyncApplied

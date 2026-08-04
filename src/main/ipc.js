@@ -306,6 +306,7 @@ function registerIpcHandlers() {
   ipcMain.handle('auth:refreshOnline', async (e, payload) => services.getAuthAccessService().refreshOnline(payload));
   ipcMain.handle('auth:revokeLocalAccess', async (e, payload) => services.getAuthAccessService().revokeLocalAccess(payload));
   ipcMain.handle('auth:logout', async () => services.getAuthAccessService().logout());
+  ipcMain.handle('account:clearLocalData', async () => getStorageModule().clearLocalAccountData());
   ipcMain.handle('authSession:get', async (e, key) => services.getAuthSessionStore().get(getAuthSessionKeysModule().validateAuthSessionKey(key)));
   ipcMain.handle('authSession:set', async (e, key, value) => {
     await services.getAuthSessionStore().set(getAuthSessionKeysModule().validateAuthSessionKey(key), value);

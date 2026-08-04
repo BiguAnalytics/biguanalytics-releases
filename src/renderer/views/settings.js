@@ -3,6 +3,7 @@ import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { buildWalkthroughResetSettings } from '../components/walkthrough.js';
 import { buildPdfTemplateEditorWalkthroughResetSettings } from '../components/pdf-template-walkthrough.js';
+import { authService } from '../auth/auth-service.js';
 import { getAccessState } from '../auth/access-guard.js';
 import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
@@ -54,6 +55,30 @@ const DEFAULT_HOTKEY_FIELDS = [
   { key: 'card', label: 'Tarjeta', original: 'A' },
   { key: 'note', label: 'Nota libre', original: 'N' },
 ];
+
+/**
+ * Serializes account actions across repeated clicks and multiple Settings renders.
+ * @returns {{inProgress: boolean, run: function(function(): Promise<unknown>): Promise<{skipped: boolean, value?: unknown}>}}
+ */
+export function createAccountActionGate() {
+  let inProgress = false;
+  return {
+    get inProgress() {
+      return inProgress;
+    },
+    async run(operation) {
+      if (inProgress) return { skipped: true };
+      inProgress = true;
+      try {
+        return { skipped: false, value: await operation() };
+      } finally {
+        inProgress = false;
+      }
+    },
+  };
+}
+
+const accountActionGate = createAccountActionGate();
 
 /**
  * @param {number|null|undefined} autoCloseMs
@@ -1055,6 +1080,20 @@ export async function renderSettings(container, params = {}) {
               </div>
             </div>
           </fieldset>
+          ${!isHotkeysSubsection ? `
+            <section class="settings-account-actions settings-account-danger" data-account-actions aria-labelledby="settings-account-title">
+              <div class="settings-account-copy">
+                <span class="form-label">Cuenta</span>
+                <h2 id="settings-account-title">Acciones de cuenta</h2>
+                <p>Estas acciones afectan tu sesión y tus datos. La eliminación de cuenta no se puede deshacer.</p>
+              </div>
+              <div class="settings-account-buttons">
+                <button class="settings-account-button" type="button" data-account-action="sign-out">Cerrar sesi&oacute;n</button>
+                <button class="settings-account-button settings-account-delete" type="button" data-account-action="delete-account">Eliminar cuenta</button>
+              </div>
+              <p class="settings-account-feedback" data-account-feedback role="status" aria-live="polite"></p>
+            </section>
+          ` : ''}
         </form>
       </div>
     </section>
@@ -1080,6 +1119,8 @@ export async function renderSettings(container, params = {}) {
   const clipExportQuality = /** @type {HTMLSelectElement|null} */ (container.querySelector('#clip-export-quality'));
   const aiStatus = /** @type {HTMLElement|null} */ (container.querySelector('[data-ai-status]'));
   const feedback = container.querySelector('#settings-feedback');
+  const accountFeedback = container.querySelector('[data-account-feedback]');
+  const accountActionButtons = Array.from(container.querySelectorAll('[data-account-action]'));
   const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
   if (themeInput) themeInput.checked = true;
   if (statsOnly) statsOnly.checked = Boolean(settings.statsOnlyMode);
@@ -1124,6 +1165,62 @@ export async function renderSettings(container, params = {}) {
 
   const cleanupMicrophoneSettings = isHotkeysSubsection ? () => {} : setupMicrophoneSettings(container, settings, feedback);
   const cleanupUpdaterSettings = isHotkeysSubsection ? () => {} : await setupUpdaterSettings(container, feedback);
+
+  const setAccountActionBusy = (busy, action = '') => {
+    accountActionButtons.forEach((button) => {
+      const element = /** @type {HTMLButtonElement} */ (button);
+      if (!element.dataset.idleLabel) element.dataset.idleLabel = element.textContent || '';
+      element.disabled = busy;
+      element.setAttribute('aria-busy', String(busy));
+      if (busy && element.dataset.accountAction === action) {
+        element.textContent = action === 'delete-account' ? 'Eliminando...' : 'Cerrando...';
+      } else if (!busy) {
+        element.textContent = element.dataset.idleLabel;
+      }
+    });
+  };
+
+  const runAccountAction = async (action) => {
+    if (!['sign-out', 'delete-account'].includes(action) || accountActionGate.inProgress) return;
+    const confirmation = action === 'delete-account'
+      ? '¿Eliminar tu cuenta y cerrar la sesión? Esta acción no se puede deshacer.'
+      : '¿Cerrar la sesión en este dispositivo?';
+    if (!window.confirm(confirmation)) return;
+
+    const result = await accountActionGate.run(async () => {
+      setAccountActionBusy(true, action);
+      if (accountFeedback) accountFeedback.textContent = action === 'delete-account' ? 'Eliminando cuenta...' : 'Cerrando sesión...';
+      try {
+        if (action === 'delete-account') {
+          await authService.deleteAccount();
+          await window.api?.account?.clearLocalData?.();
+        } else {
+          await authService.signOut();
+        }
+        return { ok: true };
+      } catch (error) {
+        if (accountFeedback) accountFeedback.textContent = error?.message || 'No se pudo completar la acción.';
+        return { ok: false };
+      } finally {
+        setAccountActionBusy(false);
+      }
+    });
+
+    if (result.skipped || !result.value?.ok) return;
+    window.dispatchEvent(new CustomEvent('bigu:access-denied', {
+      detail: {
+        state: 'unauthenticated',
+        allowed: false,
+        reason: action === 'delete-account' ? 'account_deleted' : 'signed_out',
+      },
+    }));
+  };
+
+  accountActionButtons.forEach((button) => {
+    button.addEventListener('click', () => {
+      void runAccountAction(button.dataset.accountAction || '');
+    });
+  });
 
   let thresholdSaveTimer = null;
   const saveThresholds = () => {

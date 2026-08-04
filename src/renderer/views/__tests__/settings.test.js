@@ -19,6 +19,7 @@ const {
   wireSettingsChoiceCards,
   getUpdaterProgressPercent,
   getReadableUpdaterError,
+  createAccountActionGate,
 } = settingsModule;
 
 const settingsSource = readFileSync(new URL('../settings.js', import.meta.url), 'utf8');
@@ -395,5 +396,38 @@ describe('settings interaction polish', () => {
     expect(settingsSource).toContain('Guardar ajustes');
     expect(layoutSource).toMatch(/\.settings-save-bar\s*{[\s\S]*position:\s*sticky;[\s\S]*top:\s*var\(--space-2\)/s);
     expect(layoutSource).toContain('.settings-save-bar .settings-feedback');
+  });
+
+  it('places separate account actions at the end of the full settings panel', () => {
+    const accountActionsIndex = settingsSource.indexOf('data-account-actions');
+    const pdfTemplatesIndex = settingsSource.indexOf('data-pdf-templates-open');
+    const formEndIndex = settingsSource.indexOf('</form>');
+
+    expect(accountActionsIndex).toBeGreaterThan(pdfTemplatesIndex);
+    expect(accountActionsIndex).toBeLessThan(formEndIndex);
+    expect(settingsSource).toContain('Cerrar sesi&oacute;n');
+    expect(settingsSource).toContain('Eliminar cuenta');
+    expect(settingsSource).toContain('data-account-action="sign-out"');
+    expect(settingsSource).toContain('data-account-action="delete-account"');
+    expect(settingsSource).toContain('window.confirm(');
+    expect(settingsSource).toContain('authService.signOut()');
+    expect(settingsSource).toContain('authService.deleteAccount()');
+    expect(settingsSource).toContain("bigu:access-denied");
+    expect(layoutSource).toContain('.settings-account-actions');
+    expect(layoutSource).toContain('.settings-account-danger');
+  });
+
+  it('does not overlap account actions while one destructive operation is pending', async () => {
+    expect(createAccountActionGate).toBeTypeOf('function');
+    const gate = createAccountActionGate();
+    let releaseFirst;
+    const first = gate.run(() => new Promise(resolve => {
+      releaseFirst = resolve;
+    }));
+
+    await expect(gate.run(async () => 'second')).resolves.toEqual({ skipped: true });
+    releaseFirst('first');
+    await expect(first).resolves.toEqual({ skipped: false, value: 'first' });
+    await expect(gate.run(async () => 'third')).resolves.toEqual({ skipped: false, value: 'third' });
   });
 });

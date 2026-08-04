@@ -4,6 +4,7 @@ import path from 'path';
 
 import {
   createMatch,
+  clearLocalAccountData,
   deleteMatch,
   getAllMatches,
   getMatchById,
@@ -22,6 +23,22 @@ async function resetTestData() {
 describe('storage.js', () => {
   beforeEach(resetTestData);
   afterEach(resetTestData);
+
+  it('clears local account data and pending sync safely', async () => {
+    await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+    await import('../storage.js').then(({ enqueuePendingSync }) => enqueuePendingSync({
+      entity: 'matches',
+      action: 'upsert',
+      matchId: 'pending-match',
+      payload: {},
+    }));
+
+    await clearLocalAccountData();
+
+    expect(await getAllMatches()).toEqual([]);
+    expect(await import('../storage.js').then(({ getPendingSync }) => getPendingSync())).toEqual([]);
+    await expect(fs.access(path.join(TEST_USER_DATA, 'data'))).resolves.toBeUndefined();
+  });
 
   describe('createMatch', () => {
     it('should generate a UUID and create a match directory with match.json', async () => {

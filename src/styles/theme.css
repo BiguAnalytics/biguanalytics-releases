@@ -122,6 +122,8 @@
 :root[data-theme="light"] .settings-updater-card,
 :root[data-theme="light"] .settings-updater-button,
 :root[data-theme="light"] .settings-onboarding-card,
+:root[data-theme="light"] .settings-account-actions,
+:root[data-theme="light"] .settings-account-button,
 :root[data-theme="light"] .settings-microphone-test,
 :root[data-theme="light"] .settings-onboarding-restart,
 :root[data-theme="light"] .form-tabs {

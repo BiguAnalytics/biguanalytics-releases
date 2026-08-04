@@ -708,6 +708,74 @@
   opacity: 0.62;
 }
 
+.settings-account-actions {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-4);
+}
+
+.settings-account-danger {
+  border: 1px solid rgba(220, 68, 91, 0.34);
+  border-radius: var(--radius-lg);
+  background: rgba(88, 18, 35, 0.16);
+}
+
+.settings-account-copy {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.settings-account-copy h2 {
+  margin: 0;
+  color: var(--color-text-primary);
+  font: 900 15px var(--font-brand);
+}
+
+.settings-account-copy p,
+.settings-account-feedback {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
+.settings-account-buttons {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.settings-account-button {
+  min-height: 42px;
+  padding: 0 var(--space-4);
+  border: 1px solid rgba(220, 68, 91, 0.46);
+  border-radius: var(--radius-md);
+  background: rgba(200, 16, 46, 0.10);
+  color: var(--color-text-primary);
+  font: 900 12px var(--font-brand);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth), opacity var(--duration-fast) var(--ease-smooth);
+}
+
+.settings-account-button:hover:not(:disabled),
+.settings-account-button:focus-visible:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: rgba(200, 16, 46, 0.22);
+  transform: translateY(-1px);
+}
+
+.settings-account-button:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.settings-account-button:disabled {
+  cursor: wait;
+  opacity: 0.62;
+}
+
+.settings-account-delete {
+  background: rgba(200, 16, 46, 0.20);
+}
+
 .form-select.settings-microphone-select {
   cursor: pointer;
   appearance: none;
@@ -1060,6 +1128,10 @@
   }
 
   .settings-onboarding-actions {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-account-buttons {
     grid-template-columns: 1fr;
   }
 

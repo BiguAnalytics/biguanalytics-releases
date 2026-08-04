@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('api', {
     revokeLocalAccess: (payload) => ipcRenderer.invoke('auth:revokeLocalAccess', payload),
     logout: () => ipcRenderer.invoke('auth:logout')
   },
+  account: {
+    clearLocalData: () => ipcRenderer.invoke('account:clearLocalData')
+  },
   matches: {
     create: (data) => ipcRenderer.invoke('matches:create', data),
     getAll: () => ipcRenderer.invoke('matches:getAll'),

@@ -13,6 +13,7 @@ describe('license IPC surface', () => {
     expect(ipcSource).toContain("auth:refreshOnline");
     expect(ipcSource).toContain("auth:revokeLocalAccess");
     expect(ipcSource).toContain("auth:logout");
+    expect(ipcSource).toContain("account:clearLocalData");
     expect(ipcSource).toContain("authSession:get");
     expect(ipcSource).toContain("authSession:set");
     expect(ipcSource).toContain("authSession:remove");
@@ -38,6 +39,7 @@ describe('license IPC surface', () => {
     expect(preloadSource).toContain('refreshOnline');
     expect(preloadSource).toContain('revokeLocalAccess');
     expect(preloadSource).toContain('logout');
+    expect(preloadSource).toContain('clearLocalData');
     expect(preloadSource).toContain('authSession');
     expect(preloadSource).not.toContain('licenseSession');
     expect(preloadSource).not.toContain("ipcRenderer.invoke('files:open'");

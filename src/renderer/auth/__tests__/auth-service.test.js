@@ -195,4 +195,34 @@ describe('auth service', () => {
     expect(service.hasPassword({ password_configured: false })).toBe(false);
     expect(service.hasPassword({ password_configured_at: '2026-05-30T12:00:00.000Z' })).toBe(false);
   });
+
+  it('deletes the current account through the scoped RPC and clears local auth state', async () => {
+    const rpcCalls = [];
+    const localAuthCalls = [];
+    const originalWindow = globalThis.window;
+    globalThis.window = {
+      api: {
+        auth: { logout: async () => localAuthCalls.push('logout') },
+        authSession: { clear: async () => localAuthCalls.push('clear') },
+      },
+    };
+
+    try {
+      const service = createAuthService(Promise.resolve({
+        auth: {
+          signOut: async () => ({ error: null }),
+        },
+        rpc: async (...args) => {
+          rpcCalls.push(args);
+          return { data: { deleted: true }, error: null };
+        },
+      }));
+
+      await expect(service.deleteAccount()).resolves.toEqual({ deleted: true });
+      expect(rpcCalls).toEqual([['delete_own_account']]);
+      expect(localAuthCalls).toEqual(['logout', 'clear']);
+    } finally {
+      globalThis.window = originalWindow;
+    }
+  });
 });

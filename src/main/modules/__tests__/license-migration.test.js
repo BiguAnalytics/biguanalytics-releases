@@ -165,3 +165,27 @@ describe('device identity v2 migration', () => {
     expect(deviceIdentityV2Migration).not.toContain('service_role');
   });
 });
+
+const accountDeletionMigrationUrl = new URL(
+  '../../../../supabase/migrations/20260804000000_account_deletion.sql',
+  import.meta.url
+);
+const accountDeletionMigration = existsSync(accountDeletionMigrationUrl)
+  ? readFileSync(accountDeletionMigrationUrl, 'utf8')
+  : '';
+
+describe('account deletion migration', () => {
+  it('deletes only the authenticated account and preserves shared match data', () => {
+    expect(accountDeletionMigration).toContain('create or replace function public.delete_own_account');
+    expect(accountDeletionMigration).toContain('security definer');
+    expect(accountDeletionMigration).toContain('set search_path = public');
+    expect(accountDeletionMigration).toContain('auth.uid()');
+    expect(accountDeletionMigration).toContain('pg_advisory_xact_lock');
+    expect(accountDeletionMigration).toContain('delete from auth.users');
+    expect(accountDeletionMigration).toContain('created_by = null');
+    expect(accountDeletionMigration).toContain('author_id = null');
+    expect(accountDeletionMigration).toContain('on delete set null');
+    expect(accountDeletionMigration).toContain('grant execute on function public.delete_own_account() to authenticated');
+    expect(accountDeletionMigration).not.toContain('SUPABASE_SERVICE_ROLE_KEY');
+  });
+});
