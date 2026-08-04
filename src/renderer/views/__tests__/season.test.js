@@ -26,4 +26,10 @@ describe('season view', () => {
     expect(seasonSource).toContain("navigate('dashboard', { matchId:");
     expect(seasonCss).toContain('.season-view');
   });
+
+  it('loads configurable event labels for season metrics and table headers', () => {
+    expect(seasonSource).toContain("import { getEventLabels } from '../tagging/event-labels.js';");
+    expect(seasonSource).toContain('window.api.settings.get()');
+    expect(seasonSource).toContain('getEventLabels(settings.tagging)');
+  });
 });

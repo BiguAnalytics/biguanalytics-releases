@@ -1,5 +1,6 @@
 // @ts-check
 import { getDrawingSequenceDuration } from '../drawing/drawing-sequence.js';
+import { getEventLabel } from '../tagging/event-labels.js';
 
 const TRACKS = [
   { id: 'set-piece', label: 'Formaciones', types: ['scrum', 'lineout', 'maul'] },
@@ -322,6 +323,7 @@ function getTimelineRenderSignature(data) {
     ]),
     newEventIds: data.newEventIds,
     newSequenceIds: data.newSequenceIds,
+    eventLabels: data.eventLabels,
   });
 }
 
@@ -381,6 +383,7 @@ function getPreparedTimelineData(options) {
     selectedDrawingId,
     newEventIds,
     newSequenceIds,
+    eventLabels: options.eventLabels || {},
     renderSignature: '',
   };
 }
@@ -624,7 +627,7 @@ export function renderTimeline(host, options) {
                   hasDrawing ? 'has-drawing' : '',
                   newEventIds.has(String(eventId)) ? 'is-new' : '',
                 ].filter(Boolean).join(' ');
-                const title = `${event.type} · ${event.result || event.subtype || 'sin resultado'} · ${event.note || formatClock(event.timestamp)}`;
+                const title = `${getEventLabel(event.type, options.eventLabels)} · ${event.result || event.subtype || 'sin resultado'} · ${event.note || formatClock(event.timestamp)}`;
                 return `
                   <button
                     class="${blockClass}"
@@ -658,7 +661,7 @@ export function renderTimeline(host, options) {
             ${untimedEvents.map((event, index) => {
               const eventResult = formatEventValue(event.result || event.subtype);
               const eventId = event.id || `untimed-${index}`;
-              const title = `${event.type} - ${event.result || event.subtype || 'sin resultado'}${event.note ? ` - ${event.note}` : ''}`;
+              const title = `${getEventLabel(event.type, options.eventLabels)} - ${event.result || event.subtype || 'sin resultado'}${event.note ? ` - ${event.note}` : ''}`;
               return `
                 <button
                   class="timeline-untimed-event"
@@ -670,7 +673,7 @@ export function renderTimeline(host, options) {
                   title="${escapeHtml(title)}"
                   aria-label="${escapeHtml(title)}"
                 >
-                  <span>${escapeHtml(event.type || 'evento')}</span>
+                  <span>${escapeHtml(getEventLabel(event.type, options.eventLabels))}</span>
                   <em>${escapeHtml(eventResult)}</em>
                 </button>
               `;

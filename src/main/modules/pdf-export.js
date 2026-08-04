@@ -255,6 +255,16 @@ async function buildDashboardPdfPayload(matchId, printPayload = {}, options = {}
   const stats = calculateMatchStats(match, settings, printPayload.filters || settings.dashboard?.filters || {});
   const resolveForExport = options.resolveForExport || resolvePdfTemplateForExport;
   const pdfTemplateLayout = printPayload.pdfTemplateLayout || await resolveForExport(printPayload.templateId);
+  const taggingLabels = {
+    ...(settings.tagging?.hotkeyLabels || {}),
+    ...(Array.isArray(settings.tagging?.customHotkeys)
+      ? settings.tagging.customHotkeys.reduce((labels, hotkey) => {
+        const id = String(hotkey?.id || hotkey?.label || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+        if (id && hotkey?.label) labels[`custom:${id}`] = String(hotkey.label).trim();
+        return labels;
+      }, {})
+      : {}),
+  };
   return {
     stats,
     payload: {
@@ -267,6 +277,7 @@ async function buildDashboardPdfPayload(matchId, printPayload = {}, options = {}
       },
       drawingFrames,
       drawingFrameWarning: drawingFramePayload.warning || '',
+      taggingLabels,
     },
   };
 }

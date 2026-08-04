@@ -12,6 +12,7 @@ import { SEQUENCE_COLOR_CHOICES, formatClock, renderTimeline, updateTimelinePlay
 import { MATCH_EDIT_ICON, getMatchSelectionItems, getMatchTitle } from '../components/match-selection.js';
 import { normalizeFieldZone } from '../field-zones.js';
 import { drawStrokes } from '../drawing/drawing-engine.js';
+import { getEventLabels } from '../tagging/event-labels.js';
 import {
   getDrawingSequenceDuration,
   getDrawingSequenceStrokesAtTime,
@@ -991,6 +992,8 @@ export function renderTagging(container, params = {}) {
     match = loadedMatch;
     state = createTaggerState({
       autoCloseMs: settings?.tagging?.autoCloseMs || 8000,
+      autoCloseEnabled: settings?.tagging?.autoCloseEnabled !== false,
+      pauseVideoOnPopup: settings?.tagging?.pauseVideoOnPopup === true,
       eventDefinitions: buildEventDefinitions(settings?.tagging),
       possession: match?.possession,
     });
@@ -2223,6 +2226,7 @@ export function renderTagging(container, params = {}) {
       onEventContextMenu: openTimelineContextMenu,
       onUntimedEventContextMenu: openTimelineContextMenu,
       onEventMove: moveTimelineEvent,
+      eventLabels: getEventLabels(settings?.tagging),
       preserveScroll: options.preserveScroll,
     });
   }
@@ -3027,6 +3031,23 @@ export function renderTagging(container, params = {}) {
     if (action === 'play') togglePlay();
     if (action === 'back') seekBy(-10);
     if (action === 'forward') seekBy(10);
+  }
+
+  function pauseVideoForPopup() {
+    let paused = false;
+    if (localVideo && !localVideo.paused) {
+      localVideo.pause();
+      currentTime = Number(localVideo.currentTime) || currentTime;
+      paused = true;
+    } else if (youtubePlayer && youtubePlayerReady && (isPlaying || youtubePlayer.getPlayerState?.() === YOUTUBE_PLAYER_STATE.playing)) {
+      youtubePlayer.pauseVideo();
+      currentTime = Number(youtubePlayer.getCurrentTime?.()) || currentTime;
+      paused = true;
+    }
+    if (!paused) return;
+    isPlaying = false;
+    lastPlaybackSyncAt = Date.now();
+    renderControls();
   }
 
   function togglePlay() {
@@ -3987,6 +4008,7 @@ export function renderTagging(container, params = {}) {
       isSequenceInspectorEditing = false;
       renderEventInspector();
       resetSpeechUiState();
+      if (state.pauseVideoOnPopup) pauseVideoForPopup();
       state = openTagPopup(state, key, getTagTimestamp());
       renderPopup();
     }

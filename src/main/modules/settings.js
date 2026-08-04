@@ -26,6 +26,20 @@ const DEFAULT_TAGGING_HOTKEYS = {
   note: 'N',
 };
 
+const DEFAULT_TAGGING_HOTKEY_LABELS = {
+  ruck: 'Ruck',
+  scrum: 'Scrum',
+  lineout: 'Line Out',
+  penal: 'Penal / Free Kick',
+  points: 'Try y puntos',
+  'break-line': 'Break Line',
+  kick: 'Kick',
+  maul: 'Maul',
+  turnover: 'Turnover',
+  card: 'Tarjeta',
+  note: 'Nota libre',
+};
+
 const DEFAULT_MICROPHONE_SETTINGS = {
   deviceId: '',
   label: 'Microfono predeterminado',
@@ -74,8 +88,11 @@ const DEFAULT_SETTINGS = {
   pdfTemplateEditor: DEFAULT_PDF_TEMPLATE_EDITOR_SETTINGS,
   tagging: {
     autoCloseMs: 8000,
+    autoCloseEnabled: true,
+    pauseVideoOnPopup: false,
     hotkeyHintsCollapsed: false,
     hotkeys: DEFAULT_TAGGING_HOTKEYS,
+    hotkeyLabels: DEFAULT_TAGGING_HOTKEY_LABELS,
     customHotkeys: []
   },
   dashboard: {
@@ -251,9 +268,19 @@ function mergeSettings(settings = {}) {
     tagging: {
       ...DEFAULT_SETTINGS.tagging,
       ...(settings.tagging || {}),
+      autoCloseEnabled: typeof settings.tagging?.autoCloseEnabled === 'boolean'
+        ? settings.tagging.autoCloseEnabled
+        : DEFAULT_SETTINGS.tagging.autoCloseEnabled,
+      pauseVideoOnPopup: typeof settings.tagging?.pauseVideoOnPopup === 'boolean'
+        ? settings.tagging.pauseVideoOnPopup
+        : DEFAULT_SETTINGS.tagging.pauseVideoOnPopup,
       hotkeys: {
         ...DEFAULT_TAGGING_HOTKEYS,
         ...(settings.tagging?.hotkeys || {})
+      },
+      hotkeyLabels: {
+        ...DEFAULT_TAGGING_HOTKEY_LABELS,
+        ...(settings.tagging?.hotkeyLabels || {})
       },
       customHotkeys: Array.isArray(settings.tagging?.customHotkeys)
         ? settings.tagging.customHotkeys
@@ -320,9 +347,19 @@ function createSettingsRepository(store) {
         tagging: {
           ...current.tagging,
           ...(partial.tagging || {}),
+          autoCloseEnabled: typeof partial.tagging?.autoCloseEnabled === 'boolean'
+            ? partial.tagging.autoCloseEnabled
+            : current.tagging.autoCloseEnabled,
+          pauseVideoOnPopup: typeof partial.tagging?.pauseVideoOnPopup === 'boolean'
+            ? partial.tagging.pauseVideoOnPopup
+            : current.tagging.pauseVideoOnPopup,
           hotkeys: {
             ...current.tagging.hotkeys,
             ...(partial.tagging?.hotkeys || {})
+          },
+          hotkeyLabels: {
+            ...current.tagging.hotkeyLabels,
+            ...(partial.tagging?.hotkeyLabels || {})
           },
           customHotkeys: Array.isArray(partial.tagging?.customHotkeys)
             ? partial.tagging.customHotkeys
@@ -409,6 +446,7 @@ async function updateSettings(partial) {
 module.exports = {
   DEFAULT_DASHBOARD_SECTIONS,
   DEFAULT_TAGGING_HOTKEYS,
+  DEFAULT_TAGGING_HOTKEY_LABELS,
   createSettingsRepository,
   mergeSettings,
   parseSettingsStoreJson,

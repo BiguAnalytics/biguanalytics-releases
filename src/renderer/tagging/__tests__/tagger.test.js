@@ -72,6 +72,17 @@ describe('tagger engine', () => {
     }));
   });
 
+  it('uses configured built-in labels while keeping stable event types', () => {
+    const definitions = buildEventDefinitions({
+      hotkeyLabels: { ruck: 'Pepe' },
+    });
+
+    expect(definitions.R).toEqual(expect.objectContaining({
+      type: 'ruck',
+      label: 'Pepe',
+    }));
+  });
+
   it('adds custom hotkeys as custom event definitions with configured result data', () => {
     expect(buildEventDefinitions).toBeTypeOf('function');
     const definitions = buildEventDefinitions({
@@ -234,6 +245,19 @@ describe('tagger engine', () => {
 
     expect(shouldAutoClosePopup(stalePopup, 9_500)).toBe(true);
     expect(shouldAutoClosePopup(stalePopup, 9_500, { isInteracting: true })).toBe(false);
+  });
+
+  it('never auto-closes when the setting is disabled', () => {
+    const opened = openTagPopup(createTaggerState({ autoCloseEnabled: false, autoCloseMs: 8000 }), 'R', 72);
+    const stalePopup = {
+      ...opened,
+      activePopup: {
+        ...opened.activePopup,
+        lastInteractionAt: 1_000,
+      },
+    };
+
+    expect(shouldAutoClosePopup(stalePopup, 9_500)).toBe(false);
   });
 
   it('registers possession intervals and calculates live percentages', () => {

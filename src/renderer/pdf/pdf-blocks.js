@@ -1,5 +1,6 @@
 // @ts-check
 import { PDF_BLOCK_TYPES, getPdfBlockMetadata } from './pdf-block-registry.js';
+import { DEFAULT_EVENT_LABELS, getEventLabel } from '../tagging/event-labels.js';
 
 export const GRID_COLUMNS = 12;
 export const GRID_ROWS = {
@@ -29,6 +30,13 @@ const KPI_DEFINITIONS = {
   possession: { label: 'Posesión', path: ['possession'], fallback: '0%' },
   territory: { label: 'Territorio', path: ['territory'], fallback: 'N/D' },
 };
+
+function getConfiguredEventLabel(type, taggingLabels, fallback) {
+  const configured = String(taggingLabels?.[type] || '').trim();
+  return configured && configured !== DEFAULT_EVENT_LABELS[type]
+    ? getEventLabel(type, taggingLabels)
+    : fallback;
+}
 
 /**
  * @param {string|number|null|undefined} value
@@ -159,7 +167,7 @@ function getMatchContext(stats = {}) {
  * @param {Array<string>} selectedKpis
  * @returns {Array<{label: string, value: string|number}>}
  */
-function getKpis(stats = {}, selectedKpis = []) {
+function getKpis(stats = {}, selectedKpis = [], taggingLabels = {}) {
   const context = getMatchContext(stats);
   const values = {
     ruckWinPct: formatPct(stats.rucks?.[context.biguaTeam]?.wonPct),
@@ -171,12 +179,20 @@ function getKpis(stats = {}, selectedKpis = []) {
     possession: formatPct(stats.possession?.percentages?.[context.biguaTeam]),
     territory: stats.territory?.available ? formatPct(stats.territory?.percentages?.[context.biguaTeam]) : 'N/D',
   };
+  const labels = {
+    ruck: `% ${getConfiguredEventLabel('ruck', taggingLabels, 'Rucks')} ganados`,
+    penal: `${getConfiguredEventLabel('penal', taggingLabels, 'Penales')} totales`,
+    lineout: `% ${getConfiguredEventLabel('lineout', taggingLabels, 'Line Outs')} ganados`,
+    scrum: `% ${getConfiguredEventLabel('scrum', taggingLabels, 'Scrums')} ganados`,
+    breakLine: getConfiguredEventLabel('break-line', taggingLabels, 'Break Lines'),
+    kick: getConfiguredEventLabel('kick', taggingLabels, 'Kicks'),
+  };
   const fallback = ['ruckWinPct', 'penalties', 'lineoutWinPct', 'breakLines'];
   const ids = (Array.isArray(selectedKpis) && selectedKpis.length > 0 ? selectedKpis : fallback)
     .filter(id => KPI_DEFINITIONS[id])
     .slice(0, 6);
   return ids.map(id => ({
-    label: KPI_DEFINITIONS[id].label,
+    label: labels[id === 'ruckWinPct' ? 'ruck' : id === 'penalties' ? 'penal' : id === 'lineoutWinPct' ? 'lineout' : id === 'scrumWinPct' ? 'scrum' : id === 'breakLines' ? 'breakLine' : id === 'kicks' ? 'kick' : ''] || KPI_DEFINITIONS[id].label,
     value: values[id] ?? KPI_DEFINITIONS[id].fallback,
   }));
 }
@@ -231,7 +247,7 @@ function createChartSummaryRow(label, biguaValue, rivalValue, format = 'count') 
  * @param {string} type
  * @returns {Array<{label: string, bigua: string, rival: string}>}
  */
-function getChartSummaryRows(stats, context, type) {
+function getChartSummaryRows(stats, context, type, taggingLabels = {}) {
   const bigua = context.biguaTeam;
   const rival = context.rivalTeam;
   if (type === 'possession-chart') {
@@ -244,37 +260,37 @@ function getChartSummaryRows(stats, context, type) {
   }
   if (type === 'set-pieces-chart') {
     return [
-      createChartSummaryRow('Lineouts ganados', stats.setPieces?.lineouts?.[bigua]?.wonPct, stats.setPieces?.lineouts?.[rival]?.wonPct, 'pct'),
-      createChartSummaryRow('Scrums ganados', stats.setPieces?.scrums?.[bigua]?.wonPct, stats.setPieces?.scrums?.[rival]?.wonPct, 'pct'),
-      createChartSummaryRow('Lineouts totales', stats.setPieces?.lineouts?.[bigua]?.total, stats.setPieces?.lineouts?.[rival]?.total),
+      createChartSummaryRow(`${getConfiguredEventLabel('lineout', taggingLabels, 'Lineouts')} ganados`, stats.setPieces?.lineouts?.[bigua]?.wonPct, stats.setPieces?.lineouts?.[rival]?.wonPct, 'pct'),
+      createChartSummaryRow(`${getConfiguredEventLabel('scrum', taggingLabels, 'Scrums')} ganados`, stats.setPieces?.scrums?.[bigua]?.wonPct, stats.setPieces?.scrums?.[rival]?.wonPct, 'pct'),
+      createChartSummaryRow(`${getConfiguredEventLabel('lineout', taggingLabels, 'Lineouts')} totales`, stats.setPieces?.lineouts?.[bigua]?.total, stats.setPieces?.lineouts?.[rival]?.total),
     ];
   }
   if (type === 'rucks-chart') {
     return [
-      createChartSummaryRow('Rucks ganados', stats.rucks?.[bigua]?.wonPct, stats.rucks?.[rival]?.wonPct, 'pct'),
-      createChartSummaryRow('Rucks totales', stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
-      createChartSummaryRow('Rucks por posesion', stats.rucks?.[bigua]?.rucksPerPossession, stats.rucks?.[rival]?.rucksPerPossession),
+      createChartSummaryRow(`${getConfiguredEventLabel('ruck', taggingLabels, 'Rucks')} ganados`, stats.rucks?.[bigua]?.wonPct, stats.rucks?.[rival]?.wonPct, 'pct'),
+      createChartSummaryRow(`${getConfiguredEventLabel('ruck', taggingLabels, 'Rucks')} totales`, stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
+      createChartSummaryRow(`${getConfiguredEventLabel('ruck', taggingLabels, 'Rucks')} por posesion`, stats.rucks?.[bigua]?.rucksPerPossession, stats.rucks?.[rival]?.rucksPerPossession),
     ];
   }
   if (type === 'penalties-chart') {
     return [
-      createChartSummaryRow('Penales', stats.discipline?.[bigua]?.penalties?.total, stats.discipline?.[rival]?.penalties?.total),
-      createChartSummaryRow('Penales en defensa', stats.discipline?.[bigua]?.penalties?.defense, stats.discipline?.[rival]?.penalties?.defense),
+      createChartSummaryRow(getConfiguredEventLabel('penal', taggingLabels, 'Penales'), stats.discipline?.[bigua]?.penalties?.total, stats.discipline?.[rival]?.penalties?.total),
+      createChartSummaryRow(`${getConfiguredEventLabel('penal', taggingLabels, 'Penales')} en defensa`, stats.discipline?.[bigua]?.penalties?.defense, stats.discipline?.[rival]?.penalties?.defense),
       createChartSummaryRow('Tarjetas', (stats.discipline?.[bigua]?.cards?.amarilla || 0) + (stats.discipline?.[bigua]?.cards?.roja || 0), (stats.discipline?.[rival]?.cards?.amarilla || 0) + (stats.discipline?.[rival]?.cards?.roja || 0)),
     ];
   }
   if (type === 'break-lines-chart') {
     return [
-      createChartSummaryRow('Break lines', stats.breakLines?.[bigua]?.total, stats.breakLines?.[rival]?.total),
+      createChartSummaryRow(getConfiguredEventLabel('break-line', taggingLabels, 'Break lines'), stats.breakLines?.[bigua]?.total, stats.breakLines?.[rival]?.total),
       createChartSummaryRow('Killer instinct', stats.breakLines?.[bigua]?.killerInstinctPct, stats.breakLines?.[rival]?.killerInstinctPct, 'pct'),
-      createChartSummaryRow('Turnovers', stats.totals?.[bigua]?.turnovers, stats.totals?.[rival]?.turnovers),
+      createChartSummaryRow(getConfiguredEventLabel('turnover', taggingLabels, 'Turnovers'), stats.totals?.[bigua]?.turnovers, stats.totals?.[rival]?.turnovers),
     ];
   }
   if (type === 'kicks-chart') {
     return [
-      createChartSummaryRow('Kicks efectivos', stats.kicks?.[bigua]?.favorablePct, stats.kicks?.[rival]?.favorablePct, 'pct'),
-      createChartSummaryRow('Kicks totales', stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
-      createChartSummaryRow('Kicks favorables', stats.kicks?.[bigua]?.favorable, stats.kicks?.[rival]?.favorable),
+      createChartSummaryRow(`${getConfiguredEventLabel('kick', taggingLabels, 'Kicks')} efectivos`, stats.kicks?.[bigua]?.favorablePct, stats.kicks?.[rival]?.favorablePct, 'pct'),
+      createChartSummaryRow(`${getConfiguredEventLabel('kick', taggingLabels, 'Kicks')} totales`, stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
+      createChartSummaryRow(`${getConfiguredEventLabel('kick', taggingLabels, 'Kicks')} favorables`, stats.kicks?.[bigua]?.favorable, stats.kicks?.[rival]?.favorable),
     ];
   }
   if (type === 'bip-sequences-chart') {
@@ -293,10 +309,10 @@ function getChartSummaryRows(stats, context, type) {
  * @param {string} type
  * @returns {string}
  */
-function renderChartSummary(stats, type) {
+function renderChartSummary(stats, type, taggingLabels = {}) {
   const context = getMatchContext(stats);
   const labels = getComparisonTeamLabels(context);
-  const rows = getChartSummaryRows(stats, context, type);
+  const rows = getChartSummaryRows(stats, context, type, taggingLabels);
   return `
     <div class="print-template-chart-summary" role="table" aria-label="Resumen del grafico">
       <header role="row">
@@ -439,17 +455,24 @@ function renderDonutMetric(label, metric = {}) {
  * @param {string} type
  * @returns {string}
  */
-function renderRugbyReportPanel(stats, type) {
+function renderRugbyReportPanel(stats, type, taggingLabels = {}) {
   const context = getMatchContext(stats);
   const bigua = context.biguaTeam;
   const rival = context.rivalTeam;
+  const ruckLabel = getConfiguredEventLabel('ruck', taggingLabels, 'Rucks').toUpperCase();
+  const penalLabel = getConfiguredEventLabel('penal', taggingLabels, 'Penales').toUpperCase();
+  const lineoutLabel = getConfiguredEventLabel('lineout', taggingLabels, 'Line Out').toUpperCase();
+  const scrumLabel = getConfiguredEventLabel('scrum', taggingLabels, 'Scrum').toUpperCase();
+  const breakLineLabel = getConfiguredEventLabel('break-line', taggingLabels, 'Break Line').toUpperCase();
+  const turnoverLabel = getConfiguredEventLabel('turnover', taggingLabels, 'Turnovers').toUpperCase();
+  const kickLabel = getConfiguredEventLabel('kick', taggingLabels, 'Kicks').toUpperCase();
   const titleByType = {
     'possession-chart': 'GENERALES',
-    'penalties-chart': 'PENALES / FREE KICK',
-    'rucks-chart': 'RUCKS',
-    'set-pieces-chart': 'SCRUM / LINE OUT',
+    'penalties-chart': `${penalLabel} / FREE KICK`,
+    'rucks-chart': ruckLabel,
+    'set-pieces-chart': `${scrumLabel} / ${lineoutLabel}`,
     'kicks-chart': 'SALIDAS',
-    'break-lines-chart': 'BREAK LINE / KILLER',
+    'break-lines-chart': `${breakLineLabel} / KILLER`,
     'bip-sequences-chart': 'SECUENCIAS',
   };
 
@@ -460,13 +483,13 @@ function renderRugbyReportPanel(stats, type) {
         ${renderBalanceBars([
           createBalanceRow('POSESION', stats.possession?.percentages?.[bigua], stats.possession?.percentages?.[rival] ?? (100 - toMetricNumber(stats.possession?.percentages?.[bigua])), 'pct'),
           createBalanceRow('TERRITORIO', stats.territory?.percentages?.[bigua], stats.territory?.percentages?.[rival], 'pct'),
-          createBalanceRow('TURNOVERS', stats.totals?.[bigua]?.turnovers, stats.totals?.[rival]?.turnovers),
-          createBalanceRow('PENALES', stats.discipline?.[bigua]?.penalties?.total, stats.discipline?.[rival]?.penalties?.total),
-          createBalanceRow('BREAK LINE', stats.breakLines?.[bigua]?.total, stats.breakLines?.[rival]?.total),
-          createBalanceRow('KICKS', stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
-          createBalanceRow('TOTAL DE RUCKS', stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
-          createBalanceRow('RUCKS GANADOS', stats.rucks?.[bigua]?.won, stats.rucks?.[rival]?.won),
-          createBalanceRow('RUCKS PERDIDOS', stats.rucks?.[bigua]?.lost, stats.rucks?.[rival]?.lost),
+          createBalanceRow(turnoverLabel, stats.totals?.[bigua]?.turnovers, stats.totals?.[rival]?.turnovers),
+          createBalanceRow(penalLabel, stats.discipline?.[bigua]?.penalties?.total, stats.discipline?.[rival]?.penalties?.total),
+          createBalanceRow(breakLineLabel, stats.breakLines?.[bigua]?.total, stats.breakLines?.[rival]?.total),
+          createBalanceRow(kickLabel, stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
+          createBalanceRow(`TOTAL DE ${ruckLabel}`, stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
+          createBalanceRow(`${ruckLabel} GANADOS`, stats.rucks?.[bigua]?.won, stats.rucks?.[rival]?.won),
+          createBalanceRow(`${ruckLabel} PERDIDOS`, stats.rucks?.[bigua]?.lost, stats.rucks?.[rival]?.lost),
         ])}
       </div>
     `;
@@ -480,8 +503,8 @@ function renderRugbyReportPanel(stats, type) {
       <div class="print-template-rugby-panel">
         <header><strong>${titleByType[type]}</strong></header>
         ${renderCompactComparison([
-          { label: 'PENALES EN ATAQUE', home: formatCount(homePenalties.attack), away: formatCount(awayPenalties.attack) },
-          { label: 'PENALES EN DEFENSA', home: formatCount(homePenalties.defense), away: formatCount(awayPenalties.defense) },
+          { label: `${penalLabel} EN ATAQUE`, home: formatCount(homePenalties.attack), away: formatCount(awayPenalties.attack) },
+          { label: `${penalLabel} EN DEFENSA`, home: formatCount(homePenalties.defense), away: formatCount(awayPenalties.defense) },
           { label: 'TARJETA AMARILLA', home: formatCount(stats.discipline?.[bigua]?.cards?.amarilla), away: formatCount(stats.discipline?.[rival]?.cards?.amarilla) },
           { label: 'TARJETA ROJA', home: formatCount(stats.discipline?.[bigua]?.cards?.roja), away: formatCount(stats.discipline?.[rival]?.cards?.roja) },
           ...penaltyTypes.map(label => ({
@@ -499,10 +522,10 @@ function renderRugbyReportPanel(stats, type) {
       <div class="print-template-rugby-panel two-up">
         <header><strong>${titleByType[type]}</strong></header>
         <div class="print-template-donut-grid">
-          ${renderDonutMetric('SCRUM BIGUA', stats.setPieces?.scrums?.[bigua])}
-          ${renderDonutMetric('SCRUM RIVAL', stats.setPieces?.scrums?.[rival])}
-          ${renderDonutMetric('LINE OUT BIGUA', stats.setPieces?.lineouts?.[bigua])}
-          ${renderDonutMetric('LINE OUT RIVAL', stats.setPieces?.lineouts?.[rival])}
+          ${renderDonutMetric(`${scrumLabel} BIGUA`, stats.setPieces?.scrums?.[bigua])}
+          ${renderDonutMetric(`${scrumLabel} RIVAL`, stats.setPieces?.scrums?.[rival])}
+          ${renderDonutMetric(`${lineoutLabel} BIGUA`, stats.setPieces?.lineouts?.[bigua])}
+          ${renderDonutMetric(`${lineoutLabel} RIVAL`, stats.setPieces?.lineouts?.[rival])}
         </div>
       </div>
     `;
@@ -513,11 +536,11 @@ function renderRugbyReportPanel(stats, type) {
       <div class="print-template-rugby-panel">
         <header><strong>${titleByType[type]}</strong></header>
         ${renderBalanceBars([
-          createBalanceRow('RUCKS GANADOS', stats.rucks?.[bigua]?.wonPct, stats.rucks?.[rival]?.wonPct, 'pct'),
-          createBalanceRow('TOTAL DE RUCKS', stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
-          createBalanceRow('RUCKS GANADOS', stats.rucks?.[bigua]?.won, stats.rucks?.[rival]?.won),
-          createBalanceRow('RUCKS PERDIDOS', stats.rucks?.[bigua]?.lost, stats.rucks?.[rival]?.lost),
-          createBalanceRow('KPI RUCK / POSESIONES', stats.rucks?.[bigua]?.rucksPerPossession, stats.rucks?.[rival]?.rucksPerPossession, 'decimal'),
+          createBalanceRow(`${ruckLabel} GANADOS`, stats.rucks?.[bigua]?.wonPct, stats.rucks?.[rival]?.wonPct, 'pct'),
+          createBalanceRow(`TOTAL DE ${ruckLabel}`, stats.rucks?.[bigua]?.total, stats.rucks?.[rival]?.total),
+          createBalanceRow(`${ruckLabel} GANADOS`, stats.rucks?.[bigua]?.won, stats.rucks?.[rival]?.won),
+          createBalanceRow(`${ruckLabel} PERDIDOS`, stats.rucks?.[bigua]?.lost, stats.rucks?.[rival]?.lost),
+          createBalanceRow(`KPI ${ruckLabel} / POSESIONES`, stats.rucks?.[bigua]?.rucksPerPossession, stats.rucks?.[rival]?.rucksPerPossession, 'decimal'),
         ])}
       </div>
     `;
@@ -528,9 +551,9 @@ function renderRugbyReportPanel(stats, type) {
       <div class="print-template-rugby-panel">
         <header><strong>${titleByType[type]}</strong></header>
         ${renderBalanceBars([
-          createBalanceRow('KICKS EFECTIVOS', stats.kicks?.[bigua]?.favorablePct, stats.kicks?.[rival]?.favorablePct, 'pct'),
-          createBalanceRow('KICKS', stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
-          createBalanceRow('KICKS FAVORABLES', stats.kicks?.[bigua]?.favorable, stats.kicks?.[rival]?.favorable),
+          createBalanceRow(`${kickLabel} EFECTIVOS`, stats.kicks?.[bigua]?.favorablePct, stats.kicks?.[rival]?.favorablePct, 'pct'),
+          createBalanceRow(kickLabel, stats.kicks?.[bigua]?.total, stats.kicks?.[rival]?.total),
+          createBalanceRow(`${kickLabel} FAVORABLES`, stats.kicks?.[bigua]?.favorable, stats.kicks?.[rival]?.favorable),
         ])}
       </div>
     `;
@@ -546,7 +569,7 @@ function renderRugbyReportPanel(stats, type) {
           createBalanceRow('% EFECTIVIDAD', stats.breakLines?.[bigua]?.killerInstinctPct, stats.breakLines?.[rival]?.killerInstinctPct, 'pct'),
           createBalanceRow('TRY', homeResults.try, awayResults.try),
           createBalanceRow('PALOS', homeResults.palos, awayResults.palos),
-          createBalanceRow('TURNOVER', homeResults.turnover, awayResults.turnover),
+          createBalanceRow(turnoverLabel, homeResults.turnover, awayResults.turnover),
           createBalanceRow('JUEGO', homeResults.juego, awayResults.juego),
         ])}
       </div>
@@ -607,8 +630,8 @@ function renderChartBlock(payload, block) {
     <h3>${escapeHtml(title)}</h3>
     <div class="print-template-chart-layout">
       ${src ? `<figure class="print-template-chart-visual"><img src="${src}" alt="${escapeHtml(title)}"></figure>` : ''}
-      ${renderRugbyReportPanel(payload.stats || {}, block.type)}
-      ${renderChartSummary(payload.stats || {}, block.type)}
+      ${renderRugbyReportPanel(payload.stats || {}, block.type, payload.taggingLabels)}
+      ${renderChartSummary(payload.stats || {}, block.type, payload.taggingLabels)}
     </div>
   `;
 }
@@ -726,7 +749,7 @@ function renderEventsTable(payload, block) {
   const times = [];
 
   events.forEach((event) => {
-    incrementEventBucket(typeBuckets, formatEventLabel(event.type || event.category || event.name, 'Evento'));
+    incrementEventBucket(typeBuckets, getEventLabel(event.type || event.category || event.name, payload.taggingLabels));
     incrementEventBucket(teamBuckets, formatEventLabel(event.team || event.teamId, 'Sin equipo'));
     incrementEventBucket(resultBuckets, formatEventLabel(event.result || event.subtype || event.outcome, 'Sin resultado'));
     const seconds = getEventSeconds(event.timestamp ?? event.time ?? event.seconds);
@@ -808,7 +831,7 @@ function renderTemplateBlock(payload, block) {
     `;
   }
   if (block.type === 'kpi-row') {
-    const kpis = getKpis(stats, block.settings?.metrics || payload.selectedKpis || []);
+    const kpis = getKpis(stats, block.settings?.metrics || payload.selectedKpis || [], payload.taggingLabels);
     return `
       ${header}
       <div class="print-template-kpis">

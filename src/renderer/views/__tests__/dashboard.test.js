@@ -520,4 +520,10 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(settingsSource).toContain('breakLinesConcededMax');
     expect(settingsSource).toContain('data-alert-threshold');
   });
+
+  it('loads configurable event labels for dashboard sections, KPIs and event links', () => {
+    expect(dashboardSource).toContain("import { getEventLabel, getEventLabels } from '../tagging/event-labels.js';");
+    expect(dashboardSource).toContain('taggingLabels');
+    expect(dashboardSource).toContain('getEventLabel(event.type');
+  });
 });

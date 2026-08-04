@@ -109,6 +109,30 @@ describe('PDF template block rendering', () => {
     expect(html).toContain('58%');
   });
 
+  it('uses configured event labels in PDF summaries and event tables', () => {
+    const html = renderPdfTemplatePages({
+      stats: baseStats,
+      taggingLabels: { ruck: 'Pepe' },
+      match: { events: [{ type: 'ruck', team: 'home', result: 'ganado', timestamp: 12 }] },
+    }, {
+      id: 'custom',
+      name: 'Custom',
+      version: 1,
+      pageSize: 'A4',
+      orientation: 'landscape',
+      pages: [{
+        id: 'page-1',
+        title: 'Eventos',
+        blocks: [
+          { id: 'events-1', type: 'events-table', x: 0, y: 0, w: 12, h: 12 },
+        ],
+      }],
+    });
+
+    expect(html).toContain('Pepe');
+    expect(html).not.toContain('>Ruck<');
+  });
+
   it('renders large report-style chart panels with metric text even when chart images exist', () => {
     const html = renderPdfTemplatePages({
       stats: baseStats,

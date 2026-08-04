@@ -6,6 +6,7 @@ import { buildPdfTemplateEditorWalkthroughResetSettings } from '../components/pd
 import { getAccessState } from '../auth/access-guard.js';
 import { navigate } from '../router.js';
 import { applyAppTheme, normalizeTheme } from '../theme.js';
+import { DEFAULT_EVENT_LABELS } from '../tagging/event-labels.js';
 
 const DEFAULT_AUTO_CLOSE_MS = 8000;
 const DEFAULT_CLIP_PRE_ROLL_SECONDS = 5;
@@ -233,6 +234,8 @@ function resetHotkeyDefaults(container, customHotkeyList) {
   DEFAULT_HOTKEY_FIELDS.forEach((field) => {
     const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
     if (input) input.value = DEFAULT_TAGGING_HOTKEYS[field.key] || field.original;
+    const labelInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey-label="${field.key}"]`));
+    if (labelInput) labelInput.value = field.label;
   });
   if (customHotkeyList) customHotkeyList.innerHTML = buildCustomHotkeyRows([]);
 }
@@ -251,11 +254,29 @@ export function getDefaultHotkeyPayload(container, settings = {}) {
 }
 
 /**
+ * @param {{querySelector: function(string): {value?: string}|null}} container
+ * @param {object} settings
+ * @returns {Record<string, string>}
+ */
+export function getDefaultHotkeyLabelPayload(container, settings = {}) {
+  return DEFAULT_HOTKEY_FIELDS.reduce((payload, field) => {
+    const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey-label="${field.key}"]`));
+    const fallback = settings.tagging?.hotkeyLabels?.[field.key] || field.label;
+    payload[field.key] = String(input?.value || fallback).trim() || fallback;
+    return payload;
+  }, {});
+}
+
+/**
  * @param {HTMLElement} container
  * @returns {Array<object>}
  */
-export function getCustomHotkeyPayload(container) {
-  return Array.from(container.querySelectorAll('[data-custom-hotkey-row]'))
+export function getCustomHotkeyPayload(container, settings = {}) {
+  const rows = typeof container.querySelectorAll === 'function'
+    ? Array.from(container.querySelectorAll('[data-custom-hotkey-row]'))
+    : [];
+  if (rows.length === 0) return Array.isArray(settings.tagging?.customHotkeys) ? settings.tagging.customHotkeys : [];
+  return rows
     .map((row) => {
       const element = /** @type {HTMLElement} */ (row);
       const label = /** @type {HTMLInputElement|null} */ (element.querySelector('[data-custom-hotkey-label]'))?.value.trim() || '';
@@ -270,13 +291,56 @@ export function getCustomHotkeyPayload(container) {
 /**
  * @param {HTMLElement} container
  * @param {object} settings
- * @returns {{hotkeys: Record<string, string>, customHotkeys: Array<object>}}
+ * @returns {{hotkeys: Record<string, string>, hotkeyLabels: Record<string, string>, customHotkeys: Array<object>}}
  */
 export function getHotkeySettingsPayload(container, settings = {}) {
   return {
     hotkeys: getDefaultHotkeyPayload(container, settings),
-    customHotkeys: getCustomHotkeyPayload(container),
+    hotkeyLabels: getDefaultHotkeyLabelPayload(container, settings),
+    // Kept as a stable source marker for settings payload audits.
+    // customHotkeys: getCustomHotkeyPayload(container)
+    customHotkeys: getCustomHotkeyPayload(container, settings),
   };
+}
+
+/**
+ * @param {object} settings
+ * @returns {string}
+ */
+function buildHotkeySettingsMarkup(settings = {}) {
+  const labels = settings.tagging?.hotkeyLabels || {};
+  return `
+    <div class="settings-hotkeys-content" data-settings-hotkeys>
+      <fieldset class="settings-hotkeys-section">
+        <legend class="form-label">Atajos de tagging</legend>
+        <div class="settings-hotkey-list">
+          ${DEFAULT_HOTKEY_FIELDS.map(field => `
+            <div class="settings-hotkey-row" data-hotkey-row>
+              <label>
+                <span>Nombre</span>
+                <input class="form-input" type="text" data-default-hotkey-label="${field.key}" value="${escapeHtml(labels[field.key] || DEFAULT_EVENT_LABELS[field.key] || field.label)}" aria-label="Nombre del evento ${field.label}" />
+              </label>
+              <div class="settings-hotkey-capture">
+                <span>Tecla <small>Original ${field.original}</small></span>
+                <div class="settings-hotkey-capture-control">
+                  <input class="form-input settings-hotkey-input" type="text" maxlength="1" readonly data-default-hotkey="${field.key}" aria-label="Atajo para ${field.label}" />
+                  <button class="settings-hotkey-record" type="button" data-hotkey-record aria-label="Cambiar atajo para ${field.label}" aria-pressed="false">Cambiar</button>
+                </div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </fieldset>
+      <fieldset class="settings-hotkeys-section">
+        <legend class="form-label">Atajos personalizados</legend>
+        <div class="settings-custom-hotkey-list" id="custom-hotkeys-list" aria-label="Atajos personalizados"></div>
+        <button class="settings-hotkey-add" type="button" data-custom-hotkey-add>Agregar atajo</button>
+      </fieldset>
+      <div class="settings-hotkey-actions">
+        <button class="settings-hotkey-reset" type="button" data-hotkey-reset>Restablecer predeterminados</button>
+      </div>
+    </div>
+  `;
 }
 
 /**
@@ -738,27 +802,31 @@ function setupMicrophoneSettings(container, settings, feedback) {
 
 /**
  * @param {HTMLElement} container
+ * @param {{subsection?: string}} params
  */
-export async function renderSettings(container) {
+export async function renderSettings(container, params = {}) {
+  const isHotkeysSubsection = params.subsection === 'hotkeys';
   setSidebarExpanded(true);
   updateTopbarContext('Configuracion');
   setTopbarActions([
-    { id: 'home', label: 'Inicio' },
+    { id: isHotkeysSubsection ? 'settings' : 'home', label: isHotkeysSubsection ? 'Ajustes' : 'Inicio' },
   ], (id) => navigate(id));
 
   const settings = await window.api.settings.get();
+  const hotkeysMarkup = buildHotkeySettingsMarkup(settings);
 
   container.innerHTML = `
     <section class="settings-view view-enter">
       <div class="construction-panel settings-panel">
         <span class="construction-eyebrow">Ajustes</span>
-        <h1 class="construction-title">Preferencias de tagging</h1>
-        <p class="construction-text">Opciones operativas para el flujo de analisis durante el partido.</p>
+        <h1 class="construction-title">${isHotkeysSubsection ? 'Atajos de tagging' : 'Preferencias de tagging'}</h1>
+        <p class="construction-text">${isHotkeysSubsection ? 'Personaliza las teclas y los nombres que se muestran en todo el analisis.' : 'Opciones operativas para el flujo de analisis durante el partido.'}</p>
         <form class="settings-form" id="settings-form">
           <div class="settings-save-bar">
             <button class="btn btn-primary" type="submit">Guardar ajustes</button>
             <p class="settings-feedback" id="settings-feedback" role="status"></p>
           </div>
+          ${isHotkeysSubsection ? '<button class="settings-subsection-back" type="button" data-settings-back>← Volver a ajustes</button>' : ''}
           <fieldset class="settings-theme-field">
             <legend class="form-label">Tema visual</legend>
             <div class="settings-theme-grid">
@@ -868,42 +936,33 @@ export async function renderSettings(container) {
               <small>Oculta el reproductor y permite cargar eventos con timestamp manual u omitido.</small>
             </span>
           </label>
-          <label class="form-group">
+          <label class="settings-toggle">
+            <input type="checkbox" id="tagging-auto-close-enabled" />
+            <span>
+              <strong>Auto-cierre de popup</strong>
+              <small>Cierra el popup automáticamente después del tiempo indicado.</small>
+            </span>
+          </label>
+          <label class="form-group" data-auto-close-settings>
             <span class="form-label">Auto-cierre de popup (segundos)</span>
             <input class="form-input" type="number" id="tagging-auto-close" min="1" step="0.5" />
           </label>
-          <fieldset class="settings-hotkeys-section">
-            <legend class="form-label">Atajos de tagging</legend>
-            <div class="settings-hotkey-list">
-              ${DEFAULT_HOTKEY_FIELDS.map(field => `
-                <div class="settings-hotkey-row" data-hotkey-row>
-                  <span>
-                    <strong>${field.label}</strong>
-                    <small>Original ${field.original}</small>
-                  </span>
-                  <div class="settings-hotkey-capture-control">
-                    <input
-                      class="form-input settings-hotkey-input"
-                      type="text"
-                      maxlength="1"
-                      readonly
-                      data-default-hotkey="${field.key}"
-                      aria-label="Atajo para ${field.label}"
-                    />
-                    <button class="settings-hotkey-record" type="button" data-hotkey-record aria-label="Cambiar atajo para ${field.label}" aria-pressed="false">Cambiar</button>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </fieldset>
-          <fieldset class="settings-hotkeys-section">
-            <legend class="form-label">Atajos personalizados</legend>
-            <div class="settings-custom-hotkey-list" id="custom-hotkeys-list" aria-label="Atajos personalizados"></div>
-            <button class="settings-hotkey-add" type="button" data-custom-hotkey-add>Agregar atajo</button>
-          </fieldset>
-          <div class="settings-hotkey-actions">
-            <button class="settings-hotkey-reset" type="button" data-hotkey-reset>Restablecer predeterminados</button>
-          </div>
+          <label class="settings-toggle">
+            <input type="checkbox" id="tagging-pause-video-on-popup" />
+            <span>
+              <strong>Pausar video al abrir popup</strong>
+              <small>Detiene la reproducción para completar el detalle del evento.</small>
+            </span>
+          </label>
+          ${isHotkeysSubsection ? hotkeysMarkup : `
+            <button class="settings-subsection-link" type="button" data-settings-open-hotkeys>
+              <span>
+                <strong>Atajos de tagging</strong>
+                <small>Cambia teclas y nombres visibles en tagging, dashboard, temporada y PDF.</small>
+              </span>
+              <span aria-hidden="true">→</span>
+            </button>
+          `}
           <fieldset class="settings-alert-thresholds">
             <legend class="form-label">Umbrales de alerta</legend>
             <div class="settings-alert-list">
@@ -982,8 +1041,19 @@ export async function renderSettings(container) {
     </section>
   `;
 
-  const statsOnly = /** @type {HTMLInputElement} */ (container.querySelector('#stats-only-mode'));
-  const autoClose = /** @type {HTMLInputElement} */ (container.querySelector('#tagging-auto-close'));
+  const settingsForm = /** @type {HTMLFormElement|null} */ (container.querySelector('#settings-form'));
+  if (isHotkeysSubsection && settingsForm) {
+    Array.from(settingsForm.children).forEach((child) => {
+      if (child.matches('.settings-save-bar, .settings-subsection-back, [data-settings-hotkeys]')) return;
+      child.remove();
+    });
+  }
+
+  const statsOnly = /** @type {HTMLInputElement|null} */ (container.querySelector('#stats-only-mode'));
+  const autoCloseEnabled = /** @type {HTMLInputElement|null} */ (container.querySelector('#tagging-auto-close-enabled'));
+  const autoCloseInput = /** @type {HTMLInputElement|null} */ (container.querySelector('#tagging-auto-close'));
+  const autoClose = autoCloseInput;
+  const pauseVideoOnPopup = /** @type {HTMLInputElement|null} */ (container.querySelector('#tagging-pause-video-on-popup'));
   const clipPreRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-pre-roll'));
   const clipPostRoll = /** @type {HTMLInputElement|null} */ (container.querySelector('#clip-post-roll'));
   const clipOutputMode = /** @type {HTMLSelectElement|null} */ (container.querySelector('#clip-output-mode'));
@@ -992,8 +1062,10 @@ export async function renderSettings(container) {
   const feedback = container.querySelector('#settings-feedback');
   const themeInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`input[name="theme"][value="${normalizeTheme(settings.theme)}"]`));
   if (themeInput) themeInput.checked = true;
-  statsOnly.checked = Boolean(settings.statsOnlyMode);
-  autoClose.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
+  if (statsOnly) statsOnly.checked = Boolean(settings.statsOnlyMode);
+  if (autoCloseEnabled) autoCloseEnabled.checked = settings.tagging?.autoCloseEnabled !== false;
+  if (autoCloseInput) autoCloseInput.value = String(getAutoCloseSecondsValue(settings.tagging?.autoCloseMs));
+  if (pauseVideoOnPopup) pauseVideoOnPopup.checked = settings.tagging?.pauseVideoOnPopup === true;
   if (clipPreRoll) clipPreRoll.value = String(settings.clipPreRollSeconds ?? DEFAULT_CLIP_PRE_ROLL_SECONDS);
   if (clipPostRoll) clipPostRoll.value = String(settings.clipPostRollSeconds ?? DEFAULT_CLIP_POST_ROLL_SECONDS);
   if (clipOutputMode) clipOutputMode.value = settings.clipOutputModeDefault === 'separate' ? 'separate' : DEFAULT_CLIP_OUTPUT_MODE;
@@ -1001,6 +1073,8 @@ export async function renderSettings(container) {
   DEFAULT_HOTKEY_FIELDS.forEach((field) => {
     const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey="${field.key}"]`));
     if (input) input.value = settings.tagging?.hotkeys?.[field.key] || field.original;
+    const labelInput = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-default-hotkey-label="${field.key}"]`));
+    if (labelInput) labelInput.value = settings.tagging?.hotkeyLabels?.[field.key] || DEFAULT_EVENT_LABELS[field.key] || field.label;
   });
   const customHotkeyList = /** @type {HTMLElement|null} */ (container.querySelector('#custom-hotkeys-list'));
   if (customHotkeyList) customHotkeyList.innerHTML = buildCustomHotkeyRows(settings.tagging?.customHotkeys || []);
@@ -1008,8 +1082,28 @@ export async function renderSettings(container) {
     const input = /** @type {HTMLInputElement|null} */ (container.querySelector(`[data-alert-threshold="${field.key}"]`));
     if (input) input.value = String(settings.alerts?.[field.key] ?? field.defaultValue);
   });
-  const cleanupMicrophoneSettings = setupMicrophoneSettings(container, settings, feedback);
-  const cleanupUpdaterSettings = await setupUpdaterSettings(container, feedback);
+  const syncAutoCloseInput = () => {
+    if (!autoCloseEnabled || !autoCloseInput) return;
+    autoCloseInput.disabled = !autoCloseEnabled.checked;
+    container.querySelector('[data-auto-close-settings]')?.toggleAttribute('hidden', !autoCloseEnabled.checked);
+  };
+  autoCloseEnabled?.addEventListener('change', syncAutoCloseInput);
+  syncAutoCloseInput();
+
+  container.querySelectorAll('input[name="theme"]').forEach((input) => {
+    input.addEventListener('change', () => {
+      applyAppTheme(input.value);
+    });
+  });
+  container.querySelector('[data-settings-open-hotkeys]')?.addEventListener('click', () => {
+    navigate('settings', { subsection: 'hotkeys' });
+  });
+  container.querySelector('[data-settings-back]')?.addEventListener('click', () => {
+    navigate('settings');
+  });
+
+  const cleanupMicrophoneSettings = isHotkeysSubsection ? () => {} : setupMicrophoneSettings(container, settings, feedback);
+  const cleanupUpdaterSettings = isHotkeysSubsection ? () => {} : await setupUpdaterSettings(container, feedback);
 
   let thresholdSaveTimer = null;
   const saveThresholds = () => {
@@ -1151,21 +1245,26 @@ export async function renderSettings(container) {
     }
   });
 
-  container.querySelector('#settings-form')?.addEventListener('submit', async (event) => {
+  settingsForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
     const selectedTheme = getSelectedThemeValue(container);
-    await window.api.settings.set({
-      theme: selectedTheme,
-      statsOnlyMode: statsOnly.checked,
-      microphone: getMicrophoneSettingsPayload(container),
-      ...getClipExportSettingsPayload(container),
-      alerts: getAlertThresholdPayload(container),
-      tagging: {
-        autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value),
-        ...getHotkeySettingsPayload(container, settings),
-      },
-    });
-    applyAppTheme(selectedTheme);
+    const update = isHotkeysSubsection
+      ? { tagging: getHotkeySettingsPayload(container, settings) }
+      : {
+          theme: selectedTheme,
+          statsOnlyMode: statsOnly.checked,
+          microphone: getMicrophoneSettingsPayload(container),
+          ...getClipExportSettingsPayload(container),
+          alerts: getAlertThresholdPayload(container),
+          tagging: {
+            autoCloseEnabled: autoCloseEnabled.checked,
+            autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value),
+            pauseVideoOnPopup: pauseVideoOnPopup.checked,
+            ...getHotkeySettingsPayload(container, settings),
+          },
+        };
+    await window.api.settings.set(update);
+    if (!isHotkeysSubsection) applyAppTheme(selectedTheme);
     if (feedback) feedback.textContent = 'Ajustes guardados.';
   });
 

@@ -1,5 +1,6 @@
 // @ts-check
 import { normalizeFieldZone } from '../field-zones.js';
+import { getEventLabels } from './event-labels.js';
 
 const RESULT_OPTIONS = [
   { label: 'Ganado', value: 'ganado' },
@@ -216,6 +217,8 @@ export function createTaggerState(options = {}) {
     activePopup: null,
     blockedHotkey: null,
     autoCloseMs: options.autoCloseMs ?? 8000,
+    autoCloseEnabled: options.autoCloseEnabled !== false,
+    pauseVideoOnPopup: options.pauseVideoOnPopup === true,
     defaultTeam: normalizeTeam(options.defaultTeam),
     eventDefinitions: options.eventDefinitions || EVENT_DEFINITIONS,
     possession: normalizePossession(options.possession),
@@ -382,6 +385,7 @@ export function buildEventDefinitions(taggingSettings = {}) {
     ...DEFAULT_HOTKEYS_BY_TYPE,
     ...(taggingSettings?.hotkeys || {}),
   };
+  const eventLabels = getEventLabels(taggingSettings);
   const requestedHotkeys = Object.fromEntries(EVENT_DEFINITION_ORDER.map((definition) => {
     const requestedHotkey = normalizeHotkey(hotkeys[definition.type]);
     return [
@@ -402,6 +406,7 @@ export function buildEventDefinitions(taggingSettings = {}) {
       ...definition,
       hotkey: resolvedHotkey,
       defaultHotkey: fallbackHotkey,
+      label: eventLabels[definition.type] || definition.label,
       custom: false,
     };
   });
@@ -790,6 +795,7 @@ export function completePopup(state) {
  */
 export function shouldAutoClosePopup(state, now = Date.now(), options = {}) {
   if (options.isInteracting) return false;
+  if (state.autoCloseEnabled === false) return false;
   return Boolean(
     state.activePopup &&
     Number.isFinite(state.autoCloseMs) &&

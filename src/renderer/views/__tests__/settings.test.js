@@ -14,6 +14,8 @@ const {
   getMicrophoneLevelTone,
   getDecibelsFromRms,
   getAISettingsPayload,
+  getDefaultHotkeyLabelPayload,
+  getHotkeySettingsPayload,
   getUpdaterProgressPercent,
   getReadableUpdaterError,
 } = settingsModule;
@@ -41,6 +43,18 @@ describe('settings auto close unit conversion', () => {
     expect(settingsSource).toContain('autoCloseMs: getAutoCloseMsFromSeconds(autoClose.value)');
     expect(settingsSource).not.toContain('Auto-cierre de popup (ms)');
     expect(settingsSource).not.toContain('min="1000" step="500"');
+  });
+
+  it('exposes an enable switch and only shows the seconds control when enabled', () => {
+    expect(settingsSource).toContain('id="tagging-auto-close-enabled"');
+    expect(settingsSource).toContain('data-auto-close-settings');
+    expect(settingsSource).toContain('autoCloseEnabled: autoCloseEnabled.checked');
+    expect(settingsSource).toContain('autoCloseInput.disabled = !autoCloseEnabled.checked');
+  });
+
+  it('exposes the popup video pause preference', () => {
+    expect(settingsSource).toContain('id="tagging-pause-video-on-popup"');
+    expect(settingsSource).toContain('pauseVideoOnPopup: pauseVideoOnPopup.checked');
   });
 });
 
@@ -82,6 +96,33 @@ describe('settings hotkey configuration', () => {
     expect(settingsSource).toContain('customHotkeys: getCustomHotkeyPayload(container)');
     expect(settingsSource).toContain('tagging: {');
     expect(settingsSource).toContain('...getHotkeySettingsPayload(container, settings)');
+    expect(settingsSource).toContain('hotkeyLabels: getDefaultHotkeyLabelPayload(container, settings)');
+  });
+
+  it('turns the tagging shortcuts into an internal settings subsection', () => {
+    expect(settingsSource).toContain("subsection === 'hotkeys'");
+    expect(settingsSource).toContain("navigate('settings', { subsection: 'hotkeys' })");
+    expect(settingsSource).toContain('data-settings-back');
+    expect(settingsSource).toContain('data-default-hotkey-label');
+  });
+
+  it('collects editable built-in shortcut labels', () => {
+    const container = {
+      querySelector(selector) {
+        return {
+          '[data-default-hotkey="ruck"]': { value: 'H' },
+          '[data-default-hotkey-label="ruck"]': { value: 'Pepe' },
+        }[selector] || null;
+      },
+    };
+
+    expect(getDefaultHotkeyLabelPayload?.(container, { tagging: { hotkeyLabels: { scrum: 'Scrum' } } })).toEqual(expect.objectContaining({
+      ruck: 'Pepe',
+      scrum: 'Scrum',
+    }));
+    expect(getHotkeySettingsPayload?.(container, { tagging: { hotkeyLabels: { ruck: 'Ruck' }, customHotkeys: [] } })).toEqual(expect.objectContaining({
+      hotkeyLabels: expect.objectContaining({ ruck: 'Pepe' }),
+    }));
   });
 });
 

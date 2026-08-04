@@ -8,6 +8,8 @@ import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { FOUR_SECTOR_FIELD_ZONES, normalizeFieldZone } from '../field-zones.js';
 import { navigate } from '../router.js';
+import { DEFAULT_EVENT_LABELS } from '../tagging/event-labels.js';
+import { getEventLabel, getEventLabels } from '../tagging/event-labels.js';
 import { ensureChartJs } from '../vendor-loader.js';
 
 const VIEW_OPTIONS = [
@@ -40,6 +42,22 @@ const SECTION_ORDER = [
 
 const SECTION_LABELS = Object.fromEntries(SECTION_ORDER);
 const DEFAULT_SECTION_IDS = SECTION_ORDER.map(([id]) => id);
+
+function getDashboardEventLabel(type, taggingLabels, fallback) {
+  const configured = String(taggingLabels?.[type] || '').trim();
+  return configured && configured !== DEFAULT_EVENT_LABELS[type]
+    ? getEventLabel(type, taggingLabels)
+    : fallback;
+}
+
+function getDashboardSectionLabels(taggingLabels = {}) {
+  return {
+    ...SECTION_LABELS,
+    rucks: getDashboardEventLabel('ruck', taggingLabels, 'Rucks'),
+    kicks: getDashboardEventLabel('kick', taggingLabels, 'Kicks'),
+    'break-lines': getDashboardEventLabel('break-line', taggingLabels, 'Break Lines'),
+  };
+}
 
 const TIME_FILTERS = [
   { id: 'all', label: 'Todo el partido' },
@@ -256,67 +274,74 @@ function getTeamName(stats, team) {
  * @param {object} stats
  * @returns {Record<string, object>}
  */
-function KPI_DEFINITIONS(stats) {
+function KPI_DEFINITIONS(stats, taggingLabels = {}) {
+  const ruckLabel = getDashboardEventLabel('ruck', taggingLabels, 'Rucks');
+  const penalLabel = getDashboardEventLabel('penal', taggingLabels, 'Penales');
+  const lineoutLabel = getDashboardEventLabel('lineout', taggingLabels, 'Line Outs');
+  const scrumLabel = getDashboardEventLabel('scrum', taggingLabels, 'Scrums');
+  const breakLineLabel = getDashboardEventLabel('break-line', taggingLabels, 'Break Lines');
+  const turnoverLabel = getDashboardEventLabel('turnover', taggingLabels, 'Turnovers');
+  const kickLabel = getDashboardEventLabel('kick', taggingLabels, 'Kicks');
   const bigua = stats.teams.biguaTeam;
   const rival = stats.teams.rivalTeam;
   const totalCards = stats.discipline[bigua].cards.amarilla + stats.discipline[bigua].cards.roja;
   const territory = stats.territory.available ? stats.territory.percentages[bigua] : null;
   return {
     ruckWinPct: {
-      label: '% Rucks ganados',
+      label: `% ${ruckLabel} ganados`,
       value: formatPct(stats.rucks[bigua].wonPct),
-      delta: `${stats.rucks[bigua].won}/${stats.rucks[bigua].total} rucks`,
+      delta: `${stats.rucks[bigua].won}/${stats.rucks[bigua].total} ${ruckLabel.toLowerCase()}`,
       metric: '% Rucks ganados',
       state: 'positive',
     },
     penalties: {
-      label: 'Penales totales',
+      label: `${penalLabel} totales`,
       value: formatNumber(stats.discipline[bigua].penalties.total),
       delta: `${stats.discipline[bigua].penalties.attack} ataque / ${stats.discipline[bigua].penalties.defense} defensa`,
       metric: 'Penales totales',
       state: 'normal',
     },
     lineoutWinPct: {
-      label: '% Line Outs ganados',
+      label: `% ${lineoutLabel} ganados`,
       value: formatPct(stats.setPieces.lineouts[bigua].wonPct),
-      delta: `${stats.setPieces.lineouts[bigua].won}/${stats.setPieces.lineouts[bigua].total} line outs`,
+      delta: `${stats.setPieces.lineouts[bigua].won}/${stats.setPieces.lineouts[bigua].total} ${lineoutLabel.toLowerCase()}`,
       metric: '% Line Outs ganados',
       state: 'positive',
     },
     scrumWinPct: {
-      label: '% Scrums ganados',
+      label: `% ${scrumLabel} ganados`,
       value: formatPct(stats.setPieces.scrums[bigua].wonPct),
-      delta: `${stats.setPieces.scrums[bigua].won}/${stats.setPieces.scrums[bigua].total} scrums`,
+      delta: `${stats.setPieces.scrums[bigua].won}/${stats.setPieces.scrums[bigua].total} ${scrumLabel.toLowerCase()}`,
       metric: '% Scrums ganados',
       state: 'positive',
     },
     breakLines: {
-      label: 'Break Lines',
+      label: breakLineLabel,
       value: formatNumber(stats.breakLines[bigua].total),
       delta: `Killer instinct ${formatPct(stats.breakLines[bigua].killerInstinctPct)}`,
       state: 'normal',
     },
     breakLinesConceded: {
-      label: 'Break Lines concedidas',
+      label: `${breakLineLabel} concedidas`,
       value: formatNumber(stats.breakLines[rival].total),
       delta: `${getTeamName(stats, rival)} generadas`,
       metric: 'Break Lines concedidas',
       state: 'normal',
     },
     turnovers: {
-      label: 'Turnovers',
+      label: turnoverLabel,
       value: formatNumber(stats.totals[bigua].turnovers),
       delta: `${getTeamName(stats, rival)} ${stats.totals[rival].turnovers}`,
       state: 'normal',
     },
     kicks: {
-      label: 'Kicks',
+      label: kickLabel,
       value: formatNumber(stats.kicks[bigua].total),
       delta: `${stats.kicks[bigua].favorable} favorables`,
       state: 'normal',
     },
     kickEffectiveness: {
-      label: '% Kicks efectivos',
+      label: `% ${kickLabel} efectivos`,
       value: formatPct(stats.kicks[bigua].favorablePct),
       delta: `${stats.kicks[bigua].favorable}/${stats.kicks[bigua].total} favorables`,
       state: 'normal',
@@ -1188,10 +1213,11 @@ export function getDefaultExportTemplateId(templates = []) {
  * @param {string} exportTemplateId
  * @returns {string}
  */
-function buildDashboardControls(stats, match, preferences, customizerOpen, exportTemplates = [], exportTemplateId = 'system-default') {
+function buildDashboardControls(stats, match, preferences, customizerOpen, exportTemplates = [], exportTemplateId = 'system-default', taggingLabels = {}) {
   const normalized = normalizeDashboardPreferences(preferences);
   const zones = getZoneOptions(match);
-  const kpiDefinitions = KPI_DEFINITIONS(stats);
+  const kpiDefinitions = KPI_DEFINITIONS(stats, taggingLabels);
+  const sectionLabels = getDashboardSectionLabels(taggingLabels);
   const kpiOptions = KPI_IDS.map(id => ({ id, label: kpiDefinitions[id]?.label || id }));
   return `
     <div class="dashboard-controls">
@@ -1250,7 +1276,7 @@ function buildDashboardControls(stats, match, preferences, customizerOpen, expor
             <div class="dashboard-section-picker-row">
               <label>
                 <input type="checkbox" data-section-visible="${sectionId}" ${normalized.visibleSections.includes(sectionId) ? 'checked' : ''}>
-                <span>${escapeHtml(SECTION_LABELS[sectionId] || sectionId)}</span>
+                <span>${escapeHtml(sectionLabels[sectionId] || sectionId)}</span>
               </label>
               <div>
                 <button type="button" data-section-up="${sectionId}" ${index === 0 ? 'disabled' : ''}>Subir</button>
@@ -1269,8 +1295,8 @@ function buildDashboardControls(stats, match, preferences, customizerOpen, expor
  * @param {Array<string>} selectedKpis
  * @returns {Array<object>}
  */
-function buildKpis(stats, selectedKpis = DEFAULT_DASHBOARD_PREFERENCES.selectedKpis) {
-  const definitions = KPI_DEFINITIONS(stats);
+function buildKpis(stats, selectedKpis = DEFAULT_DASHBOARD_PREFERENCES.selectedKpis, taggingLabels = {}) {
+  const definitions = KPI_DEFINITIONS(stats, taggingLabels);
   const hasAlert = (metric) => metric && stats.alerts.some(alert => alert.equipo === stats.teams.biguaName && alert.metrica === metric);
   return normalizeIdList(selectedKpis, DEFAULT_DASHBOARD_PREFERENCES.selectedKpis)
     .slice(0, 4)
@@ -1576,13 +1602,14 @@ function buildAIAnalysisPanel(aiState = {}, aiLoading = false, collapsed = false
  * @param {string} exportTemplateId
  * @returns {string}
  */
-function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, aiPanelCollapsed = false, exportTemplates = [], exportTemplateId = 'system-default', eventLinkLimits = {}) {
+function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, preferences, customizerOpen = false, aiState = {}, aiLoading = false, aiPanelCollapsed = false, exportTemplates = [], exportTemplateId = 'system-default', eventLinkLimits = {}, taggingLabels = {}) {
   const displayScore = getDashboardScore(stats, match);
   const scoreSourceLabel = getScoreSourceLabel(stats?.score?.source);
   const badge = getResultBadge(stats, match);
   const normalized = normalizeDashboardPreferences(preferences);
-  const kpis = buildKpis(stats, normalized.selectedKpis);
+  const kpis = buildKpis(stats, normalized.selectedKpis, taggingLabels);
   const visibleSections = getVisibleSections(normalized);
+  const sectionLabels = getDashboardSectionLabels(taggingLabels);
   return `
     <section class="dashboard-view view-enter">
       <header class="dashboard-match-header">
@@ -1603,7 +1630,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
         ${kpis.map((kpi, index) => `<div data-kpi style="--kpi-index:${index}">${createKpiCard(kpi).outerHTML}</div>`).join('')}
       </div>
 
-      ${buildDashboardControls(stats, match, normalized, customizerOpen, exportTemplates, exportTemplateId)}
+      ${buildDashboardControls(stats, match, normalized, customizerOpen, exportTemplates, exportTemplateId, taggingLabels)}
 
       <div class="dashboard-view-toggle" role="tablist" aria-label="Vista dashboard">
         ${VIEW_OPTIONS.map(option => `
@@ -1625,7 +1652,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
       ${buildAIAnalysisPanel(aiState, aiLoading, aiPanelCollapsed)}
 
       <div class="dashboard-sections">
-        ${visibleSections.map(id => buildSection(id, SECTION_LABELS[id] || id, stats, match, selectedView, heatmapFilter, eventLinkLimits[id])).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
+        ${visibleSections.map(id => buildSection(id, sectionLabels[id] || id, stats, match, selectedView, heatmapFilter, eventLinkLimits[id], taggingLabels)).join('') || '<div class="dashboard-empty-sections">No hay secciones visibles en esta vista.</div>'}
       </div>
 
       <div class="dashboard-toast" id="dashboard-toast" role="status" hidden></div>
@@ -1751,7 +1778,7 @@ function getDashboardSectionEvents(events = [], sectionId) {
  * @param {number} [visibleLimit]
  * @returns {string}
  */
-export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit = DASHBOARD_EVENT_LINK_LIMIT) {
+export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit = DASHBOARD_EVENT_LINK_LIMIT, taggingLabels = {}) {
   const events = getDashboardSectionEvents(match?.events || [], sectionId);
   if (events.length === 0) return '';
   const normalizedLimit = Math.max(DASHBOARD_EVENT_LINK_LIMIT, Number(visibleLimit) || DASHBOARD_EVENT_LINK_LIMIT);
@@ -1771,7 +1798,8 @@ export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit =
           const timestamp = hasValidClipTimestamp(event.timestamp) ? Number(event.timestamp) : null;
           const eventId = event.id || `${event.type || 'event'}-${index}`;
           const result = formatLabel(event.result || event.subtype || 'registrado');
-          const title = `${formatLabel(event.type || 'Evento')} - ${result} - ${timestamp === null ? 'sin timestamp' : formatClipTimeInput(timestamp)}`;
+          const eventLabel = getEventLabel(event.type || 'Evento', taggingLabels);
+          const title = `${eventLabel} - ${result} - ${timestamp === null ? 'sin timestamp' : formatClipTimeInput(timestamp)}`;
           return `
             <button
               class="dashboard-event-link${timestamp === null ? ' is-untimed' : ''}"
@@ -1782,7 +1810,7 @@ export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit =
               aria-label="${escapeHtml(title)}"
             >
               <span>${timestamp === null ? 'Sin tiempo' : escapeHtml(formatClipTimeInput(timestamp))}</span>
-              <strong>${escapeHtml(formatLabel(event.type || 'Evento'))}</strong>
+              <strong>${escapeHtml(eventLabel)}</strong>
               <em>${escapeHtml(result)} · ${escapeHtml(getDashboardEventTeamLabel(event, stats))}</em>
             </button>
           `;
@@ -1812,7 +1840,7 @@ export function buildDashboardEventLinks(match, stats, sectionId, visibleLimit =
  * @param {number} [eventLinkLimit]
  * @returns {string}
  */
-function buildSection(id, title, stats, match, selectedView, heatmapFilter, eventLinkLimit) {
+function buildSection(id, title, stats, match, selectedView, heatmapFilter, eventLinkLimit, taggingLabels = {}) {
   const body = {
     'set-pieces': '<div class="chart-shell"><canvas id="chart-set-pieces" data-chart-key="setPieces"></canvas></div>',
     rucks: '<div class="chart-shell chart-shell-compact"><canvas id="chart-rucks" data-chart-key="rucks"></canvas></div>',
@@ -1836,7 +1864,7 @@ function buildSection(id, title, stats, match, selectedView, heatmapFilter, even
       </header>
       <div class="dashboard-section-body">
         ${body}
-        ${buildDashboardEventLinks(match, stats, id, eventLinkLimit)}
+        ${buildDashboardEventLinks(match, stats, id, eventLinkLimit, taggingLabels)}
       </div>
     </section>
   `;
@@ -1979,13 +2007,13 @@ function createChart(canvas, config, charts, key) {
  * @param {Record<string, object>} charts
  * @returns {Record<string, function(): void>}
  */
-function createLazyChartRenderer(stats, selectedView, colors, charts) {
+function createLazyChartRenderer(stats, selectedView, colors, charts, taggingLabels = {}) {
   return {
-    setPieces: () => createSetPiecesChart(stats, selectedView, colors, charts),
+    setPieces: () => createSetPiecesChart(stats, selectedView, colors, charts, taggingLabels),
     rucks: () => createRucksChart(stats, selectedView, colors, charts),
-    discipline: () => createDisciplineChart(stats, selectedView, colors, charts),
-    kicks: () => createKicksChart(stats, selectedView, colors, charts),
-    breakLines: () => createBreakLinesChart(stats, selectedView, colors, charts),
+    discipline: () => createDisciplineChart(stats, selectedView, colors, charts, taggingLabels),
+    kicks: () => createKicksChart(stats, selectedView, colors, charts, taggingLabels),
+    breakLines: () => createBreakLinesChart(stats, selectedView, colors, charts, taggingLabels),
     customEvents: () => createCustomEventsChart(stats, selectedView, colors, charts),
     possession: () => createPossessionChart(stats, colors, charts),
     bip: () => createBipChart(stats, colors, charts),
@@ -1997,11 +2025,11 @@ function createLazyChartRenderer(stats, selectedView, colors, charts) {
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
  */
-async function renderAllDashboardCharts(stats, selectedView, charts) {
+async function renderAllDashboardCharts(stats, selectedView, charts, taggingLabels = {}) {
   await ensureChartJs();
   const colors = getChartColors();
   configureChartDefaults(colors);
-  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts);
+  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts, taggingLabels);
   Object.values(renderers).forEach(render => render());
 }
 
@@ -2010,12 +2038,12 @@ async function renderAllDashboardCharts(stats, selectedView, charts) {
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
  */
-async function renderCharts(stats, selectedView, charts) {
+async function renderCharts(stats, selectedView, charts, taggingLabels = {}) {
   await ensureChartJs();
   destroyCharts(charts);
   const colors = getChartColors();
   configureChartDefaults(colors);
-  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts);
+  const renderers = createLazyChartRenderer(stats, selectedView, colors, charts, taggingLabels);
   const canvases = Array.from(document.querySelectorAll('[data-chart-key]'));
 
   if (!('IntersectionObserver' in window)) {
@@ -2044,11 +2072,11 @@ async function renderCharts(stats, selectedView, charts) {
  * @param {object} colors
  * @param {Record<string, object>} charts
  */
-function createSetPiecesChart(stats, selectedView, colors, charts) {
+function createSetPiecesChart(stats, selectedView, colors, charts, taggingLabels = {}) {
   const teams = selectedView === 'compare'
     ? ['home', 'away']
     : [getSelectedTeam(stats, selectedView)];
-  const labels = teams.flatMap(team => [`${getTeamName(stats, team)} Scrum`, `${getTeamName(stats, team)} Line`]);
+  const labels = teams.flatMap(team => [`${getTeamName(stats, team)} ${getEventLabel('scrum', taggingLabels)}`, `${getTeamName(stats, team)} ${getEventLabel('lineout', taggingLabels)}`]);
   const values = (key) => teams.flatMap(team => [stats.setPieces.scrums[team][key], stats.setPieces.lineouts[team][key]]);
   createChart(document.getElementById('chart-set-pieces'), {
     type: 'bar',
@@ -2118,13 +2146,13 @@ function createRucksChart(stats, selectedView, colors, charts) {
  * @param {object} colors
  * @param {Record<string, object>} charts
  */
-function createDisciplineChart(stats, selectedView, colors, charts) {
+function createDisciplineChart(stats, selectedView, colors, charts, taggingLabels = {}) {
   const teams = selectedView === 'compare' ? ['home', 'away'] : [getSelectedTeam(stats, selectedView)];
   const labels = ['ruck', 'scrum', 'offside', 'maul', 'inconducta', 'otro'];
   createChart(document.getElementById('chart-discipline'), {
     type: 'bar',
     data: {
-      labels: labels.map(formatLabel),
+      labels: labels.map(type => getEventLabel(type, taggingLabels)),
       datasets: teams.flatMap(team => [
         {
           label: `${getTeamName(stats, team)} ataque`,
@@ -2155,7 +2183,7 @@ function createDisciplineChart(stats, selectedView, colors, charts) {
  * @param {object} colors
  * @param {Record<string, object>} charts
  */
-function createKicksChart(stats, selectedView, colors, charts) {
+function createKicksChart(stats, selectedView, colors, charts, taggingLabels = {}) {
   const players = selectedView === 'compare'
     ? [...stats.kicks.home.byPlayer, ...stats.kicks.away.byPlayer]
     : stats.kicks[getSelectedTeam(stats, selectedView)].byPlayer;
@@ -2164,7 +2192,7 @@ function createKicksChart(stats, selectedView, colors, charts) {
     data: {
       labels: players.map(player => player.player),
       datasets: [{
-        label: 'Efectividad',
+        label: `${getEventLabel('kick', taggingLabels)} · efectividad`,
         data: players.map(player => player.favorablePct),
         backgroundColor: players.map(player => player.favorablePct >= 50 ? colors.positive : colors.negative),
       }],
@@ -2184,7 +2212,7 @@ function createKicksChart(stats, selectedView, colors, charts) {
  * @param {object} colors
  * @param {Record<string, object>} charts
  */
-function createBreakLinesChart(stats, selectedView, colors, charts) {
+function createBreakLinesChart(stats, selectedView, colors, charts, taggingLabels = {}) {
   const teams = selectedView === 'compare' ? ['home', 'away'] : [getSelectedTeam(stats, selectedView)];
   const results = ['try', 'palos', 'turnover', 'pfk-favor', 'pfk-contra', 'juego'];
   const palette = [colors.positive, colors.warning, colors.negative, colors.rival, colors.defense, colors.localLight];
@@ -2193,7 +2221,7 @@ function createBreakLinesChart(stats, selectedView, colors, charts) {
     data: {
       labels: teams.map(team => getTeamName(stats, team)),
       datasets: results.map((result, index) => ({
-        label: formatLabel(result),
+        label: getEventLabel(result, taggingLabels),
         data: teams.map(team => stats.breakLines[team].byResult[result] || 0),
         backgroundColor: palette[index],
       })),
@@ -2871,6 +2899,7 @@ function collectPrintPayload(state, access = null) {
     selectedKpis: state.preferences.selectedKpis,
     visibleSections: getVisibleSections(state.preferences),
     filters: state.preferences.filters,
+    taggingLabels: state.taggingLabels,
     license: getPrintLicensePayload(access),
   };
 }
@@ -2891,7 +2920,7 @@ async function exportPdf(container, state) {
       showToast(container, 'No se pudo verificar la licencia para exportar.');
       return;
     }
-    await renderAllDashboardCharts(state.stats, state.selectedView, state.charts);
+    await renderAllDashboardCharts(state.stats, state.selectedView, state.charts, state.taggingLabels);
     const result = await window.api.analytics.exportPdf(state.match.id, collectPrintPayload(state, access));
     if (!result?.canceled) {
       showToast(container, 'PDF generado correctamente.', result.filePath);
@@ -2944,11 +2973,11 @@ function renderLoadedDashboard(container, state) {
     if (id === 'export') exportPdf(container, state);
   });
 
-  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed, state.exportTemplates, state.exportTemplateId, state.eventLinkLimits);
+  container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed, state.exportTemplates, state.exportTemplateId, state.eventLinkLimits, state.taggingLabels);
   renderDashboardFloatingActions(state.match);
   renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
-  renderCharts(state.stats, state.selectedView, state.charts).catch(() => {});
+  renderCharts(state.stats, state.selectedView, state.charts, state.taggingLabels).catch(() => {});
   renderHeatmap(
     /** @type {SVGSVGElement|null} */ (container.querySelector('#dashboard-heatmap')),
     container.querySelector('#dashboard-heatmap-empty'),
@@ -3000,6 +3029,7 @@ export function renderDashboard(container, params = {}) {
     exportTemplates: [],
     exportTemplateId: 'system-default',
     eventLinkLimits: {},
+    taggingLabels: getEventLabels(),
     noteFormats: createEmptyNoteFormats(),
     settingsCleanup: null,
     noteToolbarCleanup: null,
@@ -3045,6 +3075,7 @@ export function renderDashboard(container, params = {}) {
       ]);
       if (disposed) return;
       state.match = match;
+      state.taggingLabels = getEventLabels(settings.tagging);
       state.preferences = normalizeDashboardPreferences(settings.dashboard);
       state.exportTemplates = Array.isArray(pdfTemplates) ? pdfTemplates : [];
       state.exportTemplateId = getDefaultExportTemplateId(state.exportTemplates);
@@ -3053,6 +3084,7 @@ export function renderDashboard(container, params = {}) {
       if (disposed) return;
       state.settingsCleanup = window.api.settings.onChanged?.(async (nextSettings) => {
         if (disposed || !state.match?.id) return;
+        state.taggingLabels = getEventLabels(nextSettings.tagging);
         state.preferences = normalizeDashboardPreferences(nextSettings.dashboard);
         state.selectedView = getViewFromPreferences(state.preferences);
         await reloadDashboardStats(state);

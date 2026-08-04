@@ -524,4 +524,9 @@ describe('timeline sequences', () => {
     expect(getSequenceColor('green')).toContain('29, 185, 84');
     expect(getSequenceColor('unknown')).toContain('200, 16, 46');
   });
+
+  it('uses configurable event labels in timeline content and titles', () => {
+    expect(timelineSource).toContain("import { getEventLabel } from '../tagging/event-labels.js';");
+    expect(timelineSource).toContain('getEventLabel(event.type, options.eventLabels)');
+  });
 });

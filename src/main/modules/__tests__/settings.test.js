@@ -92,6 +92,24 @@ describe('settings.js', () => {
     ]);
   });
 
+  it('provides popup behavior flags and editable labels without dropping defaults', () => {
+    const settings = mergeSettings({
+      tagging: {
+        autoCloseEnabled: false,
+        pauseVideoOnPopup: true,
+        hotkeyLabels: { ruck: 'Pepe' },
+      },
+    });
+
+    expect(settings.tagging.autoCloseEnabled).toBe(false);
+    expect(settings.tagging.pauseVideoOnPopup).toBe(true);
+    expect(settings.tagging.hotkeyLabels).toEqual(expect.objectContaining({
+      ruck: 'Pepe',
+      scrum: 'Scrum',
+      note: 'Nota libre',
+    }));
+  });
+
   it('provides and deeply merges microphone settings for voice dictation', () => {
     expect(mergeSettings().microphone).toEqual({
       deviceId: '',

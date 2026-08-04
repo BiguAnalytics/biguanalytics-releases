@@ -243,6 +243,12 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain('state.eventDefinitions');
   });
 
+  it('passes popup behavior settings into the tagger and pauses playback only when configured', () => {
+    expect(taggingSource).toContain('autoCloseEnabled: settings?.tagging?.autoCloseEnabled !== false');
+    expect(taggingSource).toContain('pauseVideoOnPopup: settings?.tagging?.pauseVideoOnPopup === true');
+    expect(taggingSource).toContain('pauseVideoForPopup();');
+  });
+
   it('keeps popup focus inside Tagging and focuses the first popup control after render', () => {
     expect(taggingSource).toContain("import { renderTagPopup, getPopupOptionByNumber, getPopupZoneByNumber, getZones, focusFirstPopupControl, trapFocusInPopup } from '../components/tag-popup.js';");
     expect(taggingSource).toContain('focusFirstPopupControl(host);');

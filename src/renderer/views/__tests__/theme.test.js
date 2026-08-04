@@ -46,6 +46,8 @@ describe('app theme support', () => {
     expect(settingsSource).toContain('name="theme" value="light"');
     expect(settingsSource).toContain('theme: selectedTheme,');
     expect(settingsSource).toContain('applyAppTheme(selectedTheme);');
+    expect(settingsSource).toContain("input.addEventListener('change'");
+    expect(settingsSource).toContain('applyAppTheme(input.value);');
   });
 
   it('defines a light token set and loads theme overrides after component CSS', () => {

@@ -4,6 +4,8 @@ import { cloudMatchService } from '../cloud/cloud-match-service.js';
 import { setSidebarExpanded } from '../components/sidebar.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { navigate } from '../router.js';
+import { DEFAULT_EVENT_LABELS, getEventLabel } from '../tagging/event-labels.js';
+import { getEventLabels } from '../tagging/event-labels.js';
 import { ensureChartJs } from '../vendor-loader.js';
 
 const METRICS = [
@@ -12,6 +14,26 @@ const METRICS = [
   { id: 'lineouts', canvasId: 'chart-season-lineouts', label: '% Line Outs ganados', key: 'lineoutWinPct', threshold: 'lineoutWinPctMin', thresholdMode: 'min' },
   { id: 'breaklines', canvasId: 'chart-season-breaklines', label: 'Break Lines concedidas', key: 'breakLinesConceded', threshold: 'breakLinesConcededMax', thresholdMode: 'max' },
 ];
+
+function getSeasonEventLabel(type, taggingLabels, fallback) {
+  const configured = String(taggingLabels?.[type] || '').trim();
+  return configured && configured !== DEFAULT_EVENT_LABELS[type]
+    ? getEventLabel(type, taggingLabels)
+    : fallback;
+}
+
+function getSeasonMetrics(taggingLabels = {}) {
+  return METRICS.map(metric => ({
+    ...metric,
+    label: metric.id === 'rucks'
+      ? `% ${getSeasonEventLabel('ruck', taggingLabels, 'Rucks')} ganados`
+      : metric.id === 'penalties'
+        ? `${getSeasonEventLabel('penal', taggingLabels, 'Penales')} totales`
+        : metric.id === 'lineouts'
+          ? `% ${getSeasonEventLabel('lineout', taggingLabels, 'Line Outs')} ganados`
+          : `${getSeasonEventLabel('break-line', taggingLabels, 'Break Lines')} concedidas`,
+  }));
+}
 
 /**
  * @param {string|number|null|undefined} value
@@ -38,33 +60,34 @@ function formatMetric(value) {
  * @param {object} season
  * @returns {Array<object>}
  */
-function buildSeasonKpis(season) {
+function buildSeasonKpis(season, taggingLabels = {}) {
   const averages = season.averages || {};
   const thresholds = season.thresholds || {};
+  const metrics = getSeasonMetrics(taggingLabels);
   return [
     {
-      label: '% Rucks ganados',
+      label: metrics.find(metric => metric.id === 'rucks').label,
       value: `${formatMetric(averages.ruckWinPct)}%`,
       delta: `Umbral ${thresholds.ruckWinPctMin}%`,
       state: averages.ruckWinPct < thresholds.ruckWinPctMin ? 'alert' : 'positive',
       size: 'medium',
     },
     {
-      label: 'Penales',
+      label: getSeasonEventLabel('penal', taggingLabels, 'Penales'),
       value: formatMetric(averages.penalties),
       delta: `Max ${thresholds.penaltiesMax}`,
       state: averages.penalties > thresholds.penaltiesMax ? 'alert' : 'normal',
       size: 'medium',
     },
     {
-      label: '% Line Outs',
+      label: `% ${getSeasonEventLabel('lineout', taggingLabels, 'Line Outs')}`,
       value: `${formatMetric(averages.lineoutWinPct)}%`,
       delta: `Umbral ${thresholds.lineoutWinPctMin}%`,
       state: averages.lineoutWinPct < thresholds.lineoutWinPctMin ? 'alert' : 'positive',
       size: 'medium',
     },
     {
-      label: 'Break Lines conc.',
+      label: `${getSeasonEventLabel('break-line', taggingLabels, 'Break Lines')} conc.`,
       value: formatMetric(averages.breakLinesConceded),
       delta: `Max ${thresholds.breakLinesConcededMax}`,
       state: averages.breakLinesConceded > thresholds.breakLinesConcededMax ? 'alert' : 'normal',
@@ -130,7 +153,7 @@ async function renderSeasonCharts(container, state) {
   if (!window.Chart) return;
 
   const labels = state.filteredMatches.map(match => `${match.rival} ${String(match.date || '').slice(5)}`);
-  METRICS.forEach((metric) => {
+  getSeasonMetrics(state.eventLabels).forEach((metric) => {
     const canvas = /** @type {HTMLCanvasElement|null} */ (container.querySelector(`#${metric.canvasId}`));
     if (!canvas) return;
     const threshold = Number(state.season.thresholds?.[metric.threshold]) || 0;
@@ -193,6 +216,7 @@ export function renderSeason(container) {
     competition: 'all',
     filteredMatches: [],
     charts: [],
+    eventLabels: getEventLabels(),
   };
 
   container.innerHTML = `
@@ -210,7 +234,12 @@ export function renderSeason(container) {
   async function load() {
     try {
       await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
-      state.season = await window.api.analytics.getSeasonStats(year);
+      const [settings, season] = await Promise.all([
+        window.api.settings.get(),
+        window.api.analytics.getSeasonStats(year),
+      ]);
+      state.eventLabels = getEventLabels(settings.tagging);
+      state.season = season;
       applyFilters();
       render();
     } catch (error) {
@@ -252,7 +281,7 @@ export function renderSeason(container) {
           </label>
         </header>
         <div class="season-kpi-row">
-          ${buildSeasonKpis(season).map(kpi => createKpiCard(kpi).outerHTML).join('')}
+          ${buildSeasonKpis(season, state.eventLabels).map(kpi => createKpiCard(kpi).outerHTML).join('')}
         </div>
         ${state.season.matches.length === 0 ? `
           <section class="season-empty-state">
@@ -271,10 +300,10 @@ export function renderSeason(container) {
                   ['rival', 'Rival'],
                   ['score', 'Resultado'],
                   ['competition', 'Competencia'],
-                  ['ruckWinPct', '% Rucks'],
-                  ['penalties', 'Penales'],
-                  ['lineoutWinPct', '% Line Outs'],
-                  ['breakLinesConceded', 'Break Lines'],
+                  ['ruckWinPct', `% ${getSeasonEventLabel('ruck', state.eventLabels, 'Rucks')}`],
+                  ['penalties', getSeasonEventLabel('penal', state.eventLabels, 'Penales')],
+                  ['lineoutWinPct', `% ${getSeasonEventLabel('lineout', state.eventLabels, 'Line Outs')}`],
+                  ['breakLinesConceded', getSeasonEventLabel('break-line', state.eventLabels, 'Break Lines')],
                 ].map(([key, label]) => `<th><button type="button" data-season-sort="${key}">${label}</button></th>`).join('')}
               </tr>
             </thead>
@@ -295,7 +324,7 @@ export function renderSeason(container) {
           </table>
         </section>
         <section class="season-chart-grid" ${state.filteredMatches.length === 0 ? 'hidden' : ''}>
-          ${METRICS.map(metric => `
+          ${getSeasonMetrics(state.eventLabels).map(metric => `
             <article class="season-chart-card">
               <h2>${escapeHtml(metric.label)}</h2>
               <div class="season-chart-shell"><canvas id="${metric.canvasId}"></canvas></div>
