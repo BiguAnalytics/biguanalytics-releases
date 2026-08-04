@@ -33,6 +33,10 @@ describe('route swipe navigation', () => {
     expect(appSource).toContain('routeSwipeCleanup');
   });
 
+  it('does not capture pointer clicks that start anywhere inside a settings choice card', () => {
+    expect(swipeSource).toContain("'[data-settings-choice-card]'");
+  });
+
   it('configures the main content viewport for horizontal snap behavior', () => {
     expect(layoutCss).toMatch(/\.main-content-body\s*{[^}]*scroll-snap-type:\s*x mandatory;/s);
     expect(layoutCss).toMatch(/\.main-content-body\s*{[^}]*overscroll-behavior-x:\s*contain;/s);

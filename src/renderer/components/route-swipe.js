@@ -22,6 +22,7 @@ const SWIPE_EXCLUDED_SELECTOR = [
   'canvas',
   '[contenteditable="true"]',
   '[data-no-route-swipe]',
+  '[data-settings-choice-card]',
 ].join(',');
 
 /**
