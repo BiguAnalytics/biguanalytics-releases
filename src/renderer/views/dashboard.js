@@ -460,6 +460,7 @@ function animateDashboardKpis(container) {
 function renderDashboardSelection(container, matches, targetRoute = 'dashboard') {
   setSidebarExpanded(false);
   const heatmapMode = targetRoute === 'heatmap';
+  const selectionModuleLabel = heatmapMode ? 'Heatmap' : 'Dashboard';
   updateTopbarContext(heatmapMode ? 'Heatmap' : 'Dashboard');
   setTopbarActions([{ id: 'home', label: 'Inicio' }], () => navigate('home'));
 
@@ -487,7 +488,7 @@ function renderDashboardSelection(container, matches, targetRoute = 'dashboard')
             <button class="tagging-match-edit-button" type="button" data-dashboard-edit-match-id="${escapeHtml(item.id)}" aria-label="Editar partido ${escapeHtml(item.title)}" title="Editar partido">
               ${MATCH_EDIT_ICON}
             </button>
-            <span class="tagging-match-card-kicker">${escapeHtml(item.statusLabel)}</span>
+            <span class="tagging-match-card-kicker">${escapeHtml(selectionModuleLabel)}</span>
             <strong class="tagging-match-card-title">${escapeHtml(item.title)}</strong>
             <span class="tagging-match-card-video">${escapeHtml(item.videoLabel)}</span>
             <span class="tagging-match-card-footer">

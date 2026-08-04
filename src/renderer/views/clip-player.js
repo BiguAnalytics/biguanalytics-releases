@@ -717,6 +717,7 @@ function renderClipPlayerMessage(container, title, message, matchId = null) {
  */
 function renderClipMatchSelection(container, matches) {
   const items = getMatchSelectionItems(matches);
+  const selectionModuleLabel = 'Clips';
   updateTopbarContext('Clips');
   setTopbarActions([{ id: 'home', label: 'Inicio' }], () => navigate('home'));
 
@@ -740,7 +741,7 @@ function renderClipMatchSelection(container, matches) {
           </button>
         ` : items.map(item => `
           <article class="tagging-match-card" data-clip-match-card-id="${escapeHtml(item.id)}" role="button" tabindex="0" aria-label="${escapeHtml(item.title)}">
-            <span class="tagging-match-card-kicker">${escapeHtml(item.statusLabel)}</span>
+            <span class="tagging-match-card-kicker">${escapeHtml(selectionModuleLabel)}</span>
             <strong class="tagging-match-card-title">${escapeHtml(item.title)}</strong>
             <span class="tagging-match-card-video">${escapeHtml(item.videoLabel)}</span>
             <span class="tagging-match-card-footer">
@@ -812,7 +813,7 @@ export function renderClipPlayer(container, params = {}) {
   };
   activeCleanup = cleanup;
 
-  setSidebarExpanded(true);
+  setSidebarExpanded(false);
   updateTopbarContext('Clips');
   setTopbarActions(
     currentParams.matchId ? [{ id: 'dashboard', label: 'Volver al dashboard' }] : [{ id: 'home', label: 'Inicio' }],

@@ -438,6 +438,12 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardCss).not.toContain('.dashboard-match-option');
   });
 
+  it('labels dashboard selection cards with the selected module instead of match status', () => {
+    expect(dashboardSource).toContain("const selectionModuleLabel = heatmapMode ? 'Heatmap' : 'Dashboard';");
+    expect(dashboardSource).toContain('${escapeHtml(selectionModuleLabel)}');
+    expect(dashboardSource).not.toContain('${escapeHtml(item.statusLabel)}');
+  });
+
   it('renders the heatmap field as vector SVG and exports it as an SVG image', () => {
     expect(dashboardSource).toContain('<svg id="dashboard-heatmap"');
     expect(dashboardSource).toContain('drawRugbyFieldSvg');

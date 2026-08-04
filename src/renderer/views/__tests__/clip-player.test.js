@@ -318,6 +318,13 @@ describe('clip player playback wiring', () => {
     expect(clipPlayerSource).toContain('Ver clips');
   });
 
+  it('labels clip selection cards as Clips and keeps the sidebar collapsed', () => {
+    expect(clipPlayerSource).toContain("const selectionModuleLabel = 'Clips';");
+    expect(clipPlayerSource).toContain('${escapeHtml(selectionModuleLabel)}');
+    expect(clipPlayerSource).toContain('setSidebarExpanded(false);');
+    expect(clipPlayerSource).not.toContain('setSidebarExpanded(true);');
+  });
+
   it('opens a cached match before optional cloud detail refresh for direct clips entry', () => {
     expect(clipPlayerSource).toContain("cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true })");
   });
