@@ -41,6 +41,7 @@ function createStartupTimer(options = {}) {
   const logger = options.logger || console;
   const start = now();
   let previous = start;
+  let startupLoggingUnavailable = false;
 
   /**
    * @param {string} label
@@ -55,8 +56,16 @@ function createStartupTimer(options = {}) {
       ...detail,
     };
     previous = current;
-    if (isStartupDebugEnabled(options.app)) {
-      logger.info?.(`[startup] ${JSON.stringify(payload)}`);
+    if (isStartupDebugEnabled(options.app) && !startupLoggingUnavailable) {
+      try {
+        logger.info?.(`[startup] ${JSON.stringify(payload)}`);
+      } catch (error) {
+        if (error?.code === 'EPIPE') {
+          startupLoggingUnavailable = true;
+        } else {
+          throw error;
+        }
+      }
     }
     return payload;
   }
