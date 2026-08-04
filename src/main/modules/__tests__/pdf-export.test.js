@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { describe, expect, it, vi } from 'vitest';
+import path from 'node:path';
 
 const require = createRequire(import.meta.url);
 const pdfExportModule = require('../pdf-export.js');
@@ -95,14 +96,17 @@ describe('pdf export drawing payload', () => {
       }),
     };
 
+    const filePath = path.join('C:', 'blocked', 'reporte.pdf');
+    const expectedDir = path.join('C:', 'blocked');
+
     await expect(savePdfBuffer(
-      'C:\\blocked\\reporte.pdf',
+      filePath,
       Buffer.from('%PDF-1.7\n%%EOF'),
       fsImpl,
     )).rejects.toThrow(/No se pudo guardar el PDF/);
 
-    expect(fsImpl.mkdir).toHaveBeenCalledWith('C:\\blocked', { recursive: true });
-    expect(fsImpl.writeFile).toHaveBeenCalledWith('C:\\blocked\\reporte.pdf', expect.any(Buffer));
+    expect(fsImpl.mkdir).toHaveBeenCalledWith(expectedDir, { recursive: true });
+    expect(fsImpl.writeFile).toHaveBeenCalledWith(filePath, expect.any(Buffer));
   });
 
   it('exports a dashboard PDF file without launching an external Chromium process', async () => {

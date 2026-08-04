@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta
     http-equiv="Content-Security-Policy"
-    content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.ytimg.com; media-src 'self' file: blob:; connect-src 'self' https://www.youtube.com https://*.googlevideo.com https://*.ytimg.com https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
+    content="default-src 'self'; script-src 'self' https://www.youtube.com https://s.ytimg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.ytimg.com; media-src 'self' file: blob:; connect-src 'self' https://www.youtube.com https://*.googlevideo.com https://*.ytimg.com https://*.supabase.co wss://*.supabase.co; font-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'; frame-src https://www.youtube.com https://www.youtube-nocookie.com; form-action 'none';"
   >
   <!-- SEC-01: style-src keeps unsafe-inline only for renderer-generated dynamic CSS variables/dimensions; no inline scripts or unsafe-eval are allowed. AI backend calls originate in the main process, so connect-src only covers renderer Supabase and YouTube traffic. -->
   <meta name="referrer" content="strict-origin-when-cross-origin">
