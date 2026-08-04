@@ -349,12 +349,12 @@ function buildHotkeySettingsMarkup(settings = {}) {
  */
 export function wireSettingsChoiceCards(container) {
   if (typeof container?.querySelectorAll !== 'function') return;
-  container.querySelectorAll('label.settings-toggle, label.settings-theme-option').forEach((label) => {
-    if (label.dataset.choiceCardClickBound === 'true') return;
-    const input = label.querySelector('input[type="checkbox"], input[type="radio"]');
+  container.querySelectorAll('[data-settings-choice-card]').forEach((card) => {
+    if (card.dataset.choiceCardClickBound === 'true') return;
+    const input = card.querySelector('input[type="checkbox"], input[type="radio"]');
     if (!input) return;
-    label.dataset.choiceCardClickBound = 'true';
-    label.addEventListener('click', (event) => {
+    card.dataset.choiceCardClickBound = 'true';
+    card.addEventListener('click', (event) => {
       if (event.target === input) return;
       event.preventDefault();
       input.click();
@@ -849,20 +849,20 @@ export async function renderSettings(container, params = {}) {
           <fieldset class="settings-theme-field">
             <legend class="form-label">Tema visual</legend>
             <div class="settings-theme-grid">
-              <label class="settings-theme-option">
-                <input type="radio" name="theme" value="dark" id="theme-dark" />
+              <div class="settings-theme-option" data-settings-choice-card>
+                <input type="radio" name="theme" value="dark" id="theme-dark" aria-label="Tema oscuro" />
                 <span>
                   <strong>Oscuro</strong>
                   <small>Interfaz original para cabina y video.</small>
                 </span>
-              </label>
-              <label class="settings-theme-option">
-                <input type="radio" name="theme" value="light" id="theme-light" />
+              </div>
+              <div class="settings-theme-option" data-settings-choice-card>
+                <input type="radio" name="theme" value="light" id="theme-light" aria-label="Tema claro" />
                 <span>
                   <strong>Claro</strong>
                   <small>Mayor luminosidad para lectura y revision.</small>
                 </span>
-              </label>
+              </div>
             </div>
           </fieldset>
           <fieldset class="settings-microphone-section">
@@ -948,31 +948,31 @@ export async function renderSettings(container, params = {}) {
               <button class="settings-onboarding-restart" type="button" data-local-backup-export>Exportar backup local</button>
             </div>
           </fieldset>
-          <label class="settings-toggle">
-            <input type="checkbox" id="stats-only-mode" />
+          <div class="settings-toggle" data-settings-choice-card>
+            <input type="checkbox" id="stats-only-mode" aria-label="Modo solo estadisticas" />
             <span>
               <strong>Modo solo estadisticas</strong>
               <small>Oculta el reproductor y permite cargar eventos con timestamp manual u omitido.</small>
             </span>
-          </label>
-          <label class="settings-toggle">
-            <input type="checkbox" id="tagging-auto-close-enabled" />
+          </div>
+          <div class="settings-toggle" data-settings-choice-card>
+            <input type="checkbox" id="tagging-auto-close-enabled" aria-label="Auto-cierre de popup" />
             <span>
               <strong>Auto-cierre de popup</strong>
               <small>Cierra el popup automáticamente después del tiempo indicado.</small>
             </span>
-          </label>
+          </div>
           <label class="form-group" data-auto-close-settings>
             <span class="form-label">Auto-cierre de popup (segundos)</span>
             <input class="form-input" type="number" id="tagging-auto-close" min="1" step="0.5" />
           </label>
-          <label class="settings-toggle">
-            <input type="checkbox" id="tagging-pause-video-on-popup" />
+          <div class="settings-toggle" data-settings-choice-card>
+            <input type="checkbox" id="tagging-pause-video-on-popup" aria-label="Pausar video al abrir popup" />
             <span>
               <strong>Pausar video al abrir popup</strong>
               <small>Detiene la reproducción para completar el detalle del evento.</small>
             </span>
-          </label>
+          </div>
           ${isHotkeysSubsection ? hotkeysMarkup : `
             <button class="settings-subsection-link" type="button" data-settings-open-hotkeys>
               <span>

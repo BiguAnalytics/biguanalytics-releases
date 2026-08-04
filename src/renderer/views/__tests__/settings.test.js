@@ -60,7 +60,7 @@ describe('settings auto close unit conversion', () => {
 
   it('activates checkbox and radio controls from any point in their option card', () => {
     expect(settingsSource).toContain('function wireSettingsChoiceCards');
-    expect(settingsSource).toContain("label.settings-toggle, label.settings-theme-option");
+    expect(settingsSource).toContain("[data-settings-choice-card]");
     expect(settingsSource).toContain('event.preventDefault();');
     expect(settingsSource).toContain('input.click();');
 
@@ -76,6 +76,34 @@ describe('settings auto close unit conversion', () => {
 
     wireSettingsChoiceCards?.({ querySelectorAll: () => [label] });
     clickHandlers[0]?.({ target: {}, preventDefault: vi.fn() });
+
+    expect(input.click).toHaveBeenCalledTimes(1);
+  });
+
+  it('activates an explicit div choice card, including the full claro/oscuro theme cards', () => {
+    expect(settingsSource).toContain('<div class="settings-theme-option" data-settings-choice-card>');
+    expect(settingsSource).toContain('<div class="settings-toggle" data-settings-choice-card>');
+
+    const clickHandlers = [];
+    const input = { click: vi.fn() };
+    const card = {
+      dataset: {},
+      querySelector: () => input,
+      addEventListener: (type, handler) => {
+        if (type === 'click') clickHandlers.push(handler);
+      },
+    };
+    let queriedSelector = '';
+
+    wireSettingsChoiceCards?.({
+      querySelectorAll: (selector) => {
+        queriedSelector = selector;
+        return selector === '[data-settings-choice-card]' ? [card] : [];
+      },
+    });
+
+    expect(queriedSelector).toBe('[data-settings-choice-card]');
+    clickHandlers[0]?.({ currentTarget: card, target: {}, preventDefault: vi.fn() });
 
     expect(input.click).toHaveBeenCalledTimes(1);
   });
