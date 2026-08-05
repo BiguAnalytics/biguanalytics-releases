@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -213,6 +213,30 @@ describe('storage.js', () => {
 
       expect(updated.homeScore).toBe(5);
       expect(saved.status).toBe('tagging');
+    });
+
+    it('keeps the previous match.json when an intermediate durable write fails', async () => {
+      const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+      const matchFile = resolveMatchPath(match.id, 'match.json');
+
+      await updateMatch(match.id, { status: 'tagging' });
+      const successfulContent = await fs.readFile(matchFile, 'utf-8');
+      expect(() => JSON.parse(successfulContent)).not.toThrow();
+
+      const originalWriteFile = fs.writeFile.bind(fs);
+      const writeFileSpy = vi.spyOn(fs, 'writeFile').mockImplementation(async (filePath, data, options) => {
+        if (String(filePath).includes(`${path.sep}match.json.`)) {
+          throw new Error('simulated intermediate write failure');
+        }
+        return originalWriteFile(filePath, data, options);
+      });
+
+      try {
+        await expect(updateMatch(match.id, { status: 'completed' })).rejects.toThrow('simulated intermediate write failure');
+        await expect(fs.readFile(matchFile, 'utf-8')).resolves.toBe(successfulContent);
+      } finally {
+        writeFileSpy.mockRestore();
+      }
     });
   });
 

@@ -171,6 +171,33 @@ async function ensureDataPath() {
 }
 
 /**
+ * Writes a file without exposing a partially-written target.
+ * @param {string} filePath
+ * @param {string} content
+ * @returns {Promise<void>}
+ */
+async function writeFileAtomically(filePath, content) {
+  const temporaryPath = `${filePath}.${process.pid}.${Date.now()}-${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    await fs.writeFile(temporaryPath, content, 'utf-8');
+    const fileHandle = await fs.open(temporaryPath, 'r+');
+    try {
+      await fileHandle.sync();
+    } finally {
+      await fileHandle.close();
+    }
+    await fs.rename(temporaryPath, filePath);
+  } catch (error) {
+    try {
+      await fs.rm(temporaryPath, { force: true });
+    } catch {
+      // Preserve the original write error; the previous target remains intact.
+    }
+    throw error;
+  }
+}
+
+/**
  * @param {object} data
  * @param {string} id
  * @param {string} now
@@ -281,7 +308,7 @@ async function createMatch(data) {
   const now = new Date().toISOString();
   const match = buildDefaultMatch(data, id, now);
 
-  await fs.writeFile(resolveMatchPath(id, 'match.json'), JSON.stringify(match, null, 2), 'utf-8');
+  await writeFileAtomically(resolveMatchPath(id, 'match.json'), JSON.stringify(match, null, 2));
   return match;
 }
 
@@ -333,7 +360,7 @@ async function upsertMatchCache(data) {
     updatedAt: data.updatedAt || now
   }, { now, preferPersistedScore: data.score !== undefined });
 
-  await fs.writeFile(resolveMatchPath(id, 'match.json'), JSON.stringify(next, null, 2), 'utf-8');
+  await writeFileAtomically(resolveMatchPath(id, 'match.json'), JSON.stringify(next, null, 2));
   return next;
 }
 
@@ -421,7 +448,7 @@ async function updateMatch(id, updates) {
   }, { preferPersistedScore: updates.score !== undefined });
 
   const matchPath = resolveMatchPath(safeId, 'match.json');
-  await fs.writeFile(matchPath, JSON.stringify(updatedMatch, null, 2), 'utf-8');
+  await writeFileAtomically(matchPath, JSON.stringify(updatedMatch, null, 2));
   return updatedMatch;
 }
 
