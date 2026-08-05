@@ -161,6 +161,92 @@ describe('storage.js', () => {
       ]);
       expect(await fs.readFile(corruptFile, 'utf-8')).toBe('{ invalid json');
     });
+
+    it('returns a recoverable diagnostic for a match directory with missing match.json', async () => {
+      const incompleteDir = path.join(TEST_USER_DATA, 'data', 'incomplete-match');
+      await fs.mkdir(incompleteDir, { recursive: true });
+
+      const matches = await getAllMatches();
+
+      expect(matches).toEqual([
+        expect.objectContaining({
+          id: 'incomplete-match',
+          status: 'error',
+          recoverable: true,
+          errorCode: 'MATCH_FILE_MISSING',
+          filePath: path.join(incompleteDir, 'match.json'),
+        }),
+      ]);
+    });
+
+    it('returns a recoverable diagnostic for permission errors without overwriting the file', async () => {
+      const deniedDir = path.join(TEST_USER_DATA, 'data', 'denied-match');
+      const deniedFile = path.join(deniedDir, 'match.json');
+      await fs.mkdir(deniedDir, { recursive: true });
+      await fs.writeFile(deniedFile, '{"id":"denied-match"}', 'utf-8');
+      const originalReadFile = fs.readFile.bind(fs);
+      const readFileSpy = vi.spyOn(fs, 'readFile').mockImplementation(async (filePath, options) => {
+        if (String(filePath) === deniedFile) {
+          const error = new Error('permission denied');
+          error.code = 'EACCES';
+          throw error;
+        }
+        return originalReadFile(filePath, options);
+      });
+
+      try {
+        const matches = await getAllMatches();
+
+        expect(matches).toEqual([
+          expect.objectContaining({
+            id: 'denied-match',
+            status: 'error',
+            recoverable: true,
+            errorCode: 'EACCES',
+            filePath: deniedFile,
+            error: expect.stringContaining('permission denied'),
+          }),
+        ]);
+        expect(await originalReadFile(deniedFile, 'utf-8')).toBe('{"id":"denied-match"}');
+      } finally {
+        readFileSpy.mockRestore();
+      }
+    });
+
+    it('returns a recoverable storage diagnostic when the data directory cannot be read', async () => {
+      const dataPath = path.join(TEST_USER_DATA, 'data');
+      await fs.mkdir(dataPath, { recursive: true });
+      const originalReadDir = fs.readdir.bind(fs);
+      const readDirSpy = vi.spyOn(fs, 'readdir').mockImplementation(async (filePath, options) => {
+        if (String(filePath) === dataPath) {
+          const error = new Error('data directory denied');
+          error.code = 'EACCES';
+          throw error;
+        }
+        return originalReadDir(filePath, options);
+      });
+
+      try {
+        await expect(getAllMatches()).resolves.toEqual([
+          expect.objectContaining({
+            id: 'local-storage',
+            status: 'error',
+            recoverable: true,
+            errorCode: 'EACCES',
+            filePath: dataPath,
+            error: expect.stringContaining('data directory denied'),
+          }),
+        ]);
+      } finally {
+        readDirSpy.mockRestore();
+      }
+    });
+
+    it('does not expose tactical board storage as a match diagnostic', async () => {
+      await fs.mkdir(path.join(TEST_USER_DATA, 'data', 'tactical-boards'), { recursive: true });
+
+      await expect(getAllMatches()).resolves.toEqual([]);
+    });
   });
 
   describe('getMatchById', () => {

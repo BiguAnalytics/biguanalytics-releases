@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -56,6 +56,31 @@ describe('secure session store', () => {
     expect(await store.get('supabase.auth.token')).toBe('fallback-token');
     expect(warnings.join('\n')).toContain('safeStorage');
     expect(readFileSync(join(userData, 'license-session.json'), 'utf8')).not.toContain('fallback-token');
+
+    rmSync(userData, { recursive: true, force: true });
+  });
+
+  it('distinguishes a corrupt session file from an absent session and preserves a backup', async () => {
+    const userData = createTempUserData();
+    const sessionPath = join(userData, 'license-session.json');
+    writeFileSync(sessionPath, '{ broken session', 'utf8');
+    const store = createSecureSessionStore({
+      app: { getPath: () => userData },
+      safeStorage: createSafeStorageStub(),
+      logger: { warn: () => {} },
+    });
+
+    await expect(store.get('supabase.auth.token')).rejects.toMatchObject({
+      recoverable: true,
+      code: 'SESSION_FILE_CORRUPT',
+      backupPath: expect.stringContaining('license-session.json.corrupt-'),
+    });
+    await expect(store.set('supabase.auth.token', 'replacement')).rejects.toMatchObject({
+      recoverable: true,
+      code: 'SESSION_FILE_CORRUPT',
+    });
+    expect(readFileSync(sessionPath, 'utf8')).toBe('{ broken session');
+    expect(readdirSync(userData).filter(file => file.startsWith('license-session.json.corrupt-'))).toHaveLength(1);
 
     rmSync(userData, { recursive: true, force: true });
   });

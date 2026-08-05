@@ -178,6 +178,44 @@ describe('cloudMatchService', () => {
     }));
   });
 
+  it('keeps local match creation successful when cloud and enqueue both fail', async () => {
+    const localMatch = {
+      id: 'match-local-only',
+      homeTeam: 'Bigua',
+      awayTeam: 'Rival',
+      status: 'created',
+      video: null,
+    };
+    const client = {
+      from() {
+        return {
+          upsert: async () => ({ error: new Error('cloud unavailable') }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        create: vi.fn(async () => localMatch),
+      },
+    };
+    const syncService = {
+      enqueue: vi.fn(async () => { throw new Error('pending queue unavailable'); }),
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService,
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await expect(service.createMatch({ awayTeam: 'Rival' })).resolves.toBe(localMatch);
+    expect(syncService.enqueue).toHaveBeenCalled();
+  });
+
   it('lists cloud match summaries without hydrating every match detail', async () => {
     let cachedMatch = null;
     const detailCalls = [];
@@ -715,6 +753,9 @@ describe('cloudMatchService', () => {
           };
         }
         return {
+          select: () => ({
+            eq: async () => ({ data: [], error: null }),
+          }),
           upsert: async (payload) => {
             calls.push({ table, method: 'upsert', payload });
             return { data: payload, error: null };
@@ -726,6 +767,10 @@ describe('cloudMatchService', () => {
           delete: () => ({
             eq: async (column, value) => {
               calls.push({ table, method: 'delete:eq', column, value });
+              return { error: null };
+            },
+            in: async (column, value) => {
+              calls.push({ table, method: 'delete:in', column, value });
               return { error: null };
             },
           }),
@@ -773,6 +818,76 @@ describe('cloudMatchService', () => {
     expect(localApi.matches.upsertCache).toHaveBeenCalledWith(expect.objectContaining({
       id: legacyMatch.id,
       cloud: { clubId: 'club-1', createdBy: 'user-1' },
+    }));
+  });
+
+  it('records backfill cloud failures as pending errors for the local match', async () => {
+    const legacyMatch = {
+      id: 'legacy-failed-backfill',
+      homeTeam: 'Bigua',
+      awayTeam: 'Rival',
+      date: '2026-05-20',
+      status: 'tagging',
+      cloud: null,
+      events: [],
+      possession: [],
+      sequences: [],
+      coachNotes: '',
+    };
+    const client = {
+      from(table) {
+        if (table === 'matches') {
+          return {
+            select: () => ({
+              order: () => ({
+                range: async () => ({ data: [], error: null }),
+              }),
+            }),
+            upsert: async () => ({ error: new Error('backfill permission denied') }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: async () => ({ data: [], error: null }),
+          }),
+          insert: async () => ({ error: null }),
+          upsert: async () => ({ error: null }),
+          delete: () => ({
+            eq: async () => ({ error: null }),
+            in: async () => ({ error: null }),
+          }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getAll: vi.fn(async () => [legacyMatch]),
+        getById: vi.fn(async () => legacyMatch),
+        upsertCache: vi.fn(async match => match),
+      },
+    };
+    const syncService = {
+      enqueue: vi.fn(async operation => operation),
+      flushPendingSync: vi.fn(async () => ({ applied: 0, failed: 0 })),
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService,
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    await service.listMatches({ forceRefresh: true });
+
+    expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: legacyMatch.id,
+      status: 'pending_sync',
+      syncStatus: 'error',
+      syncError: 'backfill permission denied',
     }));
   });
 

@@ -8,6 +8,8 @@ const { normalizeMatchScore } = require('./score');
 
 const PENDING_SYNC_FILE = 'pending-sync.json';
 const MATCH_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
+const NON_MATCH_DATA_DIRECTORIES = new Set(['tactical-boards']);
+let pendingSyncMutation = Promise.resolve();
 
 /**
  * @param {unknown} error
@@ -57,6 +59,37 @@ function buildCorruptMatchSummary(id, filePath, error) {
     recoverable: true,
     filePath,
     error: `JSON invalido: ${summarizeError(error)}`,
+    createdAt: now,
+    updatedAt: now,
+    eventCount: 0,
+    sequenceCount: 0,
+  };
+}
+
+/**
+ * @param {string} id
+ * @param {string} filePath
+ * @param {unknown} error
+ * @param {string} errorCode
+ * @returns {object}
+ */
+function buildMatchDiagnosticSummary(id, filePath, error, errorCode) {
+  const now = new Date().toISOString();
+  return {
+    id,
+    homeTeam: 'Partido no disponible',
+    awayTeam: 'Recuperable',
+    date: now.split('T')[0],
+    competition: 'Archivo local',
+    venue: 'home',
+    homeScore: 0,
+    awayScore: 0,
+    status: 'error',
+    diagnostic: true,
+    recoverable: true,
+    errorCode,
+    filePath,
+    error: `No se pudo leer la estructura local: ${summarizeError(error)}`,
     createdAt: now,
     updatedAt: now,
     eventCount: 0,
@@ -375,10 +408,17 @@ async function getAllMatches() {
     const matches = [];
 
     for (const dir of dirs) {
+      if (NON_MATCH_DATA_DIRECTORIES.has(dir)) continue;
       try {
         const matchFile = resolveMatchPath(dir, 'match.json');
         const content = await fs.readFile(matchFile, 'utf-8');
-        const match = normalizeMatchForStorage(JSON.parse(content));
+        const parsed = JSON.parse(content);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+          const structureError = new Error('Estructura JSON de partido invalida.');
+          structureError.code = 'MATCH_STRUCTURE_INVALID';
+          throw structureError;
+        }
+        const match = normalizeMatchForStorage(parsed);
         
         // Return summary, avoid returning all events
         const summary = { ...match };
@@ -390,12 +430,18 @@ async function getAllMatches() {
         
         matches.push(summary);
       } catch (error) {
-        if (error.code === 'ENOENT') continue;
         try {
           const safeId = validateMatchId(dir);
           const matchFile = resolveMatchPath(safeId, 'match.json');
           if (error instanceof SyntaxError) {
             matches.push(buildCorruptMatchSummary(safeId, matchFile, error));
+          } else {
+            matches.push(buildMatchDiagnosticSummary(
+              safeId,
+              matchFile,
+              error,
+              error.code === 'ENOENT' ? 'MATCH_FILE_MISSING' : (error.code || 'MATCH_READ_ERROR'),
+            ));
           }
         } catch {
           // Skip non-match entries or unsafe directory names.
@@ -405,7 +451,12 @@ async function getAllMatches() {
     return matches;
   } catch (error) {
     if (error.code === 'ENOENT') return [];
-    throw error;
+    return [buildMatchDiagnosticSummary(
+      'local-storage',
+      dataPath,
+      error,
+      error.code || 'DATA_DIRECTORY_READ_ERROR',
+    )];
   }
 }
 
@@ -484,10 +535,15 @@ async function readPendingSync(options = {}) {
   const pendingPath = getPendingSyncPath();
   try {
     const parsed = JSON.parse(await fs.readFile(pendingPath, 'utf-8'));
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) {
+      const structureError = new Error('Estructura de cola de sincronizacion invalida.');
+      structureError.code = 'PENDING_SYNC_STRUCTURE_INVALID';
+      throw structureError;
+    }
+    return parsed;
   } catch (error) {
     if (error.code === 'ENOENT') return [];
-    if (error instanceof SyntaxError) {
+    if (error instanceof SyntaxError || error.code === 'PENDING_SYNC_STRUCTURE_INVALID') {
       const backupPath = await backupCorruptFile(pendingPath);
       const recoverable = buildPendingSyncCorruptError(pendingPath, backupPath, error);
       if (!process.env.VITEST) {
@@ -507,7 +563,49 @@ async function readPendingSync(options = {}) {
  */
 async function writePendingSync(operations) {
   await ensureDataPath();
-  await fs.writeFile(getPendingSyncPath(), JSON.stringify(operations, null, 2), 'utf-8');
+  await writeFileAtomically(getPendingSyncPath(), JSON.stringify(operations, null, 2));
+}
+
+/**
+ * Serializes pending queue read-modify-write operations while allowing the
+ * queue to recover after a failed mutation.
+ * @template T
+ * @param {() => Promise<T>} mutation
+ * @returns {Promise<T>}
+ */
+function withPendingSyncMutation(mutation) {
+  const next = pendingSyncMutation.then(mutation, mutation);
+  pendingSyncMutation = next.catch(() => undefined);
+  return next;
+}
+
+/**
+ * @param {Array<object>} operations
+ * @returns {Array<object>}
+ */
+function compactPendingSync(operations) {
+  const compacted = [];
+  const indexes = new Map();
+  for (const operation of operations) {
+    const key = operation?.dedupeKey
+      ? `dedupe:${operation.dedupeKey}`
+      : operation?.id
+        ? `id:${operation.id}`
+        : null;
+    if (!key || !indexes.has(key)) {
+      if (key) indexes.set(key, compacted.length);
+      compacted.push(operation);
+      continue;
+    }
+    const index = indexes.get(key);
+    compacted[index] = {
+      ...compacted[index],
+      ...operation,
+      id: compacted[index].id || operation.id,
+      createdAt: compacted[index].createdAt || operation.createdAt,
+    };
+  }
+  return compacted;
 }
 
 /**
@@ -515,39 +613,41 @@ async function writePendingSync(operations) {
  * @returns {Promise<object>}
  */
 async function enqueuePendingSync(operation) {
-  const now = new Date().toISOString();
-  const pendingState = await readPendingSync({ recover: true });
-  const pending = Array.isArray(pendingState) ? pendingState : pendingState.operations;
-  const matchId = operation.matchId ? validateMatchId(operation.matchId) : operation.matchId;
-  const normalized = {
-    id: operation.id || uuidv4(),
-    status: 'pending_sync',
-    createdAt: operation.createdAt || now,
-    updatedAt: now,
-    ...operation,
-    matchId,
-    recoveredFromCorruptQueue: Boolean(pendingState?.recoverable),
-    status: 'pending_sync'
-  };
-
-  const existingIndex = normalized.dedupeKey
-    ? pending.findIndex(item => item.dedupeKey === normalized.dedupeKey)
-    : -1;
-
-  if (existingIndex >= 0) {
-    pending[existingIndex] = {
-      ...pending[existingIndex],
-      ...normalized,
-      id: pending[existingIndex].id,
-      createdAt: pending[existingIndex].createdAt || normalized.createdAt,
-      updatedAt: now
+  return withPendingSyncMutation(async () => {
+    const now = new Date().toISOString();
+    const pendingState = await readPendingSync({ recover: true });
+    const pending = compactPendingSync(Array.isArray(pendingState) ? pendingState : pendingState.operations);
+    const matchId = operation.matchId ? validateMatchId(operation.matchId) : operation.matchId;
+    const normalized = {
+      id: operation.id || uuidv4(),
+      status: 'pending_sync',
+      createdAt: operation.createdAt || now,
+      updatedAt: now,
+      ...operation,
+      matchId,
+      recoveredFromCorruptQueue: Boolean(pendingState?.recoverable),
+      status: 'pending_sync'
     };
-  } else {
-    pending.push(normalized);
-  }
 
-  await writePendingSync(pending);
-  return existingIndex >= 0 ? pending[existingIndex] : normalized;
+    const existingIndex = normalized.dedupeKey
+      ? pending.findIndex(item => item.dedupeKey === normalized.dedupeKey)
+      : pending.findIndex(item => item.id === normalized.id);
+
+    if (existingIndex >= 0) {
+      pending[existingIndex] = {
+        ...pending[existingIndex],
+        ...normalized,
+        id: pending[existingIndex].id,
+        createdAt: pending[existingIndex].createdAt || normalized.createdAt,
+        updatedAt: now
+      };
+    } else {
+      pending.push(normalized);
+    }
+
+    await writePendingSync(pending);
+    return existingIndex >= 0 ? pending[existingIndex] : normalized;
+  });
 }
 
 /**
@@ -566,10 +666,12 @@ async function getPendingSync(filters = {}) {
  * @returns {Promise<boolean>}
  */
 async function markPendingSyncApplied(ids = []) {
-  const applied = new Set(ids.map(String));
-  const pending = (await readPendingSync()).filter(operation => !applied.has(String(operation.id)));
-  await writePendingSync(pending);
-  return true;
+  return withPendingSyncMutation(async () => {
+    const applied = new Set(ids.map(String));
+    const pending = compactPendingSync((await readPendingSync()).filter(operation => !applied.has(String(operation.id))));
+    await writePendingSync(pending);
+    return true;
+  });
 }
 
 module.exports = {

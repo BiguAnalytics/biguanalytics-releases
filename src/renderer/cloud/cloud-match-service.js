@@ -168,8 +168,14 @@ export function mapCloudSequencesToLocal(rows = []) {
 async function applyOrEnqueue(client, syncService, operation) {
   try {
     await applyCloudOperation(client, operation);
-  } catch {
-    await syncService.enqueue(operation);
+  } catch (error) {
+    await syncService.enqueue({
+      ...operation,
+      status: 'pending_sync',
+      syncStatus: 'error',
+      syncError: getCloudErrorMessage(error),
+      failedAt: new Date().toISOString(),
+    });
   }
 }
 
@@ -417,14 +423,38 @@ export function createCloudMatchService(deps = {}) {
     }
   }
 
+  async function enqueueOperation(operation, error) {
+    try {
+      return await activeSyncService.enqueue({
+        ...operation,
+        status: 'pending_sync',
+        ...(error ? {
+          syncStatus: 'error',
+          syncError: getCloudErrorMessage(error),
+          failedAt: new Date().toISOString(),
+        } : {}),
+      });
+    } catch (enqueueError) {
+      markCloud('cloud:sync-enqueue-error', {
+        matchId: operation.matchId || '',
+        message: getCloudErrorMessage(enqueueError),
+      });
+      return null;
+    }
+  }
+
+  async function enqueueOperations(operations, error) {
+    for (const operation of operations) await enqueueOperation(operation, error);
+  }
+
   async function applyBackfillOperations(operations, context) {
     let appliedAll = true;
     for (const operation of operations) {
       try {
         await applyCloudOperation(context.client, operation);
-      } catch {
+      } catch (error) {
         appliedAll = false;
-        await activeSyncService.enqueue(operation);
+        await enqueueOperation(operation, error);
       }
     }
     return appliedAll;
@@ -729,14 +759,12 @@ export function createCloudMatchService(deps = {}) {
         const context = await resolveCloudContext(deps);
         markCloud('cloud:match:sync-push', { matchId: match.id, entity: 'matches' });
         await syncOperations(buildFullSyncOperations(context, match), context);
-      } catch {
+      } catch (error) {
         const fallbackContext = {
           clubId: '',
           userId: '',
         };
-        for (const operation of buildFullSyncOperations(fallbackContext, match)) {
-          await activeSyncService.enqueue(operation);
-        }
+        await enqueueOperations(buildFullSyncOperations(fallbackContext, match), error);
       }
       return match;
     },
@@ -765,9 +793,9 @@ export function createCloudMatchService(deps = {}) {
         const context = await resolveCloudContext(deps);
         markCloud('cloud:match:sync-push', { matchId: match.id, entity: 'matches' });
         await syncOperations(buildUpdateOperations(context, match, updates), context);
-      } catch {
+      } catch (error) {
         const pending = buildUpdateOperations({ clubId: '', userId: '' }, match, updates);
-        for (const operation of pending) await activeSyncService.enqueue(operation);
+        await enqueueOperations(pending, error);
       }
       return match;
     },
@@ -783,15 +811,15 @@ export function createCloudMatchService(deps = {}) {
           dedupeKey: `matches:${matchId}:delete`,
           payload: { id: matchId },
         });
-      } catch {
-        await activeSyncService.enqueue({
+      } catch (error) {
+        await enqueueOperation({
           matchId,
           entity: 'matches',
           action: 'delete',
           status: 'pending_sync',
           dedupeKey: `matches:${matchId}:delete`,
           payload: { id: matchId },
-        });
+        }, error);
       }
       return localApi.matches.delete(matchId);
     },

@@ -5,6 +5,10 @@ const path = require('path');
 const SESSION_FILE = 'license-session.json';
 const SESSION_DIR = 'license-session';
 
+function getBackupTimestamp() {
+  return new Date().toISOString().replace(/[:.]/g, '-');
+}
+
 /**
  * @param {string} key
  * @returns {string}
@@ -22,6 +26,21 @@ function normalizeStorageKey(key) {
  */
 function normalizeSessionFile(value) {
   return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isValidSessionFile(value) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  return Object.values(value).every(record => (
+    record
+    && typeof record === 'object'
+    && (record.mode === 'safeStorage' || record.mode === 'fallback-base64')
+    && typeof record.value === 'string'
+    && record.value.length > 0
+  ));
 }
 
 /**
@@ -49,6 +68,7 @@ function createSecureSessionStore(deps) {
   const logger = deps.logger || console;
   const storeDir = path.join(app.getPath('userData'), SESSION_DIR);
   const storePath = path.join(app.getPath('userData'), SESSION_FILE);
+  let corruptBackupPath = null;
 
   /**
    * @returns {boolean}
@@ -96,9 +116,29 @@ function createSecureSessionStore(deps) {
    */
   async function readStore() {
     try {
-      return normalizeSessionFile(JSON.parse(await fs.readFile(storePath, 'utf8')));
-    } catch {
-      return {};
+      const parsed = JSON.parse(await fs.readFile(storePath, 'utf8'));
+      if (!isValidSessionFile(parsed)) {
+        const error = new Error('Estructura de sesion invalida.');
+        error.code = 'SESSION_FILE_CORRUPT';
+        throw error;
+      }
+      return normalizeSessionFile(parsed);
+    } catch (error) {
+      if (error.code === 'ENOENT') return {};
+      if (error.code !== 'SESSION_FILE_CORRUPT' && !(error instanceof SyntaxError)) throw error;
+      const backupPath = corruptBackupPath || `${storePath}.corrupt-${getBackupTimestamp()}.bak`;
+      if (!corruptBackupPath) {
+        await fs.copyFile(storePath, backupPath);
+        corruptBackupPath = backupPath;
+        logger.warn('Archivo de sesion corrupto preservado en backup local.');
+      }
+      const recoverable = new Error('Sesion local corrupta. Se preservo una copia de seguridad.');
+      recoverable.recoverable = true;
+      recoverable.code = 'SESSION_FILE_CORRUPT';
+      recoverable.filePath = storePath;
+      recoverable.backupPath = backupPath;
+      recoverable.details = error.message;
+      throw recoverable;
     }
   }
 
@@ -108,6 +148,7 @@ function createSecureSessionStore(deps) {
   async function writeStore(data) {
     await fs.mkdir(storeDir, { recursive: true });
     await fs.writeFile(storePath, `${JSON.stringify(data, null, 2)}\n`, 'utf8');
+    corruptBackupPath = null;
   }
 
   return {
@@ -144,6 +185,7 @@ function createSecureSessionStore(deps) {
     async clear() {
       await fs.rm(storePath, { force: true });
       await fs.rm(storeDir, { recursive: true, force: true });
+      corruptBackupPath = null;
     },
   };
 }

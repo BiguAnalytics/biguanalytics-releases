@@ -96,9 +96,17 @@ export function mapCloudEventToLocal(row) {
 async function applyOrEnqueue(client, syncService, operation) {
   try {
     await applyCloudOperation(client, operation);
-  } catch {
-    await syncService.enqueue(operation);
+  } catch (error) {
+    await enqueuePending(syncService, operation, error);
   }
+}
+
+/**
+ * @param {unknown} error
+ * @returns {string}
+ */
+function getCloudErrorMessage(error) {
+  return error instanceof Error && error.message ? error.message : String(error || 'Error de sync cloud');
 }
 
 /**
@@ -120,12 +128,17 @@ async function announceLocalHomeUpdate(localApi, status = {}) {
 /**
  * @param {object} syncService
  * @param {object} operation
+ * @param {unknown} [error]
  */
-async function enqueuePending(syncService, operation) {
+async function enqueuePending(syncService, operation, error) {
   await syncService.enqueue({
-    status: 'pending_sync',
     ...operation,
     status: 'pending_sync',
+    ...(error ? {
+      syncStatus: 'error',
+      syncError: getCloudErrorMessage(error),
+      failedAt: new Date().toISOString(),
+    } : {}),
   });
 }
 
@@ -175,7 +188,7 @@ export function createCloudEventService(deps = {}) {
       return event;
     },
 
-    async enqueueEventSync(matchId, event) {
+    async enqueueEventSync(matchId, event, error) {
       await enqueuePending(activeSyncService, {
         matchId,
         entity: 'match_events',
@@ -186,7 +199,7 @@ export function createCloudEventService(deps = {}) {
           clubId: '',
           userId: '',
         }),
-      });
+      }, error);
       if (typeof localApi.matches?.getById !== 'function') return;
       const match = await localApi.matches.getById(matchId);
       await enqueuePending(activeSyncService, {
@@ -198,7 +211,7 @@ export function createCloudEventService(deps = {}) {
           clubId: '',
           userId: '',
         }),
-      });
+      }, error);
     },
 
     async addEvent(matchId, eventData) {
@@ -207,7 +220,7 @@ export function createCloudEventService(deps = {}) {
         await this.syncEvent(matchId, event);
       } catch (error) {
         try {
-          await this.enqueueEventSync(matchId, event);
+          await this.enqueueEventSync(matchId, event, error);
         } catch (enqueueError) {
           markStartup('cloud:rls-or-query-error', {
             message: enqueueError instanceof Error ? enqueueError.message.slice(0, 160) : String(enqueueError || error || 'sync failed'),
@@ -224,7 +237,7 @@ export function createCloudEventService(deps = {}) {
         await this.syncEvent(matchId, event);
       } catch (error) {
         try {
-          await this.enqueueEventSync(matchId, event);
+          await this.enqueueEventSync(matchId, event, error);
         } catch (enqueueError) {
           markStartup('cloud:rls-or-query-error', {
             message: enqueueError instanceof Error ? enqueueError.message.slice(0, 160) : String(enqueueError || error || 'sync failed'),
@@ -257,7 +270,7 @@ export function createCloudEventService(deps = {}) {
             action: 'delete',
             dedupeKey: `match_events:${eventId}:delete`,
             payload: { id: eventId },
-          });
+          }, error);
           if (typeof localApi.matches?.getById === 'function') {
             const match = await localApi.matches.getById(matchId);
             await enqueuePending(activeSyncService, {
@@ -269,7 +282,7 @@ export function createCloudEventService(deps = {}) {
                 clubId: '',
                 userId: '',
               }),
-            });
+            }, error);
           }
         } catch (enqueueError) {
           markStartup('cloud:rls-or-query-error', {

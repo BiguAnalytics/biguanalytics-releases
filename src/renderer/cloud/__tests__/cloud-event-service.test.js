@@ -195,6 +195,8 @@ describe('cloudEventService', () => {
       entity: 'match_events',
       action: 'upsert',
       status: 'pending_sync',
+      syncStatus: 'error',
+      syncError: 'fetch failed',
     }));
     expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
       matchId: 'match-1',
