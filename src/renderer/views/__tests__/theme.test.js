@@ -18,6 +18,7 @@ describe('app theme support', () => {
   const matchCardCss = readFileSync(resolve(process.cwd(), 'src/styles/components/match-card.css'), 'utf8');
   const modalCss = readFileSync(resolve(process.cwd(), 'src/styles/components/modal.css'), 'utf8');
   const timelineCss = readFileSync(resolve(process.cwd(), 'src/styles/components/timeline.css'), 'utf8');
+  const sidebarCss = readFileSync(resolve(process.cwd(), 'src/styles/components/sidebar.css'), 'utf8');
   const dashboardSource = readFileSync(resolve(process.cwd(), 'src/renderer/views/dashboard.js'), 'utf8');
   const seasonSource = readFileSync(resolve(process.cwd(), 'src/renderer/views/season.js'), 'utf8');
   const topbarCss = readFileSync(resolve(process.cwd(), 'src/styles/components/topbar.css'), 'utf8');
@@ -70,11 +71,11 @@ describe('app theme support', () => {
     expect(themeIndex).toBeGreaterThan(lastComponentIndex);
   });
 
-  it('uses a lighter restrained palette with red-blue brand accents', () => {
-    expect(tokensCss).toContain('--color-bg-base:        #101A2A;');
-    expect(tokensCss).toContain('--color-bg-surface:     #172337;');
-    expect(tokensCss).toContain('--color-bg-elevated:    #1E2D42;');
-    expect(tokensCss).toContain('--color-bg-hover:       #273A52;');
+  it('uses a balanced restrained palette with red-blue brand accents', () => {
+    expect(tokensCss).toContain('--color-bg-base:        #0D1726;');
+    expect(tokensCss).toContain('--color-bg-surface:     #142033;');
+    expect(tokensCss).toContain('--color-bg-elevated:    #1B2A43;');
+    expect(tokensCss).toContain('--color-bg-hover:       #243752;');
     expect(tokensCss).toContain('--color-brand-blue:     #4F79AE;');
     expect(tokensCss).toContain('--gradient-brand:');
     expect(tokensCss).toContain('--gradient-brand-text:');
@@ -103,6 +104,18 @@ describe('app theme support', () => {
     expect(themeCss).not.toContain('--match-tone: rgba(132, 111, 74');
     expect(modalCss).not.toContain('var(--color-brand-navy)) border-box');
     expect(modalCss).toMatch(/\.btn-primary\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
+  });
+
+  it('balances dark readability with the original red-blue atmosphere', () => {
+    expect(tokensCss).toContain('--color-bg-base:        #0D1726;');
+    expect(tokensCss).toContain('--color-bg-surface:     #142033;');
+    expect(tokensCss).toContain('--color-bg-elevated:    #1B2A43;');
+    expect(tokensCss).toContain('rgba(200, 16, 46, 0.16) 0%, transparent 46%');
+    expect(tokensCss).toContain('--gradient-brand:       linear-gradient(110deg, #C8102E 0%, #26405F 48%, #C8102E 100%);');
+    expect(layoutCss).toMatch(/\.home-header::before\s*{[^}]*rgba\(200,\s*16,\s*46,\s*0\.18\)/s);
+    expect(themeCss).toMatch(/:root:not\(\[data-theme="light"\]\) \.main-content-body\s*{[^}]*background:\s*var\(--gradient-bg\);/s);
+    expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
+    expect(matchCardCss).toMatch(/\.match-card\.loss\s*{[^}]*--match-tone-soft:\s*rgba\(200,\s*16,\s*46,\s*0\.19\)/s);
   });
 
   it('keeps charts and timeline states semantic without saturated rainbow colors', () => {

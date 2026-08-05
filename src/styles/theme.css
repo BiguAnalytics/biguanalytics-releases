@@ -545,8 +545,11 @@
   border-top-color: var(--color-border);
 }
 
-/* Dark mode keeps the lighter slate surfaces and the red-blue brand language. */
-:root:not([data-theme="light"]) .main-content-body,
+/* Dark mode keeps readable slate surfaces and restores the red-blue atmosphere. */
+:root:not([data-theme="light"]) .main-content-body {
+  background: var(--gradient-bg);
+}
+
 :root:not([data-theme="light"]) .tagging-view,
 :root:not([data-theme="light"]) .tagging-match-select-view {
   background: var(--color-bg-base);

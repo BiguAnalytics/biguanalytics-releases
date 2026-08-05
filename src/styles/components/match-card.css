@@ -23,10 +23,10 @@
 
 .match-card.loss {
   --match-tone: rgba(140, 48, 65, 0.62);
-  --match-tone-soft: rgba(200, 16, 46, 0.16);
-  --match-tone-strong: rgba(200, 16, 46, 0.38);
-  --match-top-start: rgba(126, 44, 59, 0.64);
-  --match-top-mid: rgba(60, 27, 35, 0.50);
+  --match-tone-soft: rgba(200, 16, 46, 0.19);
+  --match-tone-strong: rgba(200, 16, 46, 0.42);
+  --match-top-start: rgba(126, 44, 59, 0.70);
+  --match-top-mid: rgba(60, 27, 35, 0.55);
   --match-score-opacity: 0.13;
   --match-score-separator-opacity: 0.11;
 }

@@ -8,10 +8,10 @@
   --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Fondos */
-  --color-bg-base:        #101A2A;
-  --color-bg-surface:     #172337;
-  --color-bg-elevated:    #1E2D42;
-  --color-bg-hover:       #273A52;
+  --color-bg-base:        #0D1726;
+  --color-bg-surface:     #142033;
+  --color-bg-elevated:    #1B2A43;
+  --color-bg-hover:       #243752;
 
   /* Marca Bigua */
   --color-brand-navy:     #26405F;
@@ -28,7 +28,7 @@
   --color-text-primary:   #F3F6FA;
   --color-text-secondary: #A8B4C4;
   --color-text-muted:     #718096;
-  --color-text-inverse:   #101A2A;
+  --color-text-inverse:   #0D1726;
 
   /* Bordes */
   --color-border:         rgba(230, 238, 248, 0.09);
@@ -36,15 +36,16 @@
   --color-border-accent:  rgba(200, 16, 46, 0.42);
 
   /* Gradientes */
-  --gradient-bg:          radial-gradient(ellipse at 20% 0%, rgba(38, 64, 95, 0.76) 0%, transparent 60%),
-                          radial-gradient(ellipse at 80% 100%, rgba(200, 16, 46, 0.08) 0%, transparent 50%),
-                          #101A2A;
-  --gradient-surface:     linear-gradient(135deg, #172337 0%, #1B2A40 100%);
-  --gradient-card:        linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%);
+  --gradient-bg:          radial-gradient(ellipse at 18% 0%, rgba(38, 64, 95, 0.66) 0%, transparent 58%),
+                          radial-gradient(ellipse at 78% 12%, rgba(200, 16, 46, 0.16) 0%, transparent 46%),
+                          radial-gradient(ellipse at 84% 100%, rgba(200, 16, 46, 0.07) 0%, transparent 52%),
+                          #0D1726;
+  --gradient-surface:     linear-gradient(135deg, #142033 0%, #1A2941 100%);
+  --gradient-card:        linear-gradient(145deg, rgba(255, 255, 255, 0.05) 0%, transparent 100%);
   --gradient-brand:       linear-gradient(110deg, #C8102E 0%, #26405F 48%, #C8102E 100%);
   --gradient-brand-text:  linear-gradient(110deg, #E15A6B 0%, #DDE7F4 34%, #4F79AE 68%, #C8102E 100%);
-  --gradient-accent-glow: radial-gradient(ellipse at center, rgba(200, 16, 46, 0.12) 0%, transparent 70%);
-  --gradient-navy-glow:   radial-gradient(ellipse at top, rgba(38, 64, 95, 0.42) 0%, transparent 60%);
+  --gradient-accent-glow: radial-gradient(ellipse at center, rgba(200, 16, 46, 0.16) 0%, transparent 70%);
+  --gradient-navy-glow:   radial-gradient(ellipse at top, rgba(38, 64, 95, 0.38) 0%, transparent 60%);
 
   /* Tags/Eventos */
   --tag-neutral:     #76879D;
