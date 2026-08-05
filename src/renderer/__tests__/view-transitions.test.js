@@ -25,6 +25,20 @@ describe('native route view transitions', () => {
     expect(baseCss).toMatch(/::view-transition-(group|image-pair|old|new)\([^)]*\)[\s\S]*pointer-events:\s*none;/s);
   });
 
+  it('keeps the full native transition overlay transparent to pointer input', () => {
+    expect(baseCss).toMatch(/::view-transition\s*{[\s\S]*pointer-events:\s*none;/s);
+  });
+
+  it('scopes native route transitions away from the app shell', () => {
+    expect(baseCss).toMatch(/:root\s*{[\s\S]*view-transition-name:\s*none;/s);
+    expect(baseCss).toMatch(/#main-content-body\s*{[\s\S]*view-transition-name:\s*route-content;/s);
+  });
+
+  it('keeps every native transition group transparent to pointer input', () => {
+    expect(baseCss).toMatch(/::view-transition-group\(\*\),[\s\S]*pointer-events:\s*none;/s);
+    expect(baseCss).toMatch(/::view-transition-image-pair\(\*\),[\s\S]*pointer-events:\s*none;/s);
+  });
+
   it('interrupts an active route transition when the user navigates again', () => {
     expect(routerSource).toContain('let activeRouteViewTransition = null;');
     expect(routerSource).toContain('if (activeRouteViewTransition) return update();');

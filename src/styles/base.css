@@ -321,8 +321,24 @@ body[data-route="dashboard"] .ambient-glow-blue {
 }
 
 /* Screen transitions */
+:root {
+  view-transition-name: none;
+}
+
 #main-content-body {
   view-transition-name: route-content;
+}
+
+/* The native transition root spans the viewport; keep it visual-only so navigation stays interactive. */
+::view-transition {
+  pointer-events: none;
+}
+
+::view-transition-group(*),
+::view-transition-image-pair(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  pointer-events: none;
 }
 
 ::view-transition-old(route-content),
