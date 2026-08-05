@@ -52,12 +52,11 @@
 }
 
 .match-card:hover {
-  border-color: var(--match-tone-strong, rgba(200, 16, 46, 0.42));
+  border-color: var(--color-border-strong);
   transform: translateY(-4px);
   box-shadow:
     0 30px 86px rgba(0, 0, 0, 0.42),
-    0 0 0 1px var(--match-tone-strong, rgba(200, 16, 46, 0.36)),
-    0 0 28px var(--match-tone-soft, rgba(200, 16, 46, 0.16));
+    0 0 28px rgba(138, 155, 176, 0.12);
 }
 
 .match-card.is-pressing {

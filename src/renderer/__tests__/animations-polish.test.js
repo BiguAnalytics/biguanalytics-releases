@@ -16,6 +16,7 @@ const timelineSource = read('src/renderer/components/timeline.js');
 const kpiSource = read('src/renderer/components/kpi-card.js');
 const baseCss = read('src/styles/base.css');
 const matchCardCss = read('src/styles/components/match-card.css');
+const videoPlayerCss = read('src/styles/components/video-player.css');
 const sidebarCss = read('src/styles/components/sidebar.css');
 const tagPopupCss = read('src/styles/components/tag-popup.css');
 const timelineCss = read('src/styles/components/timeline.css');
@@ -84,6 +85,14 @@ describe('animations and premium polish', () => {
     expect(sidebarCss).toMatch(/\.sidebar\s*{[^}]*width var\(--duration-base\) var\(--ease-smooth\)/s);
     expect(sidebarCss).toMatch(/\.sidebar\.expanded \.sidebar-item-label\s*{[^}]*transition-delay:\s*var\(--duration-fast\)/s);
     expect(sidebarCss).toContain('@keyframes sidebar-active-rail-in');
+  });
+
+  it('keeps match card hover feedback without a colored selection frame', () => {
+    expect(matchCardCss).toMatch(/\.match-card:hover\s*{[^}]*border-color:\s*var\(--color-border-strong\)/s);
+    expect(matchCardCss).not.toMatch(/\.match-card:hover\s*{[^}]*0 0 0 1px var\(--match-tone-strong/s);
+    expect(videoPlayerCss).toMatch(/\.tagging-match-card:hover\s*{[^}]*border-color:\s*var\(--color-border-strong\)/s);
+    expect(videoPlayerCss).toMatch(/\.tagging-match-card:focus,\s*\.tagging-match-card:focus-visible\s*{[^}]*outline:\s*2px solid var\(--color-border-strong\)/s);
+    expect(videoPlayerCss).not.toMatch(/\.tagging-match-card:hover\s*{[^}]*rgba\(200,\s*16,\s*46,\s*0\.42\)/s);
   });
 
   it('animates tag popups, timeline blocks, KPI cards, charts, toasts and modals', () => {

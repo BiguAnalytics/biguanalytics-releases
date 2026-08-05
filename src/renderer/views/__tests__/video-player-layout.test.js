@@ -84,6 +84,6 @@ describe('video player layout CSS', () => {
     expect(css).toMatch(/button\.tagging-match-card\s*{[^}]*cursor:\s*pointer;[^}]*}/s);
     expect(css).toMatch(/\.tagging-match-edit-button\s*{[^}]*width:\s*30px;[^}]*cursor:\s*pointer;[^}]*}/s);
     expect(css).toMatch(/\.tagging-match-card-actions \.btn\s*{[^}]*cursor:\s*pointer;[^}]*}/s);
-    expect(css).toMatch(/\.tagging-match-card:focus,[\s\S]*\.tagging-match-card:focus-visible\s*{[^}]*outline:\s*2px\s+solid\s+var\(--color-accent\);/s);
+    expect(css).toMatch(/\.tagging-match-card:focus,[\s\S]*\.tagging-match-card:focus-visible\s*{[^}]*outline:\s*2px\s+solid\s+var\(--color-border-strong\);/s);
   });
 });
