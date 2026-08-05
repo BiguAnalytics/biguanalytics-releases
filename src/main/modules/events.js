@@ -199,7 +199,6 @@ function validateEventPayload(event) {
 
   const zone = normalizeFieldZone(event);
   const normalized = {
-    ...event,
     id,
     type,
     timestamp,
@@ -214,6 +213,11 @@ function validateEventPayload(event) {
   };
 
   if (event.player !== undefined) normalized.player = normalizeEventText(event.player, 'Jugador', 80);
+  if (event.drawingId !== undefined) {
+    const drawingId = normalizeEventText(event.drawingId, 'ID de dibujo', 120);
+    if (!EVENT_ID_RE.test(drawingId)) throw new Error('ID de dibujo invalido.');
+    normalized.drawingId = drawingId;
+  }
   const duration = normalizeOptionalDuration(event.duration ?? event.durationSeconds);
   if (duration !== undefined) {
     if (event.duration !== undefined) normalized.duration = duration;

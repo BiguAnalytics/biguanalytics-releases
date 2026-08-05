@@ -13,6 +13,10 @@ const { createSupabaseAuthService, hasSupabaseAuthConfig } = require('./supabase
 const DEFAULT_MAX_INPUT_CHARS = 60000;
 const DEFAULT_DAILY_LIMIT = 200;
 const DEFAULT_PER_MINUTE_LIMIT = 10;
+const DEFAULT_MAX_RATE_LIMIT_BUCKETS = 10000;
+const MAX_RATE_LIMIT_BUCKETS = 100000;
+const MINUTE_MS = 60 * 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 /**
  * @param {string|undefined} value
@@ -45,12 +49,56 @@ function hashToken(token) {
 }
 
 /**
- * @param {{dailyLimit: number, perMinuteLimit: number, now?: function(): Date}} options
+ * @param {{dailyLimit: number, perMinuteLimit: number, maxBuckets?: number, now?: function(): Date}} options
  */
 function createRateLimiter(options) {
   const minuteHits = new Map();
   const dailyHits = new Map();
   const now = options.now || (() => new Date());
+  const maxBuckets = Math.min(
+    parsePositiveInt(options.maxBuckets, DEFAULT_MAX_RATE_LIMIT_BUCKETS),
+    MAX_RATE_LIMIT_BUCKETS,
+  );
+
+  function getNowMs() {
+    const current = now();
+    const timestamp = current instanceof Date ? current.getTime() : Date.parse(String(current));
+    return Number.isFinite(timestamp) ? timestamp : Date.now();
+  }
+
+  function pruneExpiredBuckets(buckets, currentMs) {
+    for (const [key, bucket] of buckets) {
+      if (bucket.expiresAt <= currentMs) buckets.delete(key);
+    }
+  }
+
+  function enforceBucketLimit(buckets) {
+    while (buckets.size > maxBuckets) {
+      let oldestKey;
+      let oldestSeenAt = Number.POSITIVE_INFINITY;
+      for (const [key, bucket] of buckets) {
+        if (bucket.lastSeenAt < oldestSeenAt) {
+          oldestKey = key;
+          oldestSeenAt = bucket.lastSeenAt;
+        }
+      }
+      if (oldestKey === undefined) break;
+      buckets.delete(oldestKey);
+    }
+  }
+
+  function recordHit(buckets, key, expiresAt, currentMs) {
+    const previous = buckets.get(key);
+    const bucket = previous && previous.expiresAt > currentMs
+      ? previous
+      : { count: 0, expiresAt };
+    bucket.count += 1;
+    bucket.lastSeenAt = currentMs;
+    bucket.expiresAt = expiresAt;
+    buckets.set(key, bucket);
+    enforceBucketLimit(buckets);
+    return bucket.count;
+  }
 
   return {
     /**
@@ -60,19 +108,29 @@ function createRateLimiter(options) {
     check(key) {
       const minuteIdentity = typeof key === 'object' && key ? key.minuteKey : key;
       const dailyIdentity = typeof key === 'object' && key ? key.dailyKey : key;
-      const perMinuteLimit = typeof key === 'object' && key?.perMinuteLimit ? key.perMinuteLimit : options.perMinuteLimit;
-      const dailyLimit = typeof key === 'object' && key?.dailyLimit ? key.dailyLimit : options.dailyLimit;
-      const current = now();
-      const minuteKey = `${minuteIdentity}:${Math.floor(current.getTime() / 60000)}`;
-      const dayKey = `${dailyIdentity}:${current.toISOString().slice(0, 10)}`;
-      const minuteCount = (minuteHits.get(minuteKey) || 0) + 1;
-      const dayCount = (dailyHits.get(dayKey) || 0) + 1;
-      minuteHits.set(minuteKey, minuteCount);
-      dailyHits.set(dayKey, dayCount);
+      const perMinuteLimit = typeof key === 'object' && key?.perMinuteLimit > 0 ? key.perMinuteLimit : options.perMinuteLimit;
+      const dailyLimit = typeof key === 'object' && key?.dailyLimit > 0 ? key.dailyLimit : options.dailyLimit;
+      const currentMs = getNowMs();
+      const current = new Date(currentMs);
+      const minutePeriod = Math.floor(currentMs / MINUTE_MS);
+      const dayStart = Date.UTC(current.getUTCFullYear(), current.getUTCMonth(), current.getUTCDate());
+      const minuteKey = `${String(minuteIdentity)}:${minutePeriod}`;
+      const dayKey = `${String(dailyIdentity)}:${current.toISOString().slice(0, 10)}`;
+      pruneExpiredBuckets(minuteHits, currentMs);
+      pruneExpiredBuckets(dailyHits, currentMs);
+      const minuteCount = recordHit(minuteHits, minuteKey, (minutePeriod + 1) * MINUTE_MS, currentMs);
+      const dayCount = recordHit(dailyHits, dayKey, dayStart + DAY_MS, currentMs);
 
       if (minuteCount > perMinuteLimit) return { allowed: false, reason: 'minute' };
       if (dayCount > dailyLimit) return { allowed: false, reason: 'daily' };
       return { allowed: true };
+    },
+
+    getBucketCounts() {
+      const currentMs = getNowMs();
+      pruneExpiredBuckets(minuteHits, currentMs);
+      pruneExpiredBuckets(dailyHits, currentMs);
+      return { minute: minuteHits.size, daily: dailyHits.size };
     },
   };
 }
@@ -236,6 +294,7 @@ function normalizeChatMatchResult(value) {
  *   authService?: {mode?: string, authenticateToken: function(string): Promise<object>},
  *   perMinuteLimit?: number,
  *   dailyLimit?: number,
+ *   maxBuckets?: number,
  *   now?: function(): Date,
  * }} [options]
  */
@@ -245,7 +304,8 @@ function createAIBackendApp(options = {}) {
   const maxInputChars = parsePositiveInt(env.AI_MAX_INPUT_CHARS, DEFAULT_MAX_INPUT_CHARS);
   const dailyLimit = options.dailyLimit || parsePositiveInt(env.AI_DAILY_REQUEST_LIMIT, DEFAULT_DAILY_LIMIT);
   const perMinuteLimit = options.perMinuteLimit || DEFAULT_PER_MINUTE_LIMIT;
-  const rateLimiter = createRateLimiter({ dailyLimit, perMinuteLimit, now: options.now });
+  const maxBuckets = options.maxBuckets || parsePositiveInt(env.AI_RATE_LIMIT_MAX_BUCKETS, DEFAULT_MAX_RATE_LIMIT_BUCKETS);
+  const rateLimiter = createRateLimiter({ dailyLimit, perMinuteLimit, maxBuckets, now: options.now });
   const geminiClient = options.geminiClient || createGeminiClient();
   const logger = options.logger || createLogger();
   const authService = options.authService || (hasSupabaseAuthConfig(env) ? createSupabaseAuthService({ env }) : null);

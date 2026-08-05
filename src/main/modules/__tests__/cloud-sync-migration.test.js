@@ -36,6 +36,14 @@ const clubSyncContractMigrationExists = existsSync(clubSyncContractMigrationUrl)
 const clubSyncContractMigration = clubSyncContractMigrationExists
   ? readFileSync(clubSyncContractMigrationUrl, 'utf8')
   : '';
+const immutableOwnershipMigrationUrl = new URL(
+  '../../../../supabase/migrations/20260805000000_immutable_sync_ownership.sql',
+  import.meta.url
+);
+const immutableOwnershipMigrationExists = existsSync(immutableOwnershipMigrationUrl);
+const immutableOwnershipMigration = immutableOwnershipMigrationExists
+  ? readFileSync(immutableOwnershipMigrationUrl, 'utf8')
+  : '';
 
 describe('cloud sync lightweight migration', () => {
   it('creates only lightweight rugby sync tables with RLS enabled', () => {
@@ -162,5 +170,22 @@ describe('cloud sync club visibility contract migration', () => {
     });
     expect(clubSyncContractMigration).not.toContain('to anon');
     expect(clubSyncContractMigration).not.toContain('service_role');
+  });
+});
+
+describe('cloud sync immutable ownership migration', () => {
+  it('prevents changing creator, author and club ownership fields after insert', () => {
+    expect(immutableOwnershipMigrationExists).toBe(true);
+    expect(immutableOwnershipMigration).toContain('create or replace function public.prevent_sync_ownership_changes');
+    expect(immutableOwnershipMigration).toContain('is distinct from');
+    ['matches', 'match_events', 'match_possessions', 'match_sequences'].forEach((table) => {
+      expect(immutableOwnershipMigration).toContain(`on public.${table}`);
+      expect(immutableOwnershipMigration).toContain(`before update of created_by, club_id on public.${table}`);
+    });
+    expect(immutableOwnershipMigration).toContain('before update of author_id, club_id on public.match_notes');
+    expect(immutableOwnershipMigration).toContain('created_by');
+    expect(immutableOwnershipMigration).toContain('author_id');
+    expect(immutableOwnershipMigration).toContain('club_id');
+    expect(immutableOwnershipMigration).not.toContain('service_role');
   });
 });

@@ -106,6 +106,41 @@ describe('AI backend security endpoints', () => {
     });
   });
 
+  it('expires rate-limit buckets and bounds retained identities', () => {
+    let currentTime = Date.parse('2026-08-05T12:00:00.000Z');
+    const limiter = createRateLimiter({
+      dailyLimit: 10,
+      perMinuteLimit: 1,
+      maxBuckets: 2,
+      now: () => new Date(currentTime),
+    });
+
+    expect(limiter.check('client-a')).toEqual({ allowed: true });
+    expect(limiter.check('client-b')).toEqual({ allowed: true });
+    expect(limiter.check('client-c')).toEqual({ allowed: true });
+    expect(limiter.getBucketCounts()).toEqual({ minute: 2, daily: 2 });
+
+    currentTime += 2 * 60 * 1000;
+    expect(limiter.check('client-d')).toEqual({ allowed: true });
+    expect(limiter.getBucketCounts()).toEqual({ minute: 1, daily: 2 });
+  });
+
+  it('resets the daily limit at the next UTC day without retaining the previous day', () => {
+    let currentTime = Date.parse('2026-08-05T23:59:59.000Z');
+    const limiter = createRateLimiter({
+      dailyLimit: 1,
+      perMinuteLimit: 10,
+      now: () => new Date(currentTime),
+    });
+
+    expect(limiter.check('client')).toEqual({ allowed: true });
+    expect(limiter.check('client')).toEqual({ allowed: false, reason: 'daily' });
+
+    currentTime += 2 * 1000;
+    expect(limiter.check('client')).toEqual({ allowed: true });
+    expect(limiter.getBucketCounts()).toEqual({ minute: 1, daily: 1 });
+  });
+
   it('rejects AI requests without a bearer token', async () => {
     await withServer(createApp(), async (baseUrl) => {
       const response = await postJson(baseUrl, '/v1/ai/analyze-match', { matchData: { events: [{ type: 'ruck' }] } }, '');

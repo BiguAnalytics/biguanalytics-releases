@@ -35,6 +35,27 @@ describe('events.js', () => {
       expect(saved.events).toEqual([expect.objectContaining({ id: event.id })]);
     });
 
+    it('persists only whitelisted event fields', async () => {
+      const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+
+      const event = await addEvent(match.id, {
+        type: 'note',
+        note: 'tag seguro',
+        payload: { injected: true },
+        created_by: 'attacker',
+        arbitraryField: 'no persistir',
+      });
+      const saved = await getMatchById(match.id);
+
+      expect(event).toMatchObject({ type: 'note', note: 'tag seguro' });
+      expect(event).not.toHaveProperty('payload');
+      expect(event).not.toHaveProperty('created_by');
+      expect(event).not.toHaveProperty('arbitraryField');
+      expect(saved.events[0]).not.toHaveProperty('payload');
+      expect(saved.events[0]).not.toHaveProperty('created_by');
+      expect(saved.events[0]).not.toHaveProperty('arbitraryField');
+    });
+
     it('preserves both events when additions for one match overlap', async () => {
       const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
 
