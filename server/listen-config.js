@@ -40,7 +40,9 @@ function isProductionEnv(env) {
  * @returns {string}
  */
 function getDefaultAIBackendHost(env) {
-  return isProductionEnv(env) ? '0.0.0.0' : DEFAULT_AI_BACKEND_HOST;
+  return isProductionEnv(env) && isEnabled(env.AI_BACKEND_EXPOSE_NETWORK)
+    ? '0.0.0.0'
+    : DEFAULT_AI_BACKEND_HOST;
 }
 
 /**
