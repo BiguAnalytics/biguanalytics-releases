@@ -571,6 +571,12 @@
   background: var(--color-bg-hover);
 }
 
+:root:not([data-theme="light"]) .sidebar-item.active:hover {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
 :root:not([data-theme="light"]) .sidebar-profile-avatar {
   background: var(--gradient-brand);
   background-size: 220% 100%;

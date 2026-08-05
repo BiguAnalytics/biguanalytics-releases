@@ -42,6 +42,7 @@ describe('sidebar active route', () => {
     expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*box-shadow:\s*0 14px 34px rgba\(200,\s*16,\s*46,\s*0\.18\)/);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active\s*{[\s\S]*background:\s*transparent/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active:hover\s*{[\s\S]*background:\s*transparent/s);
+    expect(themeCss).toMatch(/:root:not\(\[data-theme="light"\]\)\s+\.sidebar-item\.active:hover\s*{[\s\S]*background:\s*transparent/s);
   });
 
   it('keeps one active indicator and previews the target while dragging', () => {
