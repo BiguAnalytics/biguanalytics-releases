@@ -408,15 +408,15 @@ function ensureTitlebar(app) {
   titlebar.className = 'custom-titlebar';
   titlebar.innerHTML = `
     <div class="titlebar-buttons">
-      <div class="titlebar-btn minimize" id="titlebar-min">
-        <svg viewBox="0 0 16 16"><path fill="currentColor" d="M14 8v1H3V8h11z"/></svg>
-      </div>
-      <div class="titlebar-btn maximize" id="titlebar-max">
-        <svg viewBox="0 0 16 16"><path fill="currentColor" d="M3 3v10h10V3H3zm9 9H4V4h8v8z"/></svg>
-      </div>
-      <div class="titlebar-btn close" id="titlebar-close">
-        <svg viewBox="0 0 16 16"><path fill="currentColor" d="M8.7 8l3.6 3.6-.7.7L8 8.7 4.4 12.3l-.7-.7L7.3 8 3.7 4.4l.7-.7L8 7.3l3.6-3.6.7.7L8.7 8z"/></svg>
-      </div>
+      <button class="titlebar-btn minimize" id="titlebar-min" type="button" aria-label="Minimizar ventana">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M14 8v1H3V8h11z"/></svg>
+      </button>
+      <button class="titlebar-btn maximize" id="titlebar-max" type="button" aria-label="Maximizar ventana">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M3 3v10h10V3H3zm9 9H4V4h8v8z"/></svg>
+      </button>
+      <button class="titlebar-btn close" id="titlebar-close" type="button" aria-label="Cerrar ventana">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d="M8.7 8l3.6 3.6-.7.7L8 8.7 4.4 12.3l-.7-.7L7.3 8 3.7 4.4l.7-.7L8 7.3l3.6-3.6.7.7L8.7 8z"/></svg>
+      </button>
     </div>
   `;
   document.body.insertBefore(titlebar, app);
