@@ -172,6 +172,14 @@ describe('Electron shell YouTube integration', () => {
     expect(mainSource).toContain('windowToClose.close();');
   });
 
+  it('surfaces and records a recoverable loadFile failure', () => {
+    expect(mainSource).toContain('function showLoadFileError(error)');
+    expect(mainSource).toContain('recoverable: true');
+    expect(mainSource).toContain('dialog.showErrorBox');
+    expect(mainSource).toContain(".catch((error) => showLoadFileError(error));");
+    expect(mainSource).not.toContain(".catch(() => {});");
+  });
+
   it('handles Chromium microphone permission requests for voice dictation', () => {
     expect(mainSource).toContain('setPermissionRequestHandler');
     expect(mainSource).toContain("permission === 'media'");

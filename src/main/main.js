@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
 const path = require('path');
 const { createStartupTimer, setStartupTimer } = require('./modules/startup-timing');
 const { registerIpcHandlers } = require('./ipc');
@@ -122,12 +122,29 @@ const createWindow = () => {
   });
 
   startupTimer.timeAsync('browser-window:loadFile', () => mainWindow.loadFile(path.join(__dirname, '../renderer/index.html')))
-    .catch(() => {});
+    .catch((error) => showLoadFileError(error));
 
   if (process.argv.includes('--dev')) {
     mainWindow.webContents.openDevTools();
   }
 };
+
+/**
+ * @param {unknown} error
+ */
+function showLoadFileError(error) {
+  const detail = error instanceof Error ? error.message : String(error || 'Error desconocido.');
+  startupTimer.mark('browser-window:loadFile:recoverable-error', {
+    recoverable: true,
+    error: detail.slice(0, 160),
+  });
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  mainWindow.show();
+  dialog.showErrorBox(
+    'No se pudo cargar BiguAnalytics',
+    'La interfaz no pudo cargarse. Cerrá y volvé a abrir la aplicación para reintentar.',
+  );
+}
 
 if (singleInstanceLock) {
   app.on('second-instance', () => {
