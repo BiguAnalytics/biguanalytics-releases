@@ -516,6 +516,16 @@ describe('tagging side inspector layout', () => {
   });
 });
 
+describe('tagging event persistence', () => {
+  const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+
+  it('serializes completed tag saves through one promise chain', () => {
+    expect(taggingSource).toContain('let taggedEventSaveInFlight = Promise.resolve();');
+    expect(taggingSource).toContain('const queuedSave = taggedEventSaveInFlight.catch(() => {}).then(() => persistTaggedEventNow(event));');
+    expect(taggingSource).toContain('taggedEventSaveInFlight = queuedSave;');
+  });
+});
+
 describe('tagging match selection entrypoint', () => {
   const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
 

@@ -28,6 +28,21 @@ const POINT_VALUES = {
 const MAX_EVENT_TEXT_LENGTH = 80;
 const MAX_EVENT_NOTE_LENGTH = 2000;
 const EVENT_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
+const eventOperationQueues = new Map();
+
+/**
+ * @param {string} matchId
+ * @param {() => Promise<unknown>} operation
+ * @returns {Promise<unknown>}
+ */
+function serializeEventOperation(matchId, operation) {
+  const previous = eventOperationQueues.get(matchId) || Promise.resolve();
+  const next = previous.catch(() => {}).then(operation);
+  eventOperationQueues.set(matchId, next);
+  return next.finally(() => {
+    if (eventOperationQueues.get(matchId) === next) eventOperationQueues.delete(matchId);
+  });
+}
 
 const EVENT_SCHEMAS = {
   ruck: {
@@ -306,33 +321,35 @@ function getScoreCacheUpdate(match, events) {
  * @param {object} eventData
  * @returns {Promise<object>}
  */
-async function addEvent(matchId, eventData) {
-  const match = await getMatchById(matchId);
+function addEvent(matchId, eventData) {
+  return serializeEventOperation(matchId, async () => {
+    const match = await getMatchById(matchId);
   
-  const newEvent = {
-    timestamp: null,
-    type: '',
-    team: null,
-    result: '',
-    subtype: '',
-    note: '',
-    zone: null,
-    ...eventData,
-    team: normalizeTeam(eventData?.team),
-    id: uuidv4(),
-    createdAt: new Date().toISOString()
-  };
-  const validatedEvent = validateEventPayload(newEvent);
-  assertEventTeam(validatedEvent);
+    const newEvent = {
+      timestamp: null,
+      type: '',
+      team: null,
+      result: '',
+      subtype: '',
+      note: '',
+      zone: null,
+      ...eventData,
+      team: normalizeTeam(eventData?.team),
+      id: uuidv4(),
+      createdAt: new Date().toISOString()
+    };
+    const validatedEvent = validateEventPayload(newEvent);
+    assertEventTeam(validatedEvent);
 
-  const updatedEvents = [...(match.events || []), validatedEvent];
-  await updateMatch(matchId, {
-    events: updatedEvents,
-    ...getScoreCacheUpdate(match, updatedEvents),
-    status: match.status === 'created' ? 'tagging' : match.status
+    const updatedEvents = [...(match.events || []), validatedEvent];
+    await updateMatch(matchId, {
+      events: updatedEvents,
+      ...getScoreCacheUpdate(match, updatedEvents),
+      status: match.status === 'created' ? 'tagging' : match.status
+    });
+
+    return validatedEvent;
   });
-
-  return validatedEvent;
 }
 
 /**
@@ -342,30 +359,32 @@ async function addEvent(matchId, eventData) {
  * @param {object} updates
  * @returns {Promise<object>}
  */
-async function updateEvent(matchId, eventId, updates) {
-  const match = await getMatchById(matchId);
+function updateEvent(matchId, eventId, updates) {
+  return serializeEventOperation(matchId, async () => {
+    const match = await getMatchById(matchId);
   
-  const eventIndex = (match.events || []).findIndex(e => e.id === eventId);
-  if (eventIndex === -1) {
-    throw new Error('Event not found');
-  }
+    const eventIndex = (match.events || []).findIndex(e => e.id === eventId);
+    if (eventIndex === -1) {
+      throw new Error('Event not found');
+    }
 
-  const updatedEvents = [...match.events];
-  updatedEvents[eventIndex] = {
-    ...updatedEvents[eventIndex],
-    ...updates,
-    team: updates.team !== undefined ? normalizeTeam(updates.team) : normalizeTeam(updatedEvents[eventIndex].team),
-    updatedAt: new Date().toISOString(),
-  };
-  updatedEvents[eventIndex] = validateEventPayload(updatedEvents[eventIndex]);
-  assertEventTeam(updatedEvents[eventIndex]);
+    const updatedEvents = [...match.events];
+    updatedEvents[eventIndex] = {
+      ...updatedEvents[eventIndex],
+      ...updates,
+      team: updates.team !== undefined ? normalizeTeam(updates.team) : normalizeTeam(updatedEvents[eventIndex].team),
+      updatedAt: new Date().toISOString(),
+    };
+    updatedEvents[eventIndex] = validateEventPayload(updatedEvents[eventIndex]);
+    assertEventTeam(updatedEvents[eventIndex]);
 
-  await updateMatch(matchId, {
-    events: updatedEvents,
-    ...getScoreCacheUpdate(match, updatedEvents),
+    await updateMatch(matchId, {
+      events: updatedEvents,
+      ...getScoreCacheUpdate(match, updatedEvents),
+    });
+
+    return updatedEvents[eventIndex];
   });
-
-  return updatedEvents[eventIndex];
 }
 
 /**
@@ -374,13 +393,15 @@ async function updateEvent(matchId, eventId, updates) {
  * @param {string} eventId
  * @returns {Promise<void>}
  */
-async function deleteEvent(matchId, eventId) {
-  const match = await getMatchById(matchId);
+function deleteEvent(matchId, eventId) {
+  return serializeEventOperation(matchId, async () => {
+    const match = await getMatchById(matchId);
   
-  const updatedEvents = (match.events || []).filter(e => e.id !== eventId);
-  await updateMatch(matchId, {
-    events: updatedEvents,
-    ...getScoreCacheUpdate(match, updatedEvents),
+    const updatedEvents = (match.events || []).filter(e => e.id !== eventId);
+    await updateMatch(matchId, {
+      events: updatedEvents,
+      ...getScoreCacheUpdate(match, updatedEvents),
+    });
   });
 }
 

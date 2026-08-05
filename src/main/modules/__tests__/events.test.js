@@ -35,6 +35,22 @@ describe('events.js', () => {
       expect(saved.events).toEqual([expect.objectContaining({ id: event.id })]);
     });
 
+    it('preserves both events when additions for one match overlap', async () => {
+      const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+
+      const [first, second] = await Promise.all([
+        addEvent(match.id, { type: 'note', note: 'primer tag' }),
+        addEvent(match.id, { type: 'note', note: 'segundo tag' }),
+      ]);
+      const saved = await getMatchById(match.id);
+
+      expect(saved.events).toHaveLength(2);
+      expect(saved.events).toEqual(expect.arrayContaining([
+        expect.objectContaining({ id: first.id, note: 'primer tag' }),
+        expect.objectContaining({ id: second.id, note: 'segundo tag' }),
+      ]));
+    });
+
     it('should persist phase 2 tag metadata and move created matches into tagging status', async () => {
       const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
 

@@ -930,6 +930,7 @@ export function renderTagging(container, params = {}) {
   let eventSaveStatusMessage = '';
   let pendingEventSaves = 0;
   let eventSaveStatusTimer = 0;
+  let taggedEventSaveInFlight = Promise.resolve();
 
   const cleanup = () => {
     disposed = true;
@@ -3297,7 +3298,13 @@ export function renderTagging(container, params = {}) {
     renderAll();
   }
 
-  async function persistTaggedEvent(event) {
+  function persistTaggedEvent(event) {
+    const queuedSave = taggedEventSaveInFlight.catch(() => {}).then(() => persistTaggedEventNow(event));
+    taggedEventSaveInFlight = queuedSave;
+    return queuedSave;
+  }
+
+  async function persistTaggedEventNow(event) {
     pendingEventSaves += 1;
     eventSaveState = 'saving';
     eventSaveStatusMessage = 'Guardando evento...';
