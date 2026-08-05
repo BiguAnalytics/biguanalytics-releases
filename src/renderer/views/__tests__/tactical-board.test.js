@@ -235,6 +235,11 @@ describe('tactical board view', () => {
     expect(focusSource).not.toContain('.tactical-sequence-empty button:focus-visible');
   });
 
+  it('keeps the empty cuadro action compact inside the detail panel', () => {
+    expect(tacticalCss).toMatch(/\.tactical-sequence-empty\s*{[^}]*align-content:\s*start;/s);
+    expect(tacticalCss).toMatch(/\.tactical-sequence-empty button\s*{[^}]*align-self:\s*start;[^}]*min-height:\s*36px;/s);
+  });
+
   it('hydrates missing thumbnails without remounting the editor', () => {
     const ensureStart = tacticalSource.indexOf('async function ensureVisibleThumbnails()');
     const ensureEnd = tacticalSource.indexOf('async function saveActiveSequence', ensureStart);
