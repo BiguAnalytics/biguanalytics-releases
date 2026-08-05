@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "strict": false,
+    "noImplicitAny": false
+  },
+  "include": [
+    "src/main/preload.js",
+    "src/config/**/*.js"
+  ],
+  "exclude": [
+    "node_modules",
+    "src/renderer/vendor"
+  ]
+}

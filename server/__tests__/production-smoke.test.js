@@ -49,7 +49,8 @@ describe('AI backend production deployment smoke test', () => {
     expect(dockerfile).toContain('CMD ["npm", "run", "server"]');
     expect(dockerfile).not.toContain('electron .');
     expect(rootPackageJson.scripts['server:install']).toBe('npm --prefix server ci --omit=dev');
-    expect(rootPackageJson.scripts.pretest).toBe('npm run server:install');
+    expect(rootPackageJson.scripts.pretest).toBeUndefined();
+    expect(rootPackageJson.scripts['deps:install']).toContain('npm run server:install');
     expect(rootPackageJson.scripts.preserver).toBe('npm run server:install');
     expect(rootPackageJson.dependencies).not.toHaveProperty('@google/genai');
     expect(rootPackageJson.dependencies).not.toHaveProperty('express');

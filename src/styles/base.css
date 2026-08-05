@@ -19,7 +19,6 @@ body {
   line-height: var(--leading-normal);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  user-select: none;
   --ambient-red-x: 6%;
   --ambient-red-y: 58%;
   --ambient-red-opacity: 0.025;
@@ -112,9 +111,19 @@ input, select, textarea {
   user-select: text;
 }
 
-select,
-button,
-label {
+:where(
+  button:not(:disabled),
+  select:not(:disabled),
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"]:not([aria-disabled="true"]),
+  [role="option"]:not([aria-disabled="true"]),
+  [role="menuitem"]:not([aria-disabled="true"])
+) {
+  user-select: none;
+}
+
+:where(label:has(input:not(:disabled))) {
   user-select: none;
 }
 

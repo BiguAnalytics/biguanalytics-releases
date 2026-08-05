@@ -7,10 +7,10 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "server:install": "npm --prefix server ci --omit=dev",
+    "deps:install": "npm ci --ignore-scripts && npm run server:install",
     "postinstall": "npm run server:install",
-    "pretest": "npm run server:install",
     "test": "vitest run",
-    "pretest:watch": "npm run server:install",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
     "test:watch": "vitest",
     "preserver": "npm run server:install",
     "server": "npm --prefix server run server",
@@ -98,7 +98,8 @@
     "electron": "^42.3.3",
     "electron-builder": "^26.0.0",
     "resedit": "^1.7.2",
-    "vitest": "^4.1.8"
+    "vitest": "^4.1.8",
+    "typescript": "^5.8.3"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
