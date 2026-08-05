@@ -8,53 +8,64 @@
   --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
 
   /* Fondos */
-  --color-bg-base:        #080E1A;
-  --color-bg-surface:     #0D1829;
-  --color-bg-elevated:    #122035;
-  --color-bg-hover:       #1A2D47;
+  --color-bg-base:        #101A2A;
+  --color-bg-surface:     #172337;
+  --color-bg-elevated:    #1E2D42;
+  --color-bg-hover:       #273A52;
 
   /* Marca Bigua */
-  --color-brand-navy:     #0F2340;
+  --color-brand-navy:     #26405F;
+  --color-brand-blue:     #4F79AE;
   --color-brand-red:      #C8102E;
   --color-brand-white:    #FFFFFF;
 
   /* UI Funcional */
   --color-accent:         #C8102E;
-  --color-accent-hover:   #E8152F;
+  --color-accent-hover:   #E15A6B;
   --color-accent-muted:   rgba(200, 16, 46, 0.15);
 
   /* Texto */
-  --color-text-primary:   #F0F4F8;
-  --color-text-secondary: #8A9BB0;
-  --color-text-muted:     #4A5D70;
-  --color-text-inverse:   #080E1A;
+  --color-text-primary:   #F3F6FA;
+  --color-text-secondary: #A8B4C4;
+  --color-text-muted:     #718096;
+  --color-text-inverse:   #101A2A;
 
   /* Bordes */
-  --color-border:         rgba(255, 255, 255, 0.06);
-  --color-border-strong:  rgba(255, 255, 255, 0.12);
-  --color-border-accent:  rgba(200, 16, 46, 0.4);
+  --color-border:         rgba(230, 238, 248, 0.09);
+  --color-border-strong:  rgba(230, 238, 248, 0.16);
+  --color-border-accent:  rgba(200, 16, 46, 0.42);
 
   /* Gradientes */
-  --gradient-bg:          radial-gradient(ellipse at 20% 0%, rgba(15, 35, 64, 0.8) 0%, transparent 60%),
-                          radial-gradient(ellipse at 80% 100%, rgba(200, 16, 46, 0.06) 0%, transparent 50%),
-                          #080E1A;
-  --gradient-surface:     linear-gradient(135deg, #0D1829 0%, #0A1520 100%);
-  --gradient-card:        linear-gradient(145deg, rgba(255,255,255,0.03) 0%, transparent 100%);
-  --gradient-accent-glow: radial-gradient(ellipse at center, rgba(200, 16, 46, 0.2) 0%, transparent 70%);
-  --gradient-navy-glow:   radial-gradient(ellipse at top, rgba(15, 35, 64, 0.9) 0%, transparent 60%);
+  --gradient-bg:          radial-gradient(ellipse at 20% 0%, rgba(38, 64, 95, 0.76) 0%, transparent 60%),
+                          radial-gradient(ellipse at 80% 100%, rgba(200, 16, 46, 0.08) 0%, transparent 50%),
+                          #101A2A;
+  --gradient-surface:     linear-gradient(135deg, #172337 0%, #1B2A40 100%);
+  --gradient-card:        linear-gradient(145deg, rgba(255, 255, 255, 0.04) 0%, transparent 100%);
+  --gradient-brand:       linear-gradient(110deg, #C8102E 0%, #26405F 48%, #C8102E 100%);
+  --gradient-brand-text:  linear-gradient(110deg, #E15A6B 0%, #DDE7F4 34%, #4F79AE 68%, #C8102E 100%);
+  --gradient-accent-glow: radial-gradient(ellipse at center, rgba(200, 16, 46, 0.12) 0%, transparent 70%);
+  --gradient-navy-glow:   radial-gradient(ellipse at top, rgba(38, 64, 95, 0.42) 0%, transparent 60%);
 
   /* Tags/Eventos */
-  --tag-ganado:     #1DB954;
-  --tag-perdido:    #C8102E;
-  --tag-sucio:      #F59E0B;
-  --tag-ataque:     #3B82F6;
-  --tag-defensa:    #8B5CF6;
-  --tag-try:        #10B981;
-  --tag-penal:      #EF4444;
-  --tag-nota:       #6366F1;
-  --tag-kick:       #06B6D4;
-  --tag-tarjeta-amarilla: #F59E0B;
-  --tag-tarjeta-roja:     #C8102E;
+  --tag-neutral:     #76879D;
+  --tag-neutral-soft: rgba(118, 135, 157, 0.16);
+  --tag-success:     var(--color-brand-blue);
+  --tag-success-soft: rgba(79, 121, 174, 0.18);
+  --tag-warning:     var(--tag-neutral);
+  --tag-warning-soft: var(--tag-neutral-soft);
+  --tag-danger:      var(--color-accent);
+  --tag-danger-soft: rgba(200, 16, 46, 0.16);
+  --tag-ganado:     var(--color-brand-blue);
+  --tag-perdido:    var(--tag-danger);
+  --tag-sucio:      var(--tag-neutral);
+  --tag-ataque:     var(--tag-neutral);
+  --tag-defensa:    var(--tag-neutral);
+  --tag-try:        var(--color-brand-blue);
+  --tag-penal:      var(--tag-danger);
+  --tag-nota:       var(--tag-neutral);
+  --tag-kick:       var(--tag-neutral);
+  --tag-tarjeta-amarilla: var(--tag-neutral);
+  --tag-tarjeta-roja:     var(--tag-danger);
 
   /* Tipografía */
   --font-brand:   'Arial Black', Arial, sans-serif;
@@ -128,6 +139,7 @@
 
   /* Marca Bigua */
   --color-brand-navy:     #0F2340;
+  --color-brand-blue:     #4F79AE;
   --color-brand-red:      #C8102E;
   --color-brand-white:    #FFFFFF;
 

@@ -72,7 +72,9 @@
 
 .pdf-template-button.primary {
   border-color: transparent;
-  background: var(--color-accent);
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .pdf-template-button.secondary:hover,
@@ -181,7 +183,7 @@
 }
 
 .pdf-template-card.is-invalid {
-  border-color: #f59e0b;
+  border-color: var(--tag-neutral);
 }
 
 .pdf-template-card header {
@@ -348,7 +350,7 @@
 }
 
 .pdf-template-unknown-warning {
-  color: #f59e0b !important;
+  color: var(--tag-neutral) !important;
 }
 
 .pdf-template-stage {
@@ -411,8 +413,8 @@
 }
 
 .pdf-template-grid-block.invalid {
-  border-color: #f59e0b;
-  background: rgba(245, 158, 11, 0.16);
+  border-color: var(--tag-warning);
+  background: var(--tag-warning-soft);
 }
 
 .pdf-template-grid-resize {

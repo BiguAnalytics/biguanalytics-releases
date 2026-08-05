@@ -7,10 +7,10 @@ import { drawStrokes, serializeDrawingSvg } from '../drawing/drawing-engine.js';
 import { interpolateFrame } from '../drawing/frame-interpolation.js';
 
 const FIELD_BACKGROUNDS = [
-  { value: '#0E3B2A', label: 'Verde' },
+  { value: '#26405F', label: 'Azul Bigua' },
   { value: '#E8ECE6', label: 'Blanco' },
-  { value: '#080E1A', label: 'Oscuro' },
-  { value: '#162033', label: 'Azul gris' },
+  { value: '#101A2A', label: 'Oscuro' },
+  { value: '#4F79AE', label: 'Azul suave' },
 ];
 
 const FIELD_TEMPLATES = [
@@ -22,7 +22,7 @@ const FIELD_TEMPLATES = [
 const DEFAULT_CANVAS = {
   width: 1200,
   height: 720,
-  backgroundColor: '#0E3B2A',
+  backgroundColor: '#26405F',
   fieldTemplate: 'full',
 };
 

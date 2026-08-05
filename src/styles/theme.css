@@ -16,10 +16,7 @@
 }
 
 :root[data-theme="light"] .main-content-body {
-  background:
-    radial-gradient(ellipse at 46% 0%, rgba(15, 35, 64, 0.24), transparent 46%),
-    radial-gradient(ellipse at 86% 12%, rgba(200, 16, 46, 0.18), transparent 36%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.56), rgba(226, 235, 247, 0.9));
+  background: var(--color-bg-base);
 }
 
 :root[data-theme="light"] .home-header::before {
@@ -31,31 +28,13 @@
 :root[data-theme="light"] .home-welcome span,
 :root[data-theme="light"] .match-list-new-btn,
 :root[data-theme="light"] .club-gradient-text {
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-red) 0%,
-    var(--color-brand-navy) 42%,
-    var(--color-brand-red) 74%,
-    #6B7C90 100%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
+  background: var(--gradient-brand-text);
+  color: transparent;
 }
 
 :root[data-theme="light"] .topbar-logo-text .accent {
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-red) 0%,
-    var(--color-brand-navy) 45%,
-    var(--color-brand-red) 72%,
-    var(--color-brand-navy) 100%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
+  background: var(--gradient-brand-text);
   color: transparent;
-  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 :root[data-theme="light"] .sidebar {
@@ -72,8 +51,7 @@
 }
 
 :root[data-theme="light"] .sidebar-item:hover {
-  background:
-    linear-gradient(110deg, rgba(232, 239, 248, 0.96), rgba(200, 16, 46, 0.08), rgba(232, 239, 248, 0.96));
+  background: var(--color-bg-hover);
   border-color: var(--color-border-strong);
 }
 
@@ -225,7 +203,7 @@
 :root[data-theme="light"] .dashboard-heatmap-shell {
   background:
     radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.18), transparent 48%),
-    rgba(6, 124, 68, 0.14);
+    rgba(79, 121, 174, 0.14);
   border-color: var(--color-border);
 }
 
@@ -280,11 +258,11 @@
 }
 
 :root[data-theme="light"] .match-card.win {
-  --match-tone: rgba(21, 128, 61, 0.40);
-  --match-tone-soft: rgba(34, 197, 94, 0.24);
-  --match-tone-strong: rgba(34, 197, 94, 0.44);
-  --match-top-start: rgba(95, 194, 124, 0.58);
-  --match-top-mid: rgba(187, 247, 208, 0.64);
+  --match-tone: rgba(79, 121, 174, 0.34);
+  --match-tone-soft: rgba(79, 121, 174, 0.16);
+  --match-tone-strong: rgba(79, 121, 174, 0.32);
+  --match-top-start: rgba(91, 126, 176, 0.46);
+  --match-top-mid: rgba(203, 217, 235, 0.58);
   --match-score-opacity: 0.34;
   --match-score-separator-opacity: 0.24;
 }
@@ -300,21 +278,21 @@
 }
 
 :root[data-theme="light"] .match-card.pending {
-  --match-tone: rgba(53, 105, 180, 0.34);
-  --match-tone-soft: rgba(74, 122, 194, 0.28);
-  --match-tone-strong: rgba(245, 158, 11, 0.42);
-  --match-top-start: rgba(74, 122, 194, 0.54);
-  --match-top-mid: rgba(191, 214, 245, 0.62);
+  --match-tone: rgba(86, 108, 135, 0.34);
+  --match-tone-soft: rgba(118, 139, 166, 0.18);
+  --match-tone-strong: rgba(118, 139, 166, 0.34);
+  --match-top-start: rgba(98, 123, 153, 0.48);
+  --match-top-mid: rgba(198, 210, 225, 0.58);
   --match-score-opacity: 0.38;
   --match-score-separator-opacity: 0.26;
 }
 
 :root[data-theme="light"] .match-card.draw {
-  --match-tone: rgba(180, 83, 9, 0.32);
-  --match-tone-soft: rgba(245, 158, 11, 0.22);
-  --match-tone-strong: rgba(245, 158, 11, 0.40);
-  --match-top-start: rgba(231, 158, 51, 0.52);
-  --match-top-mid: rgba(254, 243, 199, 0.64);
+  --match-tone: rgba(86, 108, 135, 0.34);
+  --match-tone-soft: rgba(118, 139, 166, 0.16);
+  --match-tone-strong: rgba(118, 139, 166, 0.30);
+  --match-top-start: rgba(98, 123, 153, 0.46);
+  --match-top-mid: rgba(198, 210, 225, 0.58);
   --match-score-opacity: 0.34;
   --match-score-separator-opacity: 0.24;
 }
@@ -361,40 +339,30 @@
 }
 
 :root[data-theme="light"] .form-select {
-  background-image:
-    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
-    linear-gradient(120deg, rgba(15, 35, 64, 0.12), rgba(200, 16, 46, 0.18), rgba(15, 35, 64, 0.18)),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-position: right var(--space-4) center;
+  background-size: 14px 14px;
 }
 
 :root[data-theme="light"] .form-select.settings-microphone-select,
 :root[data-theme="light"] .form-select.settings-microphone-select:hover,
 :root[data-theme="light"] .form-select.settings-microphone-select:focus {
-  background-image:
-    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
-    linear-gradient(120deg, rgba(15, 35, 64, 0.14), rgba(138, 155, 176, 0.22), rgba(15, 35, 64, 0.18)),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23102033' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-position: right 22px center;
+  background-size: 14px 14px;
 }
 
 :root[data-theme="light"] .form-tab.active {
   color: var(--color-text-primary);
-  background:
-    linear-gradient(110deg, rgba(200, 16, 46, 0.12), rgba(255, 255, 255, 0.86), rgba(200, 16, 46, 0.10));
+  background: var(--color-accent-muted);
 }
 
 :root[data-theme="light"] .tagging-view {
-  background:
-    radial-gradient(ellipse at 34% 0%, rgba(15, 35, 64, 0.34), transparent 42%),
-    radial-gradient(ellipse at 86% 12%, rgba(200, 16, 46, 0.16), transparent 36%),
-    rgba(244, 247, 251, 0.88);
+  background: var(--color-bg-base);
 }
 
 :root[data-theme="light"] .tagging-match-select-view {
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.72), transparent 34%),
-    radial-gradient(ellipse at 32% 0%, rgba(15, 35, 64, 0.24), transparent 42%),
-    radial-gradient(ellipse at 84% 14%, rgba(200, 16, 46, 0.16), transparent 34%),
-    rgba(244, 247, 251, 0.9);
+  background: var(--color-bg-base);
 }
 
 :root[data-theme="light"] .tagging-match-card,
@@ -438,8 +406,7 @@
 
 :root[data-theme="light"] .tag-popup-field-grid,
 :root[data-theme="light"] .event-inspector-field-grid {
-  background:
-    linear-gradient(180deg, rgba(34, 197, 94, 0.18), rgba(220, 252, 231, 0.72));
+  background: rgba(200, 16, 46, 0.07);
 }
 
 :root[data-theme="light"] .tag-popup-zone-cell {
@@ -462,8 +429,7 @@
 :root[data-theme="light"] .video-play-btn {
   color: var(--color-brand-white);
   border-color: rgba(15, 35, 64, 0.24);
-  background:
-    linear-gradient(110deg, var(--color-brand-red) 0%, var(--color-brand-navy) 52%, var(--color-brand-red) 100%);
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   box-shadow: 0 12px 28px rgba(15, 35, 64, 0.18), 0 8px 22px rgba(200, 16, 46, 0.16);
   text-shadow: 0 1px 1px rgba(8, 14, 26, 0.28);
@@ -577,4 +543,73 @@
 :root[data-theme="light"] .hotkey-bar {
   background: rgba(255, 255, 255, 0.88);
   border-top-color: var(--color-border);
+}
+
+/* Dark mode keeps the lighter slate surfaces and the red-blue brand language. */
+:root:not([data-theme="light"]) .main-content-body,
+:root:not([data-theme="light"]) .tagging-view,
+:root:not([data-theme="light"]) .tagging-match-select-view {
+  background: var(--color-bg-base);
+}
+
+:root:not([data-theme="light"]) .sidebar,
+:root:not([data-theme="light"]) .topbar,
+:root:not([data-theme="light"]) .sidebar-logo,
+:root:not([data-theme="light"]) .sidebar-profile,
+:root:not([data-theme="light"]) .settings-save-bar,
+:root:not([data-theme="light"]) .dashboard-view-toggle,
+:root:not([data-theme="light"]) .hotkey-bar {
+  background: var(--color-bg-surface);
+}
+
+:root:not([data-theme="light"]) .sidebar-item:hover,
+:root:not([data-theme="light"]) .sidebar-profile:hover,
+:root:not([data-theme="light"]) .sidebar-profile:focus-visible {
+  background: var(--color-bg-hover);
+}
+
+:root:not([data-theme="light"]) .sidebar-profile-avatar {
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
+}
+
+:root:not([data-theme="light"]) .construction-panel,
+:root:not([data-theme="light"]) .kpi-card,
+:root:not([data-theme="light"]) .match-card,
+:root:not([data-theme="light"]) .match-card-new,
+:root:not([data-theme="light"]) .modal-container,
+:root:not([data-theme="light"]) .dashboard-section,
+:root:not([data-theme="light"]) .chart-shell,
+:root:not([data-theme="light"]) .dashboard-ai-panel,
+:root:not([data-theme="light"]) .tagging-match-card,
+:root:not([data-theme="light"]) .event-inspector,
+:root:not([data-theme="light"]) .tag-popup,
+:root:not([data-theme="light"]) .status-card,
+:root:not([data-theme="light"]) .video-controls,
+:root:not([data-theme="light"]) .stats-only-panel,
+:root:not([data-theme="light"]) .video-empty-state,
+:root:not([data-theme="light"]) .clip-player-header,
+:root:not([data-theme="light"]) .clip-player-source,
+:root:not([data-theme="light"]) .clip-player-filters,
+:root:not([data-theme="light"]) .clip-player-queue,
+:root:not([data-theme="light"]) .clip-player-controls {
+  background: var(--color-bg-surface);
+}
+
+:root:not([data-theme="light"]) .settings-subsection-link,
+:root:not([data-theme="light"]) .settings-subsection-back,
+:root:not([data-theme="light"]) .settings-toggle,
+:root:not([data-theme="light"]) .settings-theme-option,
+:root:not([data-theme="light"]) .settings-microphone-card,
+:root:not([data-theme="light"]) .settings-ai-card,
+:root:not([data-theme="light"]) .settings-updater-card,
+:root:not([data-theme="light"]) .settings-onboarding-card,
+:root:not([data-theme="light"]) .settings-hotkey-row,
+:root:not([data-theme="light"]) .settings-custom-hotkey-row {
+  background: var(--color-bg-surface);
+}
+
+:root:not([data-theme="light"]) .dashboard-controls,
+:root:not([data-theme="light"]) .dashboard-customizer {
+  background: var(--color-bg-surface);
 }

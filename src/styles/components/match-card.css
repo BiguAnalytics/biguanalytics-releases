@@ -12,41 +12,41 @@
 }
 
 .match-card.win {
-  --match-tone: rgba(15, 98, 54, 0.68);
-  --match-tone-soft: rgba(29, 185, 84, 0.22);
-  --match-tone-strong: rgba(29, 185, 84, 0.48);
-  --match-top-start: rgba(17, 88, 50, 0.72);
-  --match-top-mid: rgba(7, 47, 31, 0.52);
+  --match-tone: rgba(64, 102, 158, 0.62);
+  --match-tone-soft: rgba(79, 121, 174, 0.20);
+  --match-tone-strong: rgba(88, 132, 190, 0.36);
+  --match-top-start: rgba(60, 96, 150, 0.66);
+  --match-top-mid: rgba(28, 48, 78, 0.52);
   --match-score-opacity: 0.13;
   --match-score-separator-opacity: 0.11;
 }
 
 .match-card.loss {
-  --match-tone: rgba(122, 27, 34, 0.74);
-  --match-tone-soft: rgba(200, 16, 46, 0.22);
-  --match-tone-strong: rgba(200, 16, 46, 0.52);
-  --match-top-start: rgba(118, 29, 33, 0.76);
-  --match-top-mid: rgba(60, 17, 24, 0.56);
+  --match-tone: rgba(140, 48, 65, 0.62);
+  --match-tone-soft: rgba(200, 16, 46, 0.16);
+  --match-tone-strong: rgba(200, 16, 46, 0.38);
+  --match-top-start: rgba(126, 44, 59, 0.64);
+  --match-top-mid: rgba(60, 27, 35, 0.50);
   --match-score-opacity: 0.13;
   --match-score-separator-opacity: 0.11;
 }
 
 .match-card.pending {
-  --match-tone: rgba(18, 55, 103, 0.78);
-  --match-tone-soft: rgba(53, 105, 180, 0.24);
-  --match-tone-strong: rgba(245, 158, 11, 0.42);
-  --match-top-start: rgba(18, 56, 106, 0.82);
-  --match-top-mid: rgba(10, 33, 67, 0.62);
+  --match-tone: rgba(86, 108, 135, 0.62);
+  --match-tone-soft: rgba(118, 139, 166, 0.15);
+  --match-tone-strong: rgba(150, 169, 193, 0.30);
+  --match-top-start: rgba(70, 91, 117, 0.66);
+  --match-top-mid: rgba(30, 45, 65, 0.52);
   --match-score-opacity: 0.16;
   --match-score-separator-opacity: 0.13;
 }
 
 .match-card.draw {
-  --match-tone: rgba(128, 78, 11, 0.72);
-  --match-tone-soft: rgba(245, 158, 11, 0.2);
-  --match-tone-strong: rgba(245, 158, 11, 0.36);
-  --match-top-start: rgba(120, 72, 12, 0.76);
-  --match-top-mid: rgba(64, 39, 10, 0.58);
+  --match-tone: rgba(86, 108, 135, 0.58);
+  --match-tone-soft: rgba(118, 139, 166, 0.15);
+  --match-tone-strong: rgba(150, 169, 193, 0.30);
+  --match-top-start: rgba(70, 91, 117, 0.62);
+  --match-top-mid: rgba(30, 45, 65, 0.50);
   --match-score-opacity: 0.13;
   --match-score-separator-opacity: 0.11;
 }
@@ -74,7 +74,7 @@
   position: relative;
   overflow: hidden;
   background-image:
-    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 44%, rgba(8, 14, 26, 0.94) 100%),
+    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 44%, rgba(16, 26, 42, 0.94) 100%),
     radial-gradient(ellipse at 16% 0%, var(--match-tone-soft), transparent 42%),
     radial-gradient(ellipse at 82% 8%, var(--match-tone-soft), transparent 46%),
     radial-gradient(ellipse at 50% 42%, var(--match-tone-soft), transparent 54%);
@@ -277,18 +277,18 @@
 }
 
 .match-card-status.badge.analizado {
-  color: var(--tag-ganado, rgb(29, 185, 84));
-  border-color: var(--tag-ganado, rgb(29, 185, 84));
+  color: var(--tag-ganado, #4F79AE);
+  border-color: var(--tag-ganado, #4F79AE);
 }
 
 .match-card-status.badge.taggeado {
-  color: var(--tag-ataque, rgb(59, 130, 246));
-  border-color: var(--tag-ataque, rgb(59, 130, 246));
+  color: var(--tag-ataque, #76879D);
+  border-color: var(--tag-ataque, #76879D);
 }
 
 .match-card-status.badge.pendiente {
-  color: var(--tag-sucio, rgb(245, 158, 11));
-  border-color: var(--tag-sucio, rgb(245, 158, 11));
+  color: var(--tag-sucio, #76879D);
+  border-color: var(--tag-sucio, #76879D);
 }
 
 .match-card-badges .badge {
@@ -302,7 +302,7 @@
 }
 
 .badge.victoria {
-  color: var(--tag-ganado, rgb(29, 185, 84));
+  color: var(--tag-ganado, #4F79AE);
 }
 
 .badge.derrota {
@@ -364,7 +364,7 @@
 }
 
 .match-card-export:hover {
-  background: rgba(59, 130, 246, 0.14);
+  background: var(--tag-neutral-soft);
   color: var(--tag-ataque);
 }
 

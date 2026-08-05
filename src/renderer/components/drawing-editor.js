@@ -60,7 +60,7 @@ const TOOL_ICONS = {
 
 const FIXED_TOOL_STYLES = {
   ball: { color: '#B9794B', radius: 18 },
-  cone: { color: '#F5B63D', radius: 18 },
+  cone: { color: '#4F79AE', radius: 18 },
 };
 
 const QUICK_COLORS = [

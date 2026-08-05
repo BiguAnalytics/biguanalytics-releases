@@ -381,15 +381,15 @@ function getChartColors() {
   return {
     local: styles.getPropertyValue('--color-brand-red').trim() || '#C8102E',
     localLight: 'rgba(200, 16, 46, 0.28)',
-    rival: styles.getPropertyValue('--tag-ataque').trim() || '#3B82F6',
-    rivalLight: 'rgba(59, 130, 246, 0.28)',
-    positive: styles.getPropertyValue('--tag-ganado').trim() || '#1DB954',
+    rival: styles.getPropertyValue('--tag-ataque').trim() || '#76879D',
+    rivalLight: 'rgba(79, 121, 174, 0.18)',
+    positive: styles.getPropertyValue('--tag-ganado').trim() || '#4F79AE',
     negative: styles.getPropertyValue('--tag-perdido').trim() || '#C8102E',
-    warning: styles.getPropertyValue('--tag-sucio').trim() || '#F59E0B',
-    defense: styles.getPropertyValue('--tag-defensa').trim() || '#8B5CF6',
-    text: styles.getPropertyValue('--color-text-secondary').trim() || '#8A9BB0',
+    warning: styles.getPropertyValue('--tag-sucio').trim() || '#76879D',
+    defense: styles.getPropertyValue('--tag-defensa').trim() || '#76879D',
+    text: styles.getPropertyValue('--color-text-secondary').trim() || '#A8B4C4',
     border: styles.getPropertyValue('--color-border').trim() || 'rgba(255,255,255,0.06)',
-    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#122035',
+    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#1E2D42',
   };
 }
 
@@ -2433,9 +2433,9 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
   return `
     <defs>
       <linearGradient id="heatmap-field-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#0B8F4E" />
-        <stop offset="52%" stop-color="#087E45" />
-        <stop offset="100%" stop-color="#066C3C" />
+        <stop offset="0%" stop-color="#26405F" />
+        <stop offset="52%" stop-color="#1E2D42" />
+        <stop offset="100%" stop-color="#172337" />
       </linearGradient>
     </defs>
     <style>

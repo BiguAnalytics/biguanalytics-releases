@@ -3,10 +3,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-8);
-  background:
-    radial-gradient(ellipse at 20% 8%, rgba(15, 35, 64, 0.82), transparent 48%),
-    radial-gradient(ellipse at 82% 92%, rgba(200, 16, 46, 0.08), transparent 46%),
-    var(--color-bg-base);
+  background: var(--color-bg-base);
 }
 
 .access-card {
@@ -14,9 +11,7 @@
   padding: var(--space-8);
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-xl);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 42%),
-    var(--color-bg-elevated);
+  background: var(--color-bg-elevated);
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
 }
 
@@ -110,9 +105,7 @@
 
 .access-auth-option.active {
   border-color: var(--color-border-accent);
-  background:
-    linear-gradient(135deg, rgba(200, 16, 46, 0.24), rgba(15, 35, 64, 0.34)),
-    var(--color-bg-surface);
+  background: var(--color-accent-muted);
   color: var(--color-text-primary);
 }
 
@@ -197,12 +190,14 @@
 
 .access-primary-btn {
   border: 1px solid var(--color-border-accent);
-  background: var(--color-accent);
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   color: var(--color-brand-white);
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .access-primary-btn:hover {
-  background: var(--color-accent-hover);
+  background-position: 100% 50%;
   transform: translateY(-1px);
 }
 

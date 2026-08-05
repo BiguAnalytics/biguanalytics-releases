@@ -64,7 +64,7 @@ describe('tactical-boards.js', () => {
     expect(board.canvas).toEqual(expect.objectContaining({
       width: 1200,
       height: 720,
-      backgroundColor: '#0E3B2A',
+      backgroundColor: '#26405F',
       fieldTemplate: 'full',
     }));
   });

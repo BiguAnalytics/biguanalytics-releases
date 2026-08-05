@@ -133,10 +133,10 @@ function getSeasonChartColors() {
   const styles = getComputedStyle(document.documentElement);
   return {
     accent: styles.getPropertyValue('--color-accent').trim() || '#C8102E',
-    line: styles.getPropertyValue('--tag-ataque').trim() || '#3B82F6',
-    text: styles.getPropertyValue('--color-text-secondary').trim() || '#8A9BB0',
+    line: styles.getPropertyValue('--tag-ataque').trim() || '#76879D',
+    text: styles.getPropertyValue('--color-text-secondary').trim() || '#A8B4C4',
     border: styles.getPropertyValue('--color-border').trim() || 'rgba(255,255,255,0.08)',
-    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#122035',
+    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#1E2D42',
   };
 }
 
@@ -166,7 +166,7 @@ async function renderSeasonCharts(container, state) {
             label: metric.label,
             data: state.filteredMatches.map(match => Number(match[metric.key]) || 0),
             borderColor: colors.line,
-            backgroundColor: 'rgba(59, 130, 246, 0.16)',
+            backgroundColor: 'rgba(118, 139, 166, 0.12)',
             pointBackgroundColor: colors.line,
             tension: 0.32,
             fill: true,

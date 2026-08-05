@@ -8,7 +8,7 @@ const { exportPng } = require('./drawings');
 const DEFAULT_CANVAS = {
   width: 1200,
   height: 720,
-  backgroundColor: '#0E3B2A',
+  backgroundColor: '#26405F',
   fieldTemplate: 'full',
 };
 

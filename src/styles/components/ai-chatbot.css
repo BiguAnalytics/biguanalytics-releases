@@ -219,11 +219,13 @@
   min-width: 76px;
   border: 1px solid var(--color-border-accent);
   border-radius: var(--radius-md);
-  background: linear-gradient(135deg, var(--color-brand-navy), var(--color-accent));
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   color: #fff;
   font: 900 12px var(--font-brand);
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .ai-chatbot-send:disabled {

@@ -9,10 +9,7 @@
   grid-template-rows: minmax(0, 1fr) var(--tagging-timeline-height) 40px;
   overflow: hidden;
   outline: none;
-  background:
-    radial-gradient(ellipse at 34% 0%, rgba(15, 35, 64, 0.82), transparent 42%),
-    radial-gradient(ellipse at 86% 12%, rgba(200, 16, 46, 0.16), transparent 36%),
-    rgba(8, 14, 26, 0.72);
+  background: var(--color-bg-base);
 }
 
 .tagging-view:focus,
@@ -47,10 +44,7 @@
   gap: var(--space-6);
   overflow-y: auto;
   padding: clamp(24px, 4vw, 56px);
-  background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), transparent 34%),
-    radial-gradient(ellipse at 84% 14%, rgba(200, 16, 46, 0.16), transparent 34%),
-    rgba(8, 14, 26, 0.76);
+  background: var(--color-bg-base);
 }
 
 .tagging-match-select-header {
@@ -298,8 +292,8 @@ button.tagging-match-card {
 }
 
 .tagging-save-status[data-save-state="saved"] {
-  border-color: rgba(29, 185, 84, 0.28);
-  color: #8fe0ad;
+  border-color: color-mix(in srgb, var(--tag-success) 52%, var(--color-border));
+  color: var(--tag-success);
 }
 
 .tagging-save-status[data-save-state="error"] {
@@ -479,9 +473,7 @@ button.tagging-match-card {
   padding: var(--space-3);
   border: 1px solid rgba(138, 155, 176, 0.14);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(145deg, rgba(99, 102, 241, 0.12), transparent),
-    rgba(8, 14, 26, 0.38);
+  background: var(--color-bg-surface);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -1204,8 +1196,7 @@ button.tagging-match-card {
 .video-play-btn {
   min-width: 74px;
   padding: 0 var(--space-5);
-  background:
-    linear-gradient(110deg, var(--color-brand-red), var(--color-brand-navy), var(--color-brand-red));
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   animation: club-gradient-shift 7s ease-in-out infinite;
 }

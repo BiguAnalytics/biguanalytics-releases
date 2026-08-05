@@ -25,10 +25,7 @@
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(138, 155, 176, 0.42) transparent;
-  background:
-    radial-gradient(ellipse at 50% 2%, rgba(15, 35, 64, 0.68), transparent 46%),
-    radial-gradient(ellipse at 86% 14%, rgba(200, 16, 46, 0.13), transparent 34%),
-    linear-gradient(180deg, rgba(8, 14, 26, 0.16), rgba(8, 14, 26, 0.72));
+  background: var(--color-bg-base);
 }
 
 .main-content-body > * {
@@ -96,8 +93,8 @@
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse at 26% 8%, rgba(15, 35, 64, 0.74), transparent 42%),
-    radial-gradient(ellipse at 74% 20%, rgba(200, 16, 46, 0.16), transparent 36%);
+    radial-gradient(ellipse at 26% 8%, rgba(38, 64, 95, 0.62), transparent 42%),
+    radial-gradient(ellipse at 74% 20%, rgba(200, 16, 46, 0.13), transparent 36%);
   pointer-events: none;
 }
 
@@ -120,13 +117,7 @@
 }
 
 .home-welcome span {
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-red) 0%,
-    var(--color-brand-white) 38%,
-    var(--color-brand-red) 72%,
-    var(--color-brand-navy) 100%
-  );
+  background: var(--gradient-brand-text);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -159,9 +150,9 @@
 .home-sync-notice {
   margin: calc(var(--space-6) * -1) var(--space-8) var(--space-6);
   padding: var(--space-3) var(--space-4);
-  border: 1px solid rgba(245, 158, 11, 0.24);
+  border: 1px solid color-mix(in srgb, var(--tag-warning) 42%, var(--color-border));
   border-radius: var(--radius-md);
-  background: rgba(245, 158, 11, 0.08);
+  background: var(--tag-warning-soft);
   color: var(--color-text-secondary);
   font: 700 12px var(--font-ui);
 }
@@ -199,12 +190,7 @@
 
 .match-list-new-btn {
   font: 700 12px var(--font-brand);
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-red) 0%,
-    var(--color-brand-white) 45%,
-    var(--color-brand-red) 100%
-  );
+  background: var(--gradient-brand-text);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -781,28 +767,19 @@
   appearance: none;
   -webkit-appearance: none;
   padding-right: 56px;
-  border-color: transparent;
-  background-image:
-    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.12), rgba(138, 155, 176, 0.22), rgba(15, 35, 64, 0.58)),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F0F4F8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  border-color: var(--color-border-strong);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F6FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-origin: border-box;
-  background-clip: padding-box, border-box, border-box;
-  background-position: 0 0, 0 0, right 22px center;
-  background-size: auto, auto, 14px 14px;
+  background-position: right 22px center;
+  background-size: 14px 14px;
 }
 
 .form-select.settings-microphone-select:hover,
 .form-select.settings-microphone-select:focus {
-  border-color: transparent;
-  background-image:
-    linear-gradient(var(--color-bg-surface), var(--color-bg-surface)),
-    linear-gradient(120deg, rgba(138, 155, 176, 0.36), rgba(240, 244, 248, 0.22), rgba(15, 35, 64, 0.52)),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F0F4F8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  border-color: var(--color-accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23F3F6FA' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   box-shadow:
-    0 0 0 3px rgba(138, 155, 176, 0.14),
-    0 14px 34px rgba(0, 0, 0, 0.22),
+    0 0 0 3px var(--color-accent-muted),
     inset 0 1px 0 rgba(255, 255, 255, 0.045);
 }
 
@@ -840,8 +817,8 @@
   background: var(--tag-ganado);
 }
 
-.settings-microphone-meter-fill[data-tone="yellow"] {
-  background: var(--tag-sucio);
+.settings-microphone-meter-fill[data-tone="neutral"] {
+  background: var(--tag-neutral);
 }
 
 .settings-microphone-meter-fill[data-tone="red"] {
@@ -939,7 +916,8 @@
   transform: scaleX(0);
   transform-origin: left center;
   transition: transform var(--duration-fast) var(--ease-smooth);
-  background: linear-gradient(90deg, var(--color-brand-red), var(--color-brand-white), var(--color-brand-navy));
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
 }
 
 .settings-updater-progress-label {
@@ -950,7 +928,8 @@
 
 .settings-updater-install {
   border-color: var(--color-border-accent);
-  background: var(--color-accent);
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   color: var(--color-brand-white);
 }
 

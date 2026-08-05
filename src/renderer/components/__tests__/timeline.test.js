@@ -520,8 +520,9 @@ describe('timeline sequences', () => {
   });
 
   it('maps sequence color choices to timeline-safe colors', () => {
-    expect(getSequenceColor('blue')).toContain('59, 130, 246');
-    expect(getSequenceColor('green')).toContain('29, 185, 84');
+    expect(getSequenceColor('blue')).toContain('79, 121, 174');
+    expect(getSequenceColor('green')).toContain('79, 121, 174');
+    expect(getSequenceColor('yellow')).toContain('118, 135, 157');
     expect(getSequenceColor('unknown')).toContain('200, 16, 46');
   });
 

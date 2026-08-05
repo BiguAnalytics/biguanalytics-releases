@@ -22,7 +22,7 @@ body {
   user-select: none;
   --ambient-red-x: 6%;
   --ambient-red-y: 58%;
-  --ambient-red-opacity: 0.05;
+  --ambient-red-opacity: 0.025;
   --ambient-blue-opacity: 0;
   --ambient-blue-x: 86%;
   --ambient-blue-y: 10%;
@@ -152,13 +152,7 @@ input::placeholder, textarea::placeholder {
 
 /* Club gradient utilities */
 .club-gradient-text {
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-white) 0%,
-    var(--color-brand-red) 42%,
-    var(--color-brand-navy) 72%,
-    var(--color-brand-red) 100%
-  );
+  background: var(--gradient-brand-text);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -174,7 +168,7 @@ input::placeholder, textarea::placeholder {
   width: 500px;
   height: 500px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(15, 35, 64, 0.6) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(38, 64, 95, 0.34) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -204,7 +198,7 @@ input::placeholder, textarea::placeholder {
   height: 360px;
   border-radius: 50%;
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(59, 130, 246, var(--ambient-blue-opacity)) 0%, transparent 72%);
+  background: radial-gradient(circle, rgba(79, 121, 174, var(--ambient-blue-opacity)) 0%, transparent 72%);
   pointer-events: none;
   z-index: 0;
   transition:
@@ -447,10 +441,7 @@ body[data-route="dashboard"] .ambient-glow-blue {
   z-index: var(--z-splash);
   display: grid;
   place-items: center;
-  background:
-    radial-gradient(ellipse at 50% 20%, rgba(15, 35, 64, 0.72), transparent 48%),
-    radial-gradient(ellipse at 72% 68%, rgba(200, 16, 46, 0.12), transparent 42%),
-    var(--color-bg-base);
+  background: var(--gradient-bg);
   color: var(--color-text-primary);
   opacity: 1;
   transition: opacity var(--duration-fast) var(--ease-smooth), visibility var(--duration-fast) var(--ease-smooth);

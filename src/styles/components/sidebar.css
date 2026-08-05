@@ -23,7 +23,7 @@
   justify-content: center;
   padding: 0;
   border-bottom: 1px solid var(--color-border);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), transparent);
+  background: var(--color-bg-surface);
   flex-shrink: 0;
   overflow: hidden;
   white-space: nowrap;
@@ -64,13 +64,7 @@
   height: var(--sidebar-indicator-height, 0px);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-md);
-  background:
-    linear-gradient(
-      110deg,
-      var(--color-brand-red) 0%,
-      var(--color-brand-navy) 48%,
-      var(--color-brand-red) 100%
-    );
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   box-shadow:
     0 14px 34px rgba(200, 16, 46, 0.18),
@@ -172,9 +166,7 @@
 }
 
 .sidebar-item:hover {
-  background:
-    linear-gradient(110deg, rgba(15, 35, 64, 0.78), rgba(200, 16, 46, 0.16), rgba(15, 35, 64, 0.78));
-  background-size: 220% 100%;
+  background: var(--color-bg-hover);
   color: var(--color-text-primary);
   border-color: var(--color-border);
   transform: none;
@@ -300,9 +292,7 @@
   min-height: 72px;
   padding: var(--space-3);
   border-top: 1px solid var(--color-border);
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.01)),
-    rgba(8, 14, 26, 0.32);
+  background: var(--color-bg-surface);
   overflow: hidden;
   cursor: pointer;
   transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
@@ -311,9 +301,7 @@
 .sidebar-profile:hover,
 .sidebar-profile:focus-visible {
   border-color: var(--color-border-strong);
-  background:
-    linear-gradient(135deg, rgba(200, 16, 46, 0.11), rgba(15, 35, 64, 0.12)),
-    rgba(8, 14, 26, 0.42);
+  background: var(--color-bg-hover);
   outline: none;
 }
 
@@ -329,8 +317,8 @@
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background:
-    linear-gradient(135deg, rgba(200, 16, 46, 0.95), rgba(15, 35, 64, 0.95));
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   border: 1px solid rgba(255, 255, 255, 0.18);
   color: var(--color-brand-white);
   font: 900 12px var(--font-brand);
@@ -356,7 +344,12 @@
 
 .sidebar-profile-name {
   font: 700 13px var(--font-brand);
-  color: var(--color-text-primary);
+  background: var(--gradient-brand-text);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: club-gradient-shift 7s ease-in-out infinite;
   white-space: nowrap;
 }
 
@@ -506,12 +499,14 @@
 
 .account-profile-primary {
   border: 1px solid var(--color-border-accent);
-  background: var(--color-accent);
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   color: var(--color-brand-white);
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .account-profile-primary:hover {
-  background: var(--color-accent-hover);
+  background-position: 100% 50%;
   transform: translateY(-1px);
 }
 

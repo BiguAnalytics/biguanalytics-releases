@@ -336,12 +336,12 @@
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.72);
 }
 
-.timeline-block.won { background: rgba(29, 185, 84, 0.78); }
-.timeline-block.lost { background: rgba(200, 16, 46, 0.78); }
-.timeline-block.dirty { background: rgba(245, 158, 11, 0.78); }
-.timeline-block.attack { background: rgba(59, 130, 246, 0.78); }
-.timeline-block.defense { background: rgba(139, 92, 246, 0.78); }
-.timeline-block.other { background: rgba(138, 155, 176, 0.58); }
+.timeline-block.won { background: var(--tag-success); }
+.timeline-block.lost { background: var(--tag-danger); }
+.timeline-block.dirty { background: var(--tag-warning); }
+.timeline-block.attack { background: var(--tag-neutral); }
+.timeline-block.defense { background: var(--tag-neutral); }
+.timeline-block.other { background: var(--tag-neutral); opacity: 0.78; }
 
 .timeline-block:hover {
   transform: translate(-50%, -50%) scale(1.12);

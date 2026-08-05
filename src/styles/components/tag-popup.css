@@ -247,8 +247,7 @@
   border: 1px solid rgba(138, 155, 176, 0.14);
   border-radius: var(--radius-md);
   overflow: hidden;
-  background:
-    linear-gradient(180deg, rgba(17, 88, 50, 0.34), rgba(8, 14, 26, 0.68));
+  background: rgba(38, 64, 95, 0.34);
   padding: 6px;
 }
 

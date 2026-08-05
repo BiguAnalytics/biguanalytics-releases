@@ -632,12 +632,12 @@ export function getDecibelsFromRms(rms) {
 
 /**
  * @param {number} db
- * @returns {'green'|'yellow'|'red'}
+ * @returns {'blue'|'neutral'|'red'}
  */
 export function getMicrophoneLevelTone(db) {
   if (db >= -10) return 'red';
-  if (db >= -24) return 'yellow';
-  return 'green';
+  if (db >= -24) return 'neutral';
+  return 'blue';
 }
 
 /**
@@ -904,7 +904,7 @@ export async function renderSettings(container, params = {}) {
               </label>
               <div class="settings-microphone-meter" aria-label="Volumen del microfono">
                 <div class="settings-microphone-meter-track">
-                  <span class="settings-microphone-meter-fill" data-microphone-level data-tone="green"></span>
+                <span class="settings-microphone-meter-fill" data-microphone-level data-tone="blue"></span>
                 </div>
                 <span class="settings-microphone-db tabular-nums" data-microphone-db>-100 dB</span>
               </div>

@@ -32,12 +32,7 @@
 }
 
 .topbar-logo-text .accent {
-  background: linear-gradient(
-    110deg,
-    var(--color-brand-red) 0%,
-    var(--color-brand-white) 46%,
-    var(--color-brand-red) 100%
-  );
+  background: var(--gradient-brand-text);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
@@ -112,20 +107,20 @@
 }
 
 .topbar-license[data-license-verification="verifying_online"] {
-  border-color: rgba(59, 130, 246, 0.32);
-  background: rgba(18, 32, 53, 0.82);
+  border-color: var(--color-border-strong);
+  background: var(--color-bg-elevated);
 }
 
 .topbar-license[data-license-verification="online_verified"] {
-  border-color: rgba(29, 185, 84, 0.28);
-  background: rgba(14, 42, 36, 0.72);
+  border-color: rgba(79, 121, 174, 0.42);
+  background: rgba(79, 121, 174, 0.14);
 }
 
 .topbar-license[data-license-verification="offline_mode"],
 .topbar-license[data-license-verification="session_expired"],
 .topbar-license[data-license-verification="license_expired"] {
-  border-color: rgba(245, 158, 11, 0.34);
-  background: rgba(42, 34, 18, 0.72);
+  border-color: rgba(118, 135, 157, 0.42);
+  background: rgba(118, 135, 157, 0.14);
 }
 
 .topbar-license span,

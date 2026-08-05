@@ -34,10 +34,11 @@ describe('sidebar active route', () => {
     expect(sidebarSource).not.toContain("{ id: 'heatmap', label: 'Heatmap'");
   });
 
-  it('uses the primary button gradient for the selected module', () => {
-    const primaryGradient = /linear-gradient\(\s*110deg,\s*var\(--color-brand-red\)\s*0%,\s*var\(--color-brand-navy\)\s*48%,\s*var\(--color-brand-red\)\s*100%\s*\)/s;
+  it('uses the red-blue brand gradient for the selected module', () => {
+    const indicatorBlock = sidebarCss.match(/\.sidebar-active-indicator\s*{([^}]*)}/s)?.[1] || '';
 
-    expect(sidebarCss).toMatch(new RegExp(`\\.sidebar-active-indicator\\s*{[\\s\\S]*${primaryGradient.source}`));
+    expect(indicatorBlock).toContain('background: var(--gradient-brand);');
+    expect(indicatorBlock).toContain('animation: club-gradient-shift');
     expect(sidebarCss).toMatch(/\.sidebar-active-indicator\s*{[\s\S]*box-shadow:\s*0 14px 34px rgba\(200,\s*16,\s*46,\s*0\.18\)/);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active\s*{[\s\S]*background:\s*transparent/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.sidebar-item\.active:hover\s*{[\s\S]*background:\s*transparent/s);

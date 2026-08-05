@@ -557,7 +557,7 @@ function drawBall(ctx, stroke) {
 function drawCone(ctx, stroke) {
   const point = stroke.points[0];
   const radius = Math.max(12, Number(stroke.radius) || 18);
-  ctx.fillStyle = '#F5B63D';
+  ctx.fillStyle = '#4F79AE';
   ctx.strokeStyle = 'rgba(5,9,17,0.42)';
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -794,7 +794,7 @@ function renderConeSvg(stroke) {
   ];
   return `
     <g class="drawing-svg-cone">
-      <polygon points="${svgPointList(points)}" fill="#F5B63D" stroke="rgba(5,9,17,0.42)" stroke-width="2" stroke-linejoin="round"/>
+      <polygon points="${svgPointList(points)}" fill="#4F79AE" stroke="rgba(5,9,17,0.42)" stroke-width="2" stroke-linejoin="round"/>
       <rect x="${svgNumber(point.x - radius * 0.42)}" y="${svgNumber(point.y + radius * 0.2)}" width="${svgNumber(radius * 0.84)}" height="${svgNumber(radius * 0.18)}" fill="rgba(255,255,255,0.55)"/>
     </g>
   `;

@@ -125,13 +125,15 @@
 
 .walkthrough-primary {
   border: 1px solid var(--color-border-accent);
-  background: var(--color-accent);
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
   color: var(--color-brand-white);
   box-shadow: 0 12px 30px rgba(200, 16, 46, 0.24);
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .walkthrough-primary:hover {
-  background: var(--color-accent-hover);
+  background-position: 100% 50%;
 }
 
 :root[data-theme="light"] .walkthrough-spotlight {

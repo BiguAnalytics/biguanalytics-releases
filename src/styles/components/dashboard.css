@@ -365,8 +365,8 @@
 
 .dashboard-ai-badge.valid {
   color: var(--tag-ganado);
-  border-color: rgba(29, 185, 84, 0.34);
-  background: rgba(29, 185, 84, 0.10);
+  border-color: color-mix(in srgb, var(--tag-success) 52%, var(--color-border));
+  background: var(--tag-success-soft);
 }
 
 .dashboard-ai-badge.stale,
@@ -513,7 +513,7 @@
 }
 
 .dashboard-ai-priority.low {
-  background: rgba(29, 185, 84, 0.14);
+  background: var(--tag-success-soft);
   color: var(--tag-ganado);
 }
 
@@ -540,7 +540,9 @@
 
 .dashboard-ai-button.primary {
   color: #fff;
-  background: linear-gradient(135deg, #16213a, var(--color-accent));
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
+  animation: club-gradient-shift 7s ease-in-out infinite;
 }
 
 .dashboard-ai-button.secondary {
@@ -865,7 +867,7 @@
   overflow: hidden;
   background:
     radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.12), transparent 48%),
-    rgba(5, 96, 52, 0.38);
+    rgba(38, 64, 95, 0.38);
 }
 
 #dashboard-heatmap {

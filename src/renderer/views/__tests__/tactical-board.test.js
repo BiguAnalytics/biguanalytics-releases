@@ -115,6 +115,8 @@ describe('tactical board view', () => {
     expect(tacticalSource).toContain('data-board-template');
     expect(tacticalSource).toContain('FIELD_BACKGROUNDS');
     expect(tacticalSource).toContain('FIELD_TEMPLATES');
+    expect(tacticalSource).toContain("{ value: '#26405F', label: 'Azul Bigua'");
+    expect(tacticalSource).not.toContain("{ value: '#0E3B2A', label: 'Verde'");
     expect(tacticalSource).toContain("{ value: '#E8ECE6', label: 'Blanco'");
     expect(tacticalSource).toContain('const HALF_FIELD_CANVAS = { width: 1008, height: 720 };');
     expect(tacticalSource).toContain("width: template === 'full' ? DEFAULT_CANVAS.width : HALF_FIELD_CANVAS.width");
@@ -220,15 +222,15 @@ describe('tactical board view', () => {
     expect(tacticalCss).not.toMatch(/\.tactical-sequence-card\.active\s*{[^}]*box-shadow:/s);
   });
 
-  it('uses the animated club gradient on play and cuadro creation actions', () => {
+  it('uses the red-blue brand gradient on play and cuadro creation actions', () => {
     const focusStart = tacticalCss.indexOf('.tactical-sequence-open:focus-visible');
     const focusEnd = tacticalCss.indexOf('.tactical-sequence-menu-btn,', focusStart);
     const focusSource = tacticalCss.slice(focusStart, focusEnd);
 
     expect(tacticalCss).toMatch(/\.tactical-library-view\s*{[^}]*gap:\s*var\(--space-8\);/s);
-    expect(tacticalCss).toMatch(/\.tactical-new-sequence-btn\s*{[^}]*linear-gradient\(\s*110deg,\s*var\(--color-brand-red\)\s*0%,\s*var\(--color-brand-navy\)\s*48%,\s*var\(--color-brand-red\)\s*100%\s*\)[^}]*background-size:\s*220% 100%;[^}]*animation:\s*club-gradient-shift 7s ease-in-out infinite;/s);
-    expect(tacticalCss).toMatch(/\.tactical-play-btn\s*{[^}]*linear-gradient\(\s*110deg,\s*var\(--color-brand-red\)\s*0%,\s*var\(--color-brand-navy\)\s*48%,\s*var\(--color-brand-red\)\s*100%\s*\)[^}]*background-size:\s*220% 100%;[^}]*animation:\s*club-gradient-shift 7s ease-in-out infinite;/s);
-    expect(tacticalCss).toMatch(/\.tactical-cuadro-add,\s*\.tactical-sequence-empty button\s*{[^}]*border:\s*0;[^}]*linear-gradient\(\s*110deg,\s*var\(--color-brand-red\)\s*0%,\s*var\(--color-brand-navy\)\s*48%,\s*var\(--color-brand-red\)\s*100%\s*\)[^}]*background-size:\s*220% 100%;[^}]*animation:\s*club-gradient-shift 7s ease-in-out infinite;/s);
+    expect(tacticalCss).toMatch(/\.tactical-new-sequence-btn\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
+    expect(tacticalCss).toMatch(/\.tactical-play-btn\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
+    expect(tacticalCss).toMatch(/\.tactical-cuadro-add,\s*\.tactical-sequence-empty button\s*{[^}]*border:\s*0;[^}]*background:\s*var\(--gradient-brand\);/s);
     expect(focusSource).not.toContain('.tactical-cuadro-add:focus-visible');
     expect(focusSource).not.toContain('.tactical-sequence-empty button:focus-visible');
   });

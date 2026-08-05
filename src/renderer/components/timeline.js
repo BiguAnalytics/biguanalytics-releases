@@ -14,11 +14,11 @@ const MIN_TIMELINE_SECONDS = 60;
 const TIMELINE_PIXELS_PER_MINUTE = 72;
 export const SEQUENCE_COLOR_CHOICES = [
   { value: 'red', label: 'Rojo', color: 'rgba(200, 16, 46, 0.78)' },
-  { value: 'blue', label: 'Azul', color: 'rgba(59, 130, 246, 0.78)' },
-  { value: 'green', label: 'Verde', color: 'rgba(29, 185, 84, 0.78)' },
-  { value: 'yellow', label: 'Amarillo', color: 'rgba(245, 158, 11, 0.78)' },
-  { value: 'violet', label: 'Violeta', color: 'rgba(139, 92, 246, 0.78)' },
-  { value: 'orange', label: 'Naranja', color: 'rgba(249, 115, 22, 0.78)' },
+  { value: 'blue', label: 'Azul', color: 'rgba(79, 121, 174, 0.78)' },
+  { value: 'green', label: 'Azul suave', color: 'rgba(79, 121, 174, 0.64)' },
+  { value: 'yellow', label: 'Neutro', color: 'rgba(118, 135, 157, 0.78)' },
+  { value: 'violet', label: 'Neutro claro', color: 'rgba(138, 155, 176, 0.68)' },
+  { value: 'orange', label: 'Rojo suave', color: 'rgba(225, 90, 107, 0.78)' },
 ];
 
 /**

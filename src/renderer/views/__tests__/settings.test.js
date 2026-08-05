@@ -238,8 +238,9 @@ describe('settings microphone configuration', () => {
     expect(layoutSource).toContain('right 22px center');
     expect(layoutSource).toContain('.settings-microphone-select option');
     expect(layoutSource).toContain('background: #f8fafc');
-    expect(layoutSource).toContain('border-color: transparent');
-    expect(layoutSource).not.toContain('.settings-microphone-select:focus {\n  border-color: var(--color-accent)');
+    expect(layoutSource).toContain('border-color: var(--color-border-strong)');
+    expect(layoutSource).toContain('.form-select.settings-microphone-select:hover');
+    expect(layoutSource).toContain('border-color: var(--color-accent)');
   });
 
   it('builds the persisted microphone payload with es-AR as the dictation language', () => {
@@ -266,13 +267,13 @@ describe('settings microphone configuration', () => {
     });
   });
 
-  it('maps microphone volume to dB and green/yellow/red meter tones', () => {
+  it('maps microphone volume to dB and blue/neutral/red meter tones', () => {
     expect(getDecibelsFromRms).toBeTypeOf('function');
     expect(getMicrophoneLevelTone).toBeTypeOf('function');
     expect(getDecibelsFromRms(1)).toBe(0);
     expect(getDecibelsFromRms(0)).toBe(-100);
-    expect(getMicrophoneLevelTone(-42)).toBe('green');
-    expect(getMicrophoneLevelTone(-18)).toBe('yellow');
+    expect(getMicrophoneLevelTone(-42)).toBe('blue');
+    expect(getMicrophoneLevelTone(-18)).toBe('neutral');
     expect(getMicrophoneLevelTone(-6)).toBe('red');
   });
 });

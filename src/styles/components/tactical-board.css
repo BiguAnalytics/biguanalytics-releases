@@ -146,19 +146,13 @@
   padding: 0 var(--space-3);
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
-  background:
-    linear-gradient(
-      110deg,
-      var(--color-brand-red) 0%,
-      var(--color-brand-navy) 48%,
-      var(--color-brand-red) 100%
-    );
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   color: var(--color-brand-white);
   font: 900 11px var(--font-brand);
   cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
   animation: club-gradient-shift 7s ease-in-out infinite;
-  transition: background-position var(--duration-base) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tactical-new-sequence-btn:hover,
@@ -232,19 +226,13 @@
   padding: 0 10px;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: var(--radius-sm);
-  background:
-    linear-gradient(
-      110deg,
-      var(--color-brand-red) 0%,
-      var(--color-brand-navy) 48%,
-      var(--color-brand-red) 100%
-    );
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   color: var(--color-brand-white);
   font: 900 11px var(--font-brand);
   cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
   animation: club-gradient-shift 7s ease-in-out infinite;
-  transition: background-position var(--duration-base) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tactical-play-btn:hover:not(:disabled),
@@ -497,7 +485,7 @@
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: rgba(14, 59, 42, 0.9);
+  background: rgba(38, 64, 95, 0.9);
   overflow: hidden;
 }
 
@@ -512,7 +500,7 @@
   width: 100%;
   height: 100%;
   display: block;
-  background: rgba(14, 59, 42, 0.9);
+  background: rgba(38, 64, 95, 0.9);
 }
 
 .tactical-cuadro-placeholder::before,
@@ -631,16 +619,10 @@
   color: var(--color-brand-white);
   text-align: center;
   border: 0;
-  background:
-    linear-gradient(
-      110deg,
-      var(--color-brand-red) 0%,
-      var(--color-brand-navy) 48%,
-      var(--color-brand-red) 100%
-    );
+  background: var(--gradient-brand);
   background-size: 220% 100%;
+  transition: background-position var(--duration-fast) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
   animation: club-gradient-shift 7s ease-in-out infinite;
-  transition: background-position var(--duration-base) var(--ease-smooth), filter var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
 }
 
 .tactical-cuadro-add:hover,
