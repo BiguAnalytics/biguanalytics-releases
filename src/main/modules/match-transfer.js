@@ -5,7 +5,6 @@ const zlib = require('zlib');
 const { v4: uuidv4 } = require('uuid');
 const {
   createMatch,
-  deleteMatch,
   getAllMatches,
   getDataPath,
   getMatchDataPath,
@@ -583,6 +582,62 @@ async function restoreMatchSidecars(archive, targetMatchId) {
 }
 
 /**
+ * Builds and validates a replacement outside the current match directory,
+ * then swaps directories only after the complete replacement is ready.
+ * @param {{entries: Array<{path: string, data: Buffer}>}} archive
+ * @param {string} sourceMatchId
+ * @param {object} nextMatch
+ * @returns {Promise<void>}
+ */
+async function replaceMatchArchive(archive, sourceMatchId, nextMatch) {
+  const stagingId = `import-${uuidv4()}`;
+  const backupId = `backup-${uuidv4()}`;
+  const targetPath = getMatchDataPath(sourceMatchId);
+  const stagingPath = getMatchDataPath(stagingId);
+  const backupPath = getMatchDataPath(backupId);
+  let swapped = false;
+
+  try {
+    const staged = await createMatch({ ...nextMatch, id: stagingId });
+    await updateMatch(staged.id, nextMatch);
+    const normalized = await getMatchById(stagingId);
+    await fs.writeFile(
+      resolveMatchPath(stagingId, 'match.json'),
+      JSON.stringify({ ...normalized, id: sourceMatchId }, null, 2),
+      'utf8',
+    );
+    await restoreMatchSidecars(archive, stagingId);
+
+    const validated = await getMatchById(stagingId);
+    if (validated.id !== sourceMatchId) throw new Error('Reemplazo de partido invalido.');
+
+    await fs.rename(targetPath, backupPath);
+    try {
+      await fs.rename(stagingPath, targetPath);
+      swapped = true;
+    } catch (error) {
+      try {
+        await fs.rename(backupPath, targetPath);
+      } catch (restoreError) {
+        error.restoreError = restoreError;
+      }
+      throw error;
+    }
+
+    await fs.rm(backupPath, { recursive: true, force: true });
+  } catch (error) {
+    if (!swapped) {
+      try {
+        await fs.rm(stagingPath, { recursive: true, force: true });
+      } catch {
+        // Preserve the original import error; the original match remains untouched.
+      }
+    }
+    throw error;
+  }
+}
+
+/**
  * @param {object} match
  * @param {string} sourceMatchId
  * @param {string} importedAt
@@ -641,7 +696,15 @@ async function importMatchArchive(archivePath, options = {}) {
   const importedAt = options.now?.() || new Date().toISOString();
   const asCopy = exists && duplicateStrategy === 'copy';
   const nextMatch = buildImportedMatch(archivedMatch, sourceMatchId, importedAt, asCopy);
-  if (exists && duplicateStrategy === 'replace') await deleteMatch(sourceMatchId);
+  if (exists && duplicateStrategy === 'replace') {
+    await replaceMatchArchive(archive, sourceMatchId, nextMatch);
+    return {
+      canceled: false,
+      action: 'replace',
+      sourceMatchId,
+      match: await getMatchById(sourceMatchId),
+    };
+  }
   const created = await createMatch(nextMatch);
   await updateMatch(created.id, nextMatch);
   await restoreMatchSidecars(archive, created.id);

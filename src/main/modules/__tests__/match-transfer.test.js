@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import fs from 'fs/promises';
 import path from 'path';
 
@@ -119,6 +119,38 @@ describe('match-transfer.js', () => {
     expect(imported.match.id).toBe(match.id);
     expect(restored.events).toEqual([expect.objectContaining({ id: 'evt-restore', note: 'Cambio tactico' })]);
     expect(restored.coachNotes).toBe('Cerrar canal interno.');
+  });
+
+  it('keeps the original match and sidecars when replacement restoration fails', async () => {
+    const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Old Christians', date: '2026-06-03' });
+    await updateMatch(match.id, {
+      events: [{ id: 'evt-original', type: 'note', timestamp: 7, note: 'Original intacto' }],
+    });
+    const sidecarPath = resolveMatchPath(match.id, 'ai-analysis.json');
+    await fs.writeFile(sidecarPath, JSON.stringify({ summary: 'Analisis original' }), 'utf8');
+    const result = await exportMatchArchive(match.id, {
+      outputPath: path.join(EXPORT_DIR, 'replace-with-failure.biguanalytics'),
+    });
+
+    const originalWriteFile = fs.writeFile.bind(fs);
+    const writeFileSpy = vi.spyOn(fs, 'writeFile').mockImplementation(async (filePath, data, options) => {
+      if (String(filePath).endsWith(`${path.sep}ai-analysis.json`)) {
+        throw new Error('simulated sidecar restore failure');
+      }
+      return originalWriteFile(filePath, data, options);
+    });
+
+    try {
+      await expect(importMatchArchive(result.filePath, { duplicateStrategy: 'replace' })).rejects.toThrow('simulated sidecar restore failure');
+    } finally {
+      writeFileSpy.mockRestore();
+    }
+
+    await expect(getMatchById(match.id)).resolves.toEqual(expect.objectContaining({
+      id: match.id,
+      events: [expect.objectContaining({ id: 'evt-original', note: 'Original intacto' })],
+    }));
+    await expect(fs.readFile(sidecarPath, 'utf8')).resolves.toBe(JSON.stringify({ summary: 'Analisis original' }));
   });
 
   it('imports duplicate match ids as a copy when requested', async () => {
