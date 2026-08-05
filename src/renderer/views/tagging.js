@@ -1423,8 +1423,13 @@ export function renderTagging(container, params = {}) {
         return;
       }
       const fileUrl = match.video.fileUrl || toFileUrl(match.video.path);
-      mediaHost.innerHTML = `<video class="tagging-video" id="tagging-video" src="${fileUrl}" preload="metadata"></video>`;
-      localVideo = /** @type {HTMLVideoElement|null} */ (container.querySelector('#tagging-video'));
+      const videoElement = document.createElement('video');
+      videoElement.className = 'tagging-video';
+      videoElement.id = 'tagging-video';
+      videoElement.preload = 'metadata';
+      videoElement.src = fileUrl;
+      mediaHost.replaceChildren(videoElement);
+      localVideo = videoElement;
       ensureLiveDrawingOverlay(mediaHost);
       renderLiveDrawingOverlay();
       localVideo?.addEventListener('loadedmetadata', async () => {

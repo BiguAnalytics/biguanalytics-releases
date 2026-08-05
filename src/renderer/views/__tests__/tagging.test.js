@@ -32,6 +32,14 @@ const {
 } = tagging;
 
 describe('tagging video controls', () => {
+  it('assigns local video URLs through the DOM property instead of HTML interpolation', () => {
+    const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+
+    expect(taggingSource).toContain("const videoElement = document.createElement('video');");
+    expect(taggingSource).toContain('videoElement.src = fileUrl;');
+    expect(taggingSource).not.toContain('<video class="tagging-video" id="tagging-video" src="${fileUrl}"');
+  });
+
   it('does not display a fake duration before video metadata is available', () => {
     expect(formatVideoReadout(0, null)).toBe('0:00 / --:--');
   });
