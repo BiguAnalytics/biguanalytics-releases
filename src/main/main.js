@@ -13,6 +13,7 @@ const devIconPath = path.join(__dirname, '../../build/icon.ico');
 const packagedIconPath = path.join(process.resourcesPath, 'icon.ico');
 const appIconPath = app.isPackaged ? packagedIconPath : devIconPath;
 const appUserModelId = 'com.biguanalytics.app';
+const WINDOW_CLOSE_FLUSH_TIMEOUT_MS = 1500;
 
 if (process.platform === 'win32') {
   app.setAppUserModelId(appUserModelId);
@@ -30,6 +31,7 @@ if (!singleInstanceLock) {
 
 let mainWindow;
 let backgroundUpdaterStarted = false;
+let windowCloseInProgress = false;
 
 function startBackgroundUpdaterOnce() {
   if (backgroundUpdaterStarted) return;
@@ -166,7 +168,19 @@ if (singleInstanceLock) {
   });
 
   ipcMain.on('window:close', () => {
-    if (mainWindow) mainWindow.close();
+    if (!mainWindow || windowCloseInProgress) return;
+    const windowToClose = mainWindow;
+    windowCloseInProgress = true;
+    const flushPromise = windowToClose.webContents
+      .executeJavaScript('window.__biguFlushPendingSaves?.()', true)
+      .catch(() => undefined);
+    const timeout = new Promise(resolve => {
+      setTimeout(resolve, WINDOW_CLOSE_FLUSH_TIMEOUT_MS);
+    });
+    void Promise.race([flushPromise, timeout]).finally(() => {
+      windowCloseInProgress = false;
+      if (!windowToClose.isDestroyed()) windowToClose.close();
+    });
   });
 
   configureYouTubeEmbeds();

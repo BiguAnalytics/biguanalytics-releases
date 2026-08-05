@@ -165,6 +165,13 @@ describe('Electron shell YouTube integration', () => {
     expect(mainSource.indexOf('function showMainWindow()')).toBeLessThan(mainSource.indexOf('mainWindow.show();'));
   });
 
+  it('waits for bounded renderer save flushing before closing the window', () => {
+    expect(mainSource).toContain('window.__biguFlushPendingSaves?.()');
+    expect(mainSource).toContain('WINDOW_CLOSE_FLUSH_TIMEOUT_MS');
+    expect(mainSource).toContain('Promise.race');
+    expect(mainSource).toContain('windowToClose.close();');
+  });
+
   it('handles Chromium microphone permission requests for voice dictation', () => {
     expect(mainSource).toContain('setPermissionRequestHandler');
     expect(mainSource).toContain("permission === 'media'");

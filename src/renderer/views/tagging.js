@@ -49,6 +49,7 @@ const YOUTUBE_IFRAME_API_SRC = 'https://www.youtube.com/iframe_api';
 const SEEK_VISUAL_LOCK_MS = 1200;
 const POSSESSION_SAVE_INTERVAL_MS = 1000;
 const POSSESSION_MAX_GAP_SECONDS = 2;
+const CLOSE_FLUSH_TIMEOUT_MS = 1200;
 const POINTS_SCORE_DELTAS = {
   try: 5,
   conversion: 2,
@@ -931,13 +932,14 @@ export function renderTagging(container, params = {}) {
   let pendingEventSaves = 0;
   let eventSaveStatusTimer = 0;
   let taggedEventSaveInFlight = Promise.resolve();
+  let pendingCloseFlush = null;
+
+  const flushPendingSavesForWindowClose = () => flushPendingSaves('window-close');
 
   const cleanup = () => {
     disposed = true;
     stopSpeechNote();
-    if (match) {
-      void closeActivePossessionSafely('cleanup');
-    }
+    void flushPendingSaves('cleanup');
     document.removeEventListener('keydown', handleKeydown);
     if (ticker) window.clearInterval(ticker);
     if (autoCloseTicker) window.clearInterval(autoCloseTicker);
@@ -956,7 +958,11 @@ export function renderTagging(container, params = {}) {
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
     delete document.body.dataset.playback;
+    if (window.__biguFlushPendingSaves === flushPendingSavesForWindowClose) {
+      delete window.__biguFlushPendingSaves;
+    }
   };
+  window.__biguFlushPendingSaves = flushPendingSavesForWindowClose;
   activeCleanup = cleanup;
 
   setSidebarExpanded(false);
@@ -3472,6 +3478,27 @@ export function renderTagging(container, params = {}) {
       showTaggingFeedback(`No se pudo guardar el cierre de posesion.${detail}`, 'error');
       return false;
     }
+  }
+
+  /**
+   * @param {string} reason
+   * @returns {Promise<boolean>}
+   */
+  async function flushPendingSaves(reason) {
+    if (pendingCloseFlush) return pendingCloseFlush;
+
+    const pending = (async () => {
+      await taggedEventSaveInFlight.catch(() => false);
+      if (match) await closeActivePossessionSafely(reason);
+      return true;
+    })();
+    const timeout = new Promise(resolve => {
+      window.setTimeout(() => resolve(false), CLOSE_FLUSH_TIMEOUT_MS);
+    });
+    pendingCloseFlush = Promise.race([pending, timeout]).finally(() => {
+      pendingCloseFlush = null;
+    });
+    return pendingCloseFlush;
   }
 
   async function resetPossessionWithWarning() {

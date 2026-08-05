@@ -526,6 +526,17 @@ describe('tagging event persistence', () => {
   });
 });
 
+describe('tagging close protocol', () => {
+  const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+
+  it('flushes pending saves through the bounded window-close protocol', () => {
+    expect(taggingSource).toContain('const CLOSE_FLUSH_TIMEOUT_MS =');
+    expect(taggingSource).toContain('async function flushPendingSaves(');
+    expect(taggingSource).toContain("void flushPendingSaves('cleanup');");
+    expect(taggingSource).toContain('window.__biguFlushPendingSaves =');
+  });
+});
+
 describe('tagging match selection entrypoint', () => {
   const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
 
