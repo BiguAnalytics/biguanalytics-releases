@@ -2,11 +2,13 @@ const { BrowserWindow, dialog, ipcMain, shell } = require('electron');
 const path = require('path');
 const { getStartupTimer } = require('./modules/startup-timing');
 
-const allowedOpenPaths = new Set();
-const allowedImportPaths = new Set();
-const allowedVideoPaths = new Set();
+const allowedOpenPaths = new Map();
+const allowedImportPaths = new Map();
+const allowedVideoPaths = new Map();
 const moduleCache = new Map();
 
+const AUTHORIZED_PATH_TTL_MS = 15 * 60 * 1000;
+const MAX_AUTHORIZED_PATHS = 256;
 const MAX_MATCH_DTO_BYTES = 8 * 1024 * 1024;
 const MAX_DTO_DEPTH = 8;
 const MAX_DTO_KEYS = 64;
@@ -110,18 +112,59 @@ function isSupportedVideoPath(filePath) {
   return VIDEO_EXTENSIONS.has(path.extname(filePath).toLowerCase());
 }
 
+function cleanupAuthorizedPaths(registry, now = Date.now()) {
+  for (const [filePath, expiresAt] of registry) {
+    if (expiresAt <= now) registry.delete(filePath);
+  }
+}
+
+function registerAuthorizedPath(registry, filePath) {
+  const resolved = path.resolve(filePath);
+  const now = Date.now();
+  cleanupAuthorizedPaths(registry, now);
+  registry.delete(resolved);
+  while (registry.size >= MAX_AUTHORIZED_PATHS) {
+    const oldest = registry.keys().next().value;
+    if (oldest === undefined) break;
+    registry.delete(oldest);
+  }
+  registry.set(resolved, now + AUTHORIZED_PATH_TTL_MS);
+  return resolved;
+}
+
+function isAuthorizedPath(registry, filePath, now = Date.now()) {
+  cleanupAuthorizedPaths(registry, now);
+  const expiresAt = registry.get(filePath);
+  if (expiresAt === undefined || expiresAt <= now) {
+    registry.delete(filePath);
+    return false;
+  }
+  return true;
+}
+
+function resolveAuthorizedPath(registry, filePath, errorMessage) {
+  if (typeof filePath !== 'string' || !filePath.trim()) {
+    throw new Error(errorMessage);
+  }
+  const resolved = path.resolve(filePath);
+  const now = Date.now();
+  if (!isAuthorizedPath(registry, resolved, now)) {
+    throw new Error(errorMessage);
+  }
+  registerAuthorizedPath(registry, resolved);
+  return resolved;
+}
+
 function registerAllowedVideoPath(filePath) {
   if (typeof filePath !== 'string' || !filePath.trim() || !path.isAbsolute(filePath) || !isSupportedVideoPath(filePath)) {
     throw new Error('Ruta de video o extension no permitida.');
   }
-  const resolved = path.resolve(filePath);
-  allowedVideoPaths.add(resolved);
-  return resolved;
+  return registerAuthorizedPath(allowedVideoPaths, filePath);
 }
 
 function isAllowedVideoPath(filePath) {
   if (!isSupportedVideoPath(filePath)) return false;
-  return allowedVideoPaths.has(path.resolve(filePath));
+  return isAuthorizedPath(allowedVideoPaths, path.resolve(filePath));
 }
 
 function resolveAllowedVideoPath(filePath) {
@@ -129,9 +172,10 @@ function resolveAllowedVideoPath(filePath) {
     throw new Error('Ruta de video no autorizada.');
   }
   const resolved = path.resolve(filePath);
-  if (!isSupportedVideoPath(resolved) || !allowedVideoPaths.has(resolved)) {
+  if (!isSupportedVideoPath(resolved) || !isAuthorizedPath(allowedVideoPaths, resolved)) {
     throw new Error('Ruta de video no autorizada o no registrada.');
   }
+  registerAuthorizedPath(allowedVideoPaths, resolved);
   return resolved;
 }
 
@@ -344,7 +388,7 @@ function validatePayloadMatchId(payload) {
  */
 function registerOpenPath(filePath) {
   if (typeof filePath === 'string' && filePath.trim()) {
-    allowedOpenPaths.add(path.resolve(filePath));
+    registerAuthorizedPath(allowedOpenPaths, filePath);
   }
 }
 
@@ -353,7 +397,7 @@ function registerOpenPath(filePath) {
  */
 function registerImportPath(filePath) {
   if (typeof filePath === 'string' && filePath.trim()) {
-    allowedImportPaths.add(path.resolve(filePath));
+    registerAuthorizedPath(allowedImportPaths, filePath);
   }
 }
 
@@ -377,14 +421,7 @@ function registerOpenResult(result) {
  * @returns {string}
  */
 function resolveAllowedOpenPath(filePath) {
-  if (typeof filePath !== 'string' || !filePath.trim()) {
-    throw new Error('Ruta no autorizada.');
-  }
-  const resolved = path.resolve(filePath);
-  if (!allowedOpenPaths.has(resolved)) {
-    throw new Error('Ruta no autorizada.');
-  }
-  return resolved;
+  return resolveAuthorizedPath(allowedOpenPaths, filePath, 'Ruta no autorizada.');
 }
 
 /**
@@ -392,14 +429,7 @@ function resolveAllowedOpenPath(filePath) {
  * @returns {string}
  */
 function resolveAllowedImportPath(filePath) {
-  if (typeof filePath !== 'string' || !filePath.trim()) {
-    throw new Error('Ruta no autorizada.');
-  }
-  const resolved = path.resolve(filePath);
-  if (!allowedImportPaths.has(resolved)) {
-    throw new Error('Ruta no autorizada.');
-  }
-  return resolved;
+  return resolveAuthorizedPath(allowedImportPaths, filePath, 'Ruta no autorizada.');
 }
 
 /**
@@ -810,8 +840,12 @@ function registerIpcHandlers() {
 module.exports = {
   isAllowedVideoPath,
   lazyRequire,
+  registerImportPath,
+  registerOpenPath,
   registerAllowedVideoPath,
   registerIpcHandlers,
+  resolveAllowedImportPath,
+  resolveAllowedOpenPath,
   resolveAllowedVideoPath,
   validateAIChatRequest,
   validateMatchCachePayload,

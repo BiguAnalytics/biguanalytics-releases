@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   isAllowedVideoPath,
@@ -14,6 +14,7 @@ import {
   validatePendingSyncIds,
   validatePendingSyncOperation,
 } from '../../ipc.js';
+import * as ipc from '../../ipc.js';
 
 const ipcSource = readFileSync(resolve(process.cwd(), 'src/main/ipc.js'), 'utf8');
 
@@ -85,6 +86,61 @@ describe('IPC security validation', () => {
     expect(resolveAllowedVideoPath(registered)).toBe(registered);
     expect(() => registerAllowedVideoPath('C:\\Partidos\\notas.txt')).toThrow(/video|extension/i);
     expect(() => resolveAllowedVideoPath('C:\\Partidos\\no-registrado.mp4')).toThrow(/autorizada|registrada/i);
+  });
+
+  it('expires video authorizations that remain unused', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-05T12:00:00.000Z'));
+    try {
+      const registered = registerAllowedVideoPath('C:\\Partidos\\fecha-expirable.mp4');
+
+      vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+
+      expect(() => resolveAllowedVideoPath(registered)).toThrow(/autorizada|registrada/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps valid open and import paths reusable while active', () => {
+    expect(ipc.registerOpenPath).toBeTypeOf('function');
+    expect(ipc.registerImportPath).toBeTypeOf('function');
+    expect(ipc.resolveAllowedOpenPath).toBeTypeOf('function');
+    expect(ipc.resolveAllowedImportPath).toBeTypeOf('function');
+
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-08-05T12:00:00.000Z'));
+    try {
+      const openPath = 'C:\\Exports\\match-report.pdf';
+      const importPath = 'C:\\Imports\\match-archive.zip';
+      ipc.registerOpenPath(openPath);
+      ipc.registerImportPath(importPath);
+
+      expect(ipc.resolveAllowedOpenPath(openPath)).toBe(resolve(openPath));
+      expect(ipc.resolveAllowedImportPath(importPath)).toBe(resolve(importPath));
+
+      vi.advanceTimersByTime(14 * 60 * 1000);
+      expect(ipc.resolveAllowedOpenPath(openPath)).toBe(resolve(openPath));
+      expect(ipc.resolveAllowedImportPath(importPath)).toBe(resolve(importPath));
+
+      vi.advanceTimersByTime(15 * 60 * 1000 + 1);
+      expect(() => ipc.resolveAllowedOpenPath(openPath)).toThrow(/autorizada/i);
+      expect(() => ipc.resolveAllowedImportPath(importPath)).toThrow(/autorizada/i);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('bounds the number of authorized paths retained per registry', () => {
+    expect(ipc.registerOpenPath).toBeTypeOf('function');
+    expect(ipc.resolveAllowedOpenPath).toBeTypeOf('function');
+
+    for (let index = 0; index < 257; index += 1) {
+      ipc.registerOpenPath(`C:\\Exports\\bounded-${index}.pdf`);
+    }
+
+    expect(() => ipc.resolveAllowedOpenPath('C:\\Exports\\bounded-0.pdf')).toThrow(/autorizada/i);
+    expect(ipc.resolveAllowedOpenPath('C:\\Exports\\bounded-256.pdf')).toBe(resolve('C:\\Exports\\bounded-256.pdf'));
   });
 
   it('routes metadata IPC through the registered video path validator', () => {
