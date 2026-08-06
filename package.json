@@ -112,5 +112,9 @@
     "ffprobe-static": "^3.1.0",
     "supabase": "^2.105.0",
     "uuid": "^11.1.0"
+  },
+  "overrides": {
+    "fast-uri": "3.1.5",
+    "js-yaml": "4.3.0"
   }
 }
