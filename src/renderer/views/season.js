@@ -122,8 +122,8 @@ function configureSeasonCharts(colors) {
   window.Chart.defaults.borderColor = colors.border;
   window.Chart.defaults.font.family = 'Arial, sans-serif';
   window.Chart.defaults.plugins.tooltip.backgroundColor = colors.tooltipBg;
-  window.Chart.defaults.plugins.tooltip.titleColor = '#F0F4F8';
-  window.Chart.defaults.plugins.tooltip.bodyColor = '#8A9BB0';
+  window.Chart.defaults.plugins.tooltip.titleColor = colors.tooltipTitle;
+  window.Chart.defaults.plugins.tooltip.bodyColor = colors.tooltipBody;
 }
 
 /**
@@ -131,12 +131,18 @@ function configureSeasonCharts(colors) {
  */
 function getSeasonChartColors() {
   const styles = getComputedStyle(document.documentElement);
+  const getToken = (name, fallback = 'currentColor') => styles.getPropertyValue(name).trim() || fallback;
+  const tooltipTitle = styles.getPropertyValue('--color-text-primary').trim() || 'currentColor';
+  const area = styles.getPropertyValue('--tag-neutral-soft').trim() || 'transparent';
   return {
-    accent: styles.getPropertyValue('--color-accent').trim() || '#C8102E',
-    line: styles.getPropertyValue('--tag-ataque').trim() || '#76879D',
-    text: styles.getPropertyValue('--color-text-secondary').trim() || '#A8B4C4',
-    border: styles.getPropertyValue('--color-border').trim() || 'rgba(255,255,255,0.08)',
-    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#1E2D42',
+    accent: getToken('--color-accent'),
+    line: getToken('--tag-ataque'),
+    text: getToken('--color-text-secondary'),
+    border: getToken('--color-border'),
+    tooltipBg: getToken('--color-bg-elevated'),
+    tooltipTitle,
+    tooltipBody: getToken('--color-text-secondary'),
+    area,
   };
 }
 
@@ -144,8 +150,9 @@ function getSeasonChartColors() {
  * @param {HTMLElement} container
  * @param {object} state
  */
-async function renderSeasonCharts(container, state) {
+async function renderSeasonCharts(container, state, isActive = () => true) {
   await ensureChartJs();
+  if (!isActive()) return;
   const colors = getSeasonChartColors();
   configureSeasonCharts(colors);
   state.charts.forEach(chart => chart.destroy());
@@ -154,6 +161,7 @@ async function renderSeasonCharts(container, state) {
 
   const labels = state.filteredMatches.map(match => `${match.rival} ${String(match.date || '').slice(5)}`);
   getSeasonMetrics(state.eventLabels).forEach((metric) => {
+    if (!isActive()) return;
     const canvas = /** @type {HTMLCanvasElement|null} */ (container.querySelector(`#${metric.canvasId}`));
     if (!canvas) return;
     const threshold = Number(state.season.thresholds?.[metric.threshold]) || 0;
@@ -166,7 +174,7 @@ async function renderSeasonCharts(container, state) {
             label: metric.label,
             data: state.filteredMatches.map(match => Number(match[metric.key]) || 0),
             borderColor: colors.line,
-            backgroundColor: 'rgba(118, 139, 166, 0.12)',
+            backgroundColor: colors.area,
             pointBackgroundColor: colors.line,
             tension: 0.32,
             fill: true,
@@ -203,7 +211,11 @@ async function renderSeasonCharts(container, state) {
 /**
  * @param {HTMLElement} container
  */
-export function renderSeason(container) {
+export function renderSeason(container, params = {}, lifecycle = {}) {
+  let disposed = false;
+  const isActive = () => !disposed
+    && lifecycle?.isCurrent?.() !== false
+    && lifecycle?.signal?.aborted !== true;
   setSidebarExpanded(false);
   const year = new Date().getFullYear();
   updateTopbarContext(`Temporada ${year}`);
@@ -227,22 +239,28 @@ export function renderSeason(container) {
 
   load();
 
-  return () => {
+  const cleanup = () => {
+    disposed = true;
     state.charts.forEach(chart => chart.destroy());
+    state.charts = [];
   };
+  return cleanup;
 
   async function load() {
     try {
       await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
+      if (!isActive()) return;
       const [settings, season] = await Promise.all([
         window.api.settings.get(),
         window.api.analytics.getSeasonStats(year),
       ]);
+      if (!isActive()) return;
       state.eventLabels = getEventLabels(settings.tagging);
       state.season = season;
       applyFilters();
       render();
     } catch (error) {
+      if (!isActive()) return;
       container.innerHTML = `
         <section class="season-view view-enter">
           <div class="error-state">
@@ -252,7 +270,7 @@ export function renderSeason(container) {
           </div>
         </section>
       `;
-      container.querySelector('#season-retry-btn')?.addEventListener('click', load);
+      container.querySelector('#season-retry-btn')?.addEventListener('click', () => void load());
     }
   }
 
@@ -352,6 +370,6 @@ export function renderSeason(container) {
     container.querySelectorAll('[data-season-match-id]').forEach(row => {
       row.addEventListener('click', () => navigate('dashboard', { matchId: row.getAttribute('data-season-match-id') }));
     });
-    renderSeasonCharts(container, state).catch(() => {});
+    renderSeasonCharts(container, state, isActive).catch(() => {});
   }
 }

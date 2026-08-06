@@ -378,18 +378,28 @@ function KPI_DEFINITIONS(stats, taggingLabels = {}) {
  */
 function getChartColors() {
   const styles = getComputedStyle(document.documentElement);
+  const token = (name) => styles.getPropertyValue(name).trim() || `var(${name})`;
   return {
-    local: styles.getPropertyValue('--color-brand-red').trim() || '#C8102E',
-    localLight: 'rgba(200, 16, 46, 0.28)',
-    rival: styles.getPropertyValue('--tag-ataque').trim() || '#76879D',
-    rivalLight: 'rgba(79, 121, 174, 0.18)',
-    positive: styles.getPropertyValue('--tag-ganado').trim() || '#4F79AE',
-    negative: styles.getPropertyValue('--tag-perdido').trim() || '#C8102E',
-    warning: styles.getPropertyValue('--tag-sucio').trim() || '#76879D',
-    defense: styles.getPropertyValue('--tag-defensa').trim() || '#76879D',
-    text: styles.getPropertyValue('--color-text-secondary').trim() || '#A8B4C4',
-    border: styles.getPropertyValue('--color-border').trim() || 'rgba(255,255,255,0.06)',
-    tooltipBg: styles.getPropertyValue('--color-bg-elevated').trim() || '#1E2D42',
+    local: token('--color-brand-red'),
+    localLight: token('--tag-danger-soft'),
+    rival: token('--tag-ataque'),
+    rivalLight: styles.getPropertyValue('--tag-success-soft').trim() || token('--tag-success-soft'),
+    positive: token('--tag-ganado'),
+    negative: token('--tag-perdido'),
+    warning: token('--tag-sucio'),
+    defense: token('--tag-defensa'),
+    text: token('--color-text-secondary'),
+    border: token('--color-border'),
+    tooltipBg: token('--color-bg-elevated'),
+    tooltipBorder: token('--color-border-strong'),
+    tooltipTitle: styles.getPropertyValue('--color-text-primary').trim() || token('--color-text-primary'),
+    tooltipBody: token('--color-text-secondary'),
+    fieldBase: token('--color-bg-base'),
+    fieldNavy: token('--color-brand-navy'),
+    fieldElevated: token('--color-bg-elevated'),
+    fieldWhite: token('--color-brand-white'),
+    fieldText: token('--color-text-primary'),
+    fieldInverse: token('--color-text-inverse'),
   };
 }
 
@@ -406,10 +416,10 @@ function configureChartDefaults(colors) {
   if (prefersReducedMotion()) window.Chart.defaults.animation = { duration: 120, easing: 'linear' };
   window.Chart.defaults.plugins.legend.labels.color = colors.text;
   window.Chart.defaults.plugins.tooltip.backgroundColor = colors.tooltipBg;
-  window.Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.12)';
+  window.Chart.defaults.plugins.tooltip.borderColor = colors.tooltipBorder;
   window.Chart.defaults.plugins.tooltip.borderWidth = 1;
-  window.Chart.defaults.plugins.tooltip.titleColor = '#F0F4F8';
-  window.Chart.defaults.plugins.tooltip.bodyColor = '#8A9BB0';
+  window.Chart.defaults.plugins.tooltip.titleColor = colors.tooltipTitle;
+  window.Chart.defaults.plugins.tooltip.bodyColor = colors.tooltipBody;
   window.Chart.defaults.plugins.tooltip.padding = 12;
   window.Chart.defaults.plugins.tooltip.cornerRadius = 8;
 }
@@ -428,9 +438,12 @@ function easeOutQuart(progress) {
 
 /**
  * @param {HTMLElement} container
+ * @param {() => boolean} [isActive]
+ * @returns {() => void}
  */
-function animateDashboardKpis(container) {
-  if (prefersReducedMotion()) return;
+function animateDashboardKpis(container, isActive = () => true) {
+  const frames = new Set();
+  if (prefersReducedMotion()) return () => {};
   const values = Array.from(container.querySelectorAll('[data-count-up-value]'));
   values.forEach((valueEl) => {
     const target = Number(valueEl.dataset.countUpValue);
@@ -439,25 +452,38 @@ function animateDashboardKpis(container) {
     const decimals = Number(valueEl.dataset.countUpDecimals || 0);
     const start = performance.now();
     const duration = 600;
+    let frameId = 0;
 
     const tick = (now) => {
+      if (frameId) frames.delete(frameId);
+      if (!isActive()) return;
       const progress = Math.min(1, (now - start) / duration);
       const nextValue = target * easeOutQuart(progress);
       valueEl.textContent = `${nextValue.toFixed(decimals)}${suffix}`;
-      if (progress < 1) window.requestAnimationFrame(tick);
+      if (progress < 1) {
+        frameId = window.requestAnimationFrame(tick);
+        frames.add(frameId);
+      }
     };
 
     valueEl.textContent = `${(0).toFixed(decimals)}${suffix}`;
-    window.requestAnimationFrame(tick);
+    frameId = window.requestAnimationFrame(tick);
+    frames.add(frameId);
   });
+  return () => {
+    frames.forEach(frameId => window.cancelAnimationFrame(frameId));
+    frames.clear();
+  };
 }
 
 /**
  * @param {HTMLElement} container
  * @param {Array<object>} matches
  * @param {'dashboard'|'heatmap'} [targetRoute]
+ * @param {() => boolean} [isActive]
  */
-function renderDashboardSelection(container, matches, targetRoute = 'dashboard') {
+function renderDashboardSelection(container, matches, targetRoute = 'dashboard', isActive = () => true) {
+  if (!isActive()) return;
   setSidebarExpanded(false);
   const heatmapMode = targetRoute === 'heatmap';
   const selectionModuleLabel = heatmapMode ? 'Heatmap' : 'Dashboard';
@@ -530,7 +556,7 @@ function renderDashboardSelection(container, matches, targetRoute = 'dashboard')
       if (!matchToEdit) return;
       openEditMatchModal(matchToEdit, async () => {
         const updatedMatches = await cloudMatchService.listMatches();
-        renderDashboardSelection(container, updatedMatches, targetRoute);
+        if (isActive()) renderDashboardSelection(container, updatedMatches, targetRoute, isActive);
       });
     });
   });
@@ -2025,9 +2051,12 @@ function createLazyChartRenderer(stats, selectedView, colors, charts, taggingLab
  * @param {object} stats
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
+ * @param {Record<string, string>} [taggingLabels]
+ * @param {() => boolean} [isActive]
  */
-async function renderAllDashboardCharts(stats, selectedView, charts, taggingLabels = {}) {
+async function renderAllDashboardCharts(stats, selectedView, charts, taggingLabels = {}, isActive = () => true) {
   await ensureChartJs();
+  if (!isActive()) return;
   const colors = getChartColors();
   configureChartDefaults(colors);
   const renderers = createLazyChartRenderer(stats, selectedView, colors, charts, taggingLabels);
@@ -2038,9 +2067,12 @@ async function renderAllDashboardCharts(stats, selectedView, charts, taggingLabe
  * @param {object} stats
  * @param {'bigua'|'rival'|'compare'} selectedView
  * @param {Record<string, object>} charts
+ * @param {Record<string, string>} [taggingLabels]
+ * @param {() => boolean} [isActive]
  */
-async function renderCharts(stats, selectedView, charts, taggingLabels = {}) {
+async function renderCharts(stats, selectedView, charts, taggingLabels = {}, isActive = () => true) {
   await ensureChartJs();
+  if (!isActive()) return;
   destroyCharts(charts);
   const colors = getChartColors();
   configureChartDefaults(colors);
@@ -2053,8 +2085,9 @@ async function renderCharts(stats, selectedView, charts, taggingLabels = {}) {
   }
 
   const observer = new IntersectionObserver((entries) => {
+    if (!isActive()) return;
     entries.forEach((entry) => {
-      if (!entry.isIntersecting) return;
+      if (!entry.isIntersecting || !isActive()) return;
       const canvas = /** @type {HTMLCanvasElement} */ (entry.target);
       renderers[canvas.dataset.chartKey]?.();
       observer.unobserve(canvas);
@@ -2411,7 +2444,7 @@ function getHeatmapGeometry() {
  * @param {number} max
  * @returns {string}
  */
-function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
+function drawRugbyFieldSvg(zoneCounts = {}, max = 0, colors = getChartColors()) {
   const field = getHeatmapGeometry();
   const verticalLines = Array.from({ length: 5 }, (_, index) => field.x + field.sectorW * index);
   const hashRows = [field.y + field.height * 0.18, field.y + field.height * 0.50, field.y + field.height * 0.82];
@@ -2423,7 +2456,7 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
     const labelY = field.y + field.height / 2 - 8;
     return `
       <g class="heatmap-zone" data-zone="${zone.id}">
-        <rect x="${x}" y="${field.y}" width="${field.sectorW}" height="${field.height}" fill="#C8102E" fill-opacity="${intensity}" />
+        <rect x="${x}" y="${field.y}" width="${field.sectorW}" height="${field.height}" fill="${colors.local}" fill-opacity="${intensity}" />
         <text class="heatmap-zone-number" x="${x + field.sectorW / 2}" y="${labelY}" text-anchor="middle">${escapeHtml(zone.label)}</text>
         ${count > 0 ? `<text class="heatmap-zone-count" x="${x + field.sectorW / 2}" y="${labelY + 30}" text-anchor="middle">${count}</text>` : ''}
       </g>
@@ -2433,25 +2466,25 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0) {
   return `
     <defs>
       <linearGradient id="heatmap-field-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="#26405F" />
-        <stop offset="52%" stop-color="#1E2D42" />
-        <stop offset="100%" stop-color="#172337" />
+        <stop offset="0%" stop-color="${colors.fieldNavy}" />
+        <stop offset="52%" stop-color="${colors.fieldElevated}" />
+        <stop offset="100%" stop-color="${colors.fieldBase}" />
       </linearGradient>
     </defs>
     <style>
-      .heatmap-zone-number { fill: rgba(255,255,255,0.88); font: 900 28px Arial Black, Arial, sans-serif; paint-order: stroke; stroke: rgba(0,0,0,0.12); stroke-width: 2px; }
-      .heatmap-zone-count { fill: rgba(255,255,255,0.86); font: 900 18px Arial, sans-serif; }
+      .heatmap-zone-number { fill: color-mix(in srgb, ${colors.fieldWhite} 88%, transparent); font: 900 28px Arial Black, Arial, sans-serif; paint-order: stroke; stroke: color-mix(in srgb, ${colors.fieldInverse} 12%, transparent); stroke-width: 2px; }
+      .heatmap-zone-count { fill: color-mix(in srgb, ${colors.fieldWhite} 86%, transparent); font: 900 18px Arial, sans-serif; }
     </style>
     <rect x="0" y="0" width="960" height="520" rx="0" fill="url(#heatmap-field-gradient)" />
-    <rect x="28" y="24" width="904" height="472" fill="none" stroke="rgba(255,255,255,0.92)" stroke-width="5" vector-effect="non-scaling-stroke" />
-    <rect x="40" y="36" width="880" height="448" fill="none" stroke="rgba(255,255,255,0.82)" stroke-width="3" vector-effect="non-scaling-stroke" />
+    <rect x="28" y="24" width="904" height="472" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 92%, transparent)" stroke-width="5" vector-effect="non-scaling-stroke" />
+    <rect x="40" y="36" width="880" height="448" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 82%, transparent)" stroke-width="3" vector-effect="non-scaling-stroke" />
     ${zones.join('')}
-    <g class="heatmap-field-lines" fill="none" stroke="rgba(255,255,255,0.78)" stroke-width="2.4" vector-effect="non-scaling-stroke">
+    <g class="heatmap-field-lines" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 78%, transparent)" stroke-width="2.4" vector-effect="non-scaling-stroke">
       ${verticalLines.map(x => `<line x1="${x}" y1="${field.y}" x2="${x}" y2="${field.y + field.height}" />`).join('')}
       <path d="M84 202 L30 184 M84 318 L30 336 M84 202 L84 318" />
       <path d="M876 202 L930 184 M876 318 L930 336 M876 202 L876 318" />
     </g>
-    <g class="heatmap-hash-lines" fill="none" stroke="rgba(255,255,255,0.86)" stroke-width="3" vector-effect="non-scaling-stroke">
+    <g class="heatmap-hash-lines" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 86%, transparent)" stroke-width="3" vector-effect="non-scaling-stroke">
       ${hashRows.flatMap(y => hashColumns.map(x => `<line x1="${x - 8}" y1="${y}" x2="${x + 8}" y2="${y}" />`)).join('')}
       ${hashColumns.map(x => `<line x1="${x}" y1="${field.y + 122}" x2="${x}" y2="${field.y + 150}" stroke-dasharray="18 16" />`).join('')}
       ${hashColumns.map(x => `<line x1="${x}" y1="${field.y + field.height - 150}" x2="${x}" y2="${field.y + field.height - 122}" stroke-dasharray="18 16" />`).join('')}
@@ -2484,7 +2517,7 @@ function renderHeatmap(svg, empty, match, stats, selectedView, heatmapFilter, da
     });
   const max = Object.values(zoneCounts).reduce((value, count) => Math.max(value, count), 0);
   if (empty) empty.hidden = max > 0;
-  svg.innerHTML = drawRugbyFieldSvg(zoneCounts, max);
+  svg.innerHTML = drawRugbyFieldSvg(zoneCounts, max, getChartColors());
 }
 
 /**
@@ -2546,7 +2579,7 @@ async function refreshAIAnalysis(state) {
  * @returns {Promise<void>}
  */
 async function runAIAnalysisAction(container, state, action) {
-  if (state.aiLoading || !state.match?.id) return;
+  if (state.aiLoading || !state.match?.id || !state.isActive?.()) return;
   if (action === 'regenerate') {
     const confirmed = window.confirm('Esto consumirá una nueva llamada a la IA. ¿Querés continuar?');
     if (!confirmed) return;
@@ -2566,7 +2599,7 @@ async function runAIAnalysisAction(container, state, action) {
     };
   } finally {
     state.aiLoading = false;
-    renderLoadedDashboard(container, state);
+    if (state.isActive?.()) renderLoadedDashboard(container, state);
   }
 }
 
@@ -2577,11 +2610,13 @@ async function runAIAnalysisAction(container, state, action) {
  * @param {{reload?: boolean}} options
  */
 async function updateDashboardPreferences(container, state, nextPreferences, options = {}) {
+  if (!state.isActive?.()) return;
   state.preferences = normalizeDashboardPreferences(nextPreferences);
   state.selectedView = getViewFromPreferences(state.preferences);
   await window.api.settings.set({ dashboard: state.preferences });
+  if (!state.isActive?.()) return;
   if (options.reload) await reloadDashboardStats(state);
-  renderLoadedDashboard(container, state);
+  if (state.isActive?.()) renderLoadedDashboard(container, state);
 }
 
 /**
@@ -2589,6 +2624,23 @@ async function updateDashboardPreferences(container, state, nextPreferences, opt
  * @param {object} state
  */
 function wireDashboard(container, state) {
+  state.dashboardFrameCleanup?.();
+  const frameIds = new Set();
+  let noteFocusFrame = 0;
+  const scheduleFrame = (callback) => {
+    const frameId = window.requestAnimationFrame(() => {
+      frameIds.delete(frameId);
+      if (state.isActive?.()) callback();
+    });
+    frameIds.add(frameId);
+  };
+  state.dashboardFrameCleanup = () => {
+    if (noteFocusFrame) window.cancelAnimationFrame(noteFocusFrame);
+    noteFocusFrame = 0;
+    frameIds.forEach(frameId => window.cancelAnimationFrame(frameId));
+    frameIds.clear();
+  };
+
   container.querySelectorAll('[data-section-toggle]').forEach(button => {
     button.addEventListener('click', () => {
       button.closest('.dashboard-section')?.classList.toggle('collapsed');
@@ -2733,7 +2785,7 @@ function wireDashboard(container, state) {
   state.noteFormats = normalizeNoteFormats(state.noteFormats);
   let lastNoteRange = null;
   const scheduleToolbarState = () => {
-    window.requestAnimationFrame(() => {
+    scheduleFrame(() => {
       if (drawer) updateNoteToolbarState(/** @type {HTMLElement} */ (drawer), state.noteFormats);
     });
   };
@@ -2757,8 +2809,10 @@ function wireDashboard(container, state) {
   document.querySelector('[data-dashboard-floating-actions] [data-notes-open]')?.addEventListener('click', () => {
     drawer?.setAttribute('aria-hidden', 'false');
     document.body.classList.add('has-dashboard-notes-open');
-    window.requestAnimationFrame(() => {
+    noteFocusFrame = window.requestAnimationFrame(() => {
+      if (!state.isActive?.()) return;
       editor?.focus();
+      noteFocusFrame = 0;
       if (editor) placeCaretAtEnd(editor);
       lastNoteRange = editor ? getCurrentNoteSelection(editor) : null;
       scheduleToolbarState();
@@ -2829,15 +2883,17 @@ function wireDashboard(container, state) {
     scheduleToolbarState();
   });
   editor?.addEventListener('blur', async () => {
+    if (!state.isActive?.()) return;
     const coachNotes = serializeCoachNotes(editor);
     const notesChanged = coachNotes !== (state.match.coachNotes || '');
     state.match = await cloudMatchService.updateMatch(state.match.id, { coachNotes });
+    if (!state.isActive?.()) return;
     const noteButton = document.querySelector('[data-dashboard-floating-actions] [data-notes-open]');
     noteButton?.classList.toggle('has-notes', Boolean(coachNotes.trim()));
     closeNotesDrawer();
     if (notesChanged) {
       await refreshAIAnalysis(state);
-      renderLoadedDashboard(container, state);
+      if (state.isActive?.()) renderLoadedDashboard(container, state);
     }
   });
 }
@@ -2910,25 +2966,30 @@ function collectPrintPayload(state, access = null) {
  * @param {object} state
  */
 async function exportPdf(container, state) {
+  if (!state.isActive?.()) return;
   const exportButton = document.querySelector('[data-action="export"]');
   exportButton?.classList.add('exporting');
   if (exportButton) exportButton.textContent = 'Generando...';
 
   try {
     const access = await refreshAccessState();
+    if (!state.isActive?.()) return;
     if (access.state !== 'active') {
       window.dispatchEvent(new CustomEvent('bigu:access-denied', { detail: access }));
       showToast(container, 'No se pudo verificar la licencia para exportar.');
       return;
     }
-    await renderAllDashboardCharts(state.stats, state.selectedView, state.charts, state.taggingLabels);
+    await renderAllDashboardCharts(state.stats, state.selectedView, state.charts, state.taggingLabels, state.isActive);
+    if (!state.isActive?.()) return;
     const result = await window.api.analytics.exportPdf(state.match.id, collectPrintPayload(state, access));
+    if (!state.isActive?.()) return;
     if (!result?.canceled) {
       showToast(container, 'PDF generado correctamente.', result.filePath);
     }
   } catch (error) {
-    showToast(container, error.message || 'No se pudo exportar el PDF.');
+    if (state.isActive?.()) showToast(container, error.message || 'No se pudo exportar el PDF.');
   } finally {
+    if (!state.isActive?.()) return;
     exportButton?.classList.remove('exporting');
     if (exportButton) exportButton.textContent = 'Exportar PDF';
   }
@@ -2939,18 +3000,21 @@ async function exportPdf(container, state) {
  * @param {object} state
  */
 async function exportMatchArchive(container, state) {
+  if (!state.isActive?.()) return;
   const exportButton = document.querySelector('[data-action="export-match"]');
   exportButton?.classList.add('exporting');
   if (exportButton) exportButton.textContent = 'Exportando...';
 
   try {
     const result = await window.api.matches.exportArchive(state.match.id);
+    if (!state.isActive?.()) return;
     if (!result?.canceled) {
       showToast(container, result.videoWarning || 'Partido exportado correctamente.', result.filePath);
     }
   } catch (error) {
-    showToast(container, error.message || 'No se pudo exportar el partido.');
+    if (state.isActive?.()) showToast(container, error.message || 'No se pudo exportar el partido.');
   } finally {
+    if (!state.isActive?.()) return;
     exportButton?.classList.remove('exporting');
     if (exportButton) exportButton.textContent = 'Exportar partido';
   }
@@ -2961,6 +3025,9 @@ async function exportMatchArchive(container, state) {
  * @param {object} state
  */
 function renderLoadedDashboard(container, state) {
+  if (!state.isActive?.()) return;
+  state.kpiAnimationCleanup?.();
+  state.kpiAnimationCleanup = null;
   updateTopbarContext(`${state.match.homeTeam || 'Bigua'} vs ${state.match.awayTeam || 'Rival'}`);
   setTopbarActions([
     { id: 'tagging', label: '← Volver al tagging' },
@@ -2978,7 +3045,7 @@ function renderLoadedDashboard(container, state) {
   renderDashboardFloatingActions(state.match);
   renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
-  renderCharts(state.stats, state.selectedView, state.charts, state.taggingLabels).catch(() => {});
+  renderCharts(state.stats, state.selectedView, state.charts, state.taggingLabels, state.isActive).catch(() => {});
   renderHeatmap(
     /** @type {SVGSVGElement|null} */ (container.querySelector('#dashboard-heatmap')),
     container.querySelector('#dashboard-heatmap-empty'),
@@ -2988,7 +3055,7 @@ function renderLoadedDashboard(container, state) {
     state.heatmapFilter,
     state.preferences.filters
   );
-  animateDashboardKpis(container);
+  state.kpiAnimationCleanup = animateDashboardKpis(container, state.isActive);
   focusDashboardSection(container, state.focusSection);
 }
 
@@ -3011,7 +3078,7 @@ function focusDashboardSection(container, sectionId) {
  * @param {HTMLElement} container
  * @param {{matchId?: string, focusSection?: string}} params
  */
-export function renderDashboard(container, params = {}) {
+export function renderDashboard(container, params = {}, lifecycle = {}) {
   if (cleanupDashboard) cleanupDashboard();
   container.classList.add('dashboard-content-body');
 
@@ -3034,12 +3101,19 @@ export function renderDashboard(container, params = {}) {
     noteFormats: createEmptyNoteFormats(),
     settingsCleanup: null,
     noteToolbarCleanup: null,
+    dashboardFrameCleanup: null,
+    kpiAnimationCleanup: null,
+    isActive: () => !disposed && lifecycle.isCurrent?.() !== false,
     focusSection: params.focusSection === 'heatmap' ? 'heatmap' : null,
   };
 
   cleanupDashboard = () => {
     disposed = true;
     container.classList.remove('dashboard-content-body');
+    state.kpiAnimationCleanup?.();
+    state.kpiAnimationCleanup = null;
+    state.dashboardFrameCleanup?.();
+    state.dashboardFrameCleanup = null;
     destroyCharts(state.charts);
     state.settingsCleanup?.();
     state.settingsCleanup = null;
@@ -3065,7 +3139,7 @@ export function renderDashboard(container, params = {}) {
     try {
       if (!params.matchId) {
         const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
-        if (!disposed) renderDashboardSelection(container, matches, state.focusSection === 'heatmap' ? 'heatmap' : 'dashboard');
+        if (state.isActive()) renderDashboardSelection(container, matches, state.focusSection === 'heatmap' ? 'heatmap' : 'dashboard', state.isActive);
         return;
       }
 
@@ -3074,7 +3148,7 @@ export function renderDashboard(container, params = {}) {
         window.api.settings.get(),
         loadPdfTemplatesForExport(),
       ]);
-      if (disposed) return;
+      if (!state.isActive()) return;
       state.match = match;
       state.taggingLabels = getEventLabels(settings.tagging);
       state.preferences = normalizeDashboardPreferences(settings.dashboard);
@@ -3082,22 +3156,24 @@ export function renderDashboard(container, params = {}) {
       state.exportTemplateId = getDefaultExportTemplateId(state.exportTemplates);
       state.selectedView = getViewFromPreferences(state.preferences);
       await reloadDashboardStats(state);
-      if (disposed) return;
+      if (!state.isActive()) return;
       state.settingsCleanup = window.api.settings.onChanged?.(async (nextSettings) => {
-        if (disposed || !state.match?.id) return;
+        if (!state.isActive() || !state.match?.id) return;
         state.taggingLabels = getEventLabels(nextSettings.tagging);
         state.preferences = normalizeDashboardPreferences(nextSettings.dashboard);
         state.selectedView = getViewFromPreferences(state.preferences);
         await reloadDashboardStats(state);
+        if (!state.isActive()) return;
         await refreshAIAnalysis(state);
+        if (!state.isActive()) return;
         renderLoadedDashboard(container, state);
       });
       renderLoadedDashboard(container, state);
       void refreshAIAnalysis(state).then(() => {
-        if (!disposed) renderLoadedDashboard(container, state);
+        if (state.isActive()) renderLoadedDashboard(container, state);
       });
     } catch (error) {
-      if (disposed) return;
+      if (!state.isActive()) return;
       const detail = error instanceof Error ? error.message : 'Error desconocido';
       container.innerHTML = `
         <div class="error-state">

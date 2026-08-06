@@ -384,7 +384,9 @@ function getPageIndex(template, pageId) {
  * @param {object} template
  * @param {object} params
  */
-function mountEditor(container, template, params = {}) {
+function mountEditor(container, template, params = {}, lifecycleState = {}) {
+  const isActive = () => lifecycleState.disposed !== true
+    && lifecycleState.isActive?.() !== false;
   let draft = cloneTemplate(template);
   let selectedBlockId = draft.pages?.[0]?.blocks?.[0]?.id || '';
   let selectedPageId = draft.pages?.[0]?.id || 'page-1';
@@ -392,8 +394,13 @@ function mountEditor(container, template, params = {}) {
   const history = createPdfTemplateHistory(draft);
 
   const startWalkthrough = (force = false) => {
-    window.setTimeout(() => {
-      startPdfTemplateEditorWalkthrough({ force }).catch(() => {});
+    if (lifecycleState.walkthroughTimer) window.clearTimeout(lifecycleState.walkthroughTimer);
+    lifecycleState.walkthroughTimer = window.setTimeout(() => {
+      lifecycleState.walkthroughTimer = 0;
+      if (!isActive()) return;
+      startPdfTemplateEditorWalkthrough({ force }).then(() => {
+        if (!isActive()) document.querySelector('[data-pdf-template-walkthrough-root]')?.remove();
+      }).catch(() => {});
     }, 0);
   };
 
@@ -409,12 +416,14 @@ function mountEditor(container, template, params = {}) {
   };
 
   const commitAndRender = (message = '') => {
+    if (!isActive()) return;
     history.push(draft);
     render();
     if (message) setFeedback(container, message);
   };
 
   const restoreFromHistory = (nextDraft, message) => {
+    if (!isActive()) return;
     draft = cloneTemplate(nextDraft);
     ensureSelection();
     render();
@@ -427,6 +436,7 @@ function mountEditor(container, template, params = {}) {
   };
 
   const handleKeydown = (event) => {
+    if (!isActive()) return;
     if (!container.querySelector('[data-pdf-template-editor]')) return;
     const isUndoRedoShortcut = event.key.toLowerCase() === 'z';
     if (!event.ctrlKey || event.altKey || event.metaKey || !isUndoRedoShortcut) return;
@@ -447,6 +457,7 @@ function mountEditor(container, template, params = {}) {
   };
 
   const render = () => {
+    if (!isActive()) return;
     container.innerHTML = renderEditorShell(draft, selectedBlockId);
     const host = container.querySelector('[data-template-grid-host]');
     const grid = createPdfTemplateGrid({
@@ -454,12 +465,14 @@ function mountEditor(container, template, params = {}) {
       selectedBlockId,
       invalidBlockIds: getInvalidBlockIds(draft),
       onSelect(blockId) {
+        if (!isActive()) return;
         selectedBlockId = blockId;
         const page = (draft.pages || []).find(item => (item.blocks || []).some(block => block.id === blockId));
         if (page) selectedPageId = page.id;
         render();
       },
       onChange(nextTemplate, changeMeta = {}) {
+        if (!isActive()) return;
         draft = nextTemplate;
         if (changeMeta.commit) {
           commitAndRender();
@@ -468,6 +481,7 @@ function mountEditor(container, template, params = {}) {
         render();
       },
       onAddBlock(pageIndex, type, position) {
+        if (!isActive()) return;
         addBlock(pageIndex, type, position);
       },
     });
@@ -513,6 +527,7 @@ function mountEditor(container, template, params = {}) {
   };
 
   const wireEditor = () => {
+    if (!isActive()) return;
     container.querySelectorAll('[data-library-block]').forEach((button) => {
       button.addEventListener('dragstart', (event) => {
         event.dataTransfer?.setData('application/x-bigu-pdf-block', button.getAttribute('data-library-block') || '');
@@ -528,12 +543,15 @@ function mountEditor(container, template, params = {}) {
     });
 
     container.querySelector('[data-editor-walkthrough]')?.addEventListener('click', async () => {
+      if (!isActive()) return;
       try {
         const currentSettings = await window.api.settings.get();
+        if (!isActive()) return;
         await window.api.settings.set(buildPdfTemplateEditorWalkthroughResetSettings(currentSettings));
+        if (!isActive()) return;
         startWalkthrough(true);
       } catch {
-        setFeedback(container, 'No se pudo reiniciar el tutorial.');
+        if (isActive()) setFeedback(container, 'No se pudo reiniciar el tutorial.');
       }
     });
 
@@ -585,28 +603,32 @@ function mountEditor(container, template, params = {}) {
     });
 
     container.querySelector('[data-editor-save]')?.addEventListener('click', async () => {
+      if (!isActive()) return;
       const report = validateTemplateLayout(draft);
       try {
         draft = await window.api.pdfTemplates.update(draft.id, draft);
+        if (!isActive()) return;
         history.push(draft);
         setFeedback(container, report.valid ? 'Plantilla guardada.' : `Borrador guardado con advertencias: ${getValidationSummary(draft)}.`);
       } catch (error) {
-        setFeedback(container, error instanceof Error ? error.message : 'No se pudo guardar la plantilla.');
+        if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo guardar la plantilla.');
       }
     });
 
     container.querySelector('[data-editor-preview]')?.addEventListener('click', async () => {
+      if (!isActive()) return;
       try {
         const result = await window.api.analytics.previewPdf(params.matchId || '', {
           templateId: draft.id,
           pdfTemplateLayout: draft,
         });
+        if (!isActive()) return;
         if (!result?.canceled && result?.filePath) {
           await window.api.files.open(result.filePath);
           setFeedback(container, 'Vista previa generada.');
         }
       } catch (error) {
-        setFeedback(container, error instanceof Error ? error.message : 'No se pudo generar la vista previa.');
+        if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo generar la vista previa.');
       }
     });
 
@@ -651,6 +673,13 @@ function mountEditor(container, template, params = {}) {
     });
   };
 
+  lifecycleState.cleanup = () => {
+    if (lifecycleState.walkthroughTimer) window.clearTimeout(lifecycleState.walkthroughTimer);
+    lifecycleState.walkthroughTimer = 0;
+    container.__pdfTemplateEditorKeydownCleanup?.();
+    container.__pdfTemplateEditorKeydownCleanup = null;
+    document.querySelector('[data-pdf-template-walkthrough-root]')?.remove();
+  };
   render();
 }
 
@@ -729,9 +758,10 @@ function openTemplateNameDialog({
  * @param {HTMLElement} container
  * @param {object} params
  */
-async function mountManager(container, params = {}) {
+async function mountManager(container, params = {}, isActive = () => true) {
   const loadTemplates = async () => {
     const managerState = await loadPdfTemplateManagerState();
+    if (!isActive()) return;
     container.innerHTML = renderTemplateManager(managerState);
     wireManager();
   };
@@ -744,6 +774,7 @@ async function mountManager(container, params = {}) {
         fallbackName: 'Nueva plantilla PDF',
         onSubmit: async (name) => {
           const template = await window.api.pdfTemplates.create({ name });
+          if (!isActive()) return;
           navigate('pdfTemplates', { id: template.id, ...(params.matchId ? { matchId: params.matchId } : {}) });
         },
       });
@@ -752,17 +783,20 @@ async function mountManager(container, params = {}) {
     container.querySelector('[data-template-import]')?.addEventListener('click', async () => {
       try {
         const imported = await window.api.pdfTemplates.import();
+        if (!isActive()) return;
         if (!imported?.canceled) await loadTemplates();
       } catch (error) {
-        setFeedback(container, error instanceof Error ? error.message : 'No se pudo importar la plantilla.');
+        if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo importar la plantilla.');
       }
     });
 
     container.querySelectorAll('[data-template-id]').forEach((card) => {
       const id = card.getAttribute('data-template-id') || '';
       card.querySelector('[data-template-open-editor]')?.addEventListener('click', async () => {
+        if (!isActive()) return;
         if (id === SYSTEM_TEMPLATE_ID) {
           const copy = await window.api.pdfTemplates.duplicate(id, { name: 'Default editable' });
+          if (!isActive()) return;
           navigate('pdfTemplates', { id: copy.id, ...(params.matchId ? { matchId: params.matchId } : {}) });
           return;
         }
@@ -771,14 +805,16 @@ async function mountManager(container, params = {}) {
       card.querySelector('[data-template-duplicate]')?.addEventListener('click', async () => {
         try {
           await window.api.pdfTemplates.duplicate(id);
+          if (!isActive()) return;
           await loadTemplates();
         } catch (error) {
-          setFeedback(container, error instanceof Error ? error.message : 'No se pudo duplicar la plantilla.');
+          if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo duplicar la plantilla.');
         }
       });
       card.querySelector('[data-template-rename]')?.addEventListener('click', async () => {
         try {
           const current = await window.api.pdfTemplates.get(id);
+          if (!isActive()) return;
           openTemplateNameDialog({
             title: 'Renombrar plantilla',
             submitLabel: 'Guardar nombre',
@@ -786,36 +822,40 @@ async function mountManager(container, params = {}) {
             fallbackName: current.name || 'Plantilla PDF',
             onSubmit: async (name) => {
               await window.api.pdfTemplates.update(id, { ...current, name });
+              if (!isActive()) return;
               await loadTemplates();
             },
           });
         } catch (error) {
-          setFeedback(container, error instanceof Error ? error.message : 'No se pudo renombrar la plantilla.');
+          if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo renombrar la plantilla.');
         }
       });
       card.querySelector('[data-template-delete]')?.addEventListener('click', async () => {
         if (!window.confirm('Eliminar esta plantilla PDF?')) return;
         try {
           await window.api.pdfTemplates.delete(id);
+          if (!isActive()) return;
           await loadTemplates();
         } catch (error) {
-          setFeedback(container, error instanceof Error ? error.message : 'No se pudo eliminar la plantilla.');
+          if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo eliminar la plantilla.');
         }
       });
       card.querySelector('[data-template-default]')?.addEventListener('click', async () => {
         try {
           await window.api.pdfTemplates.setDefault(id);
+          if (!isActive()) return;
           await loadTemplates();
         } catch (error) {
-          setFeedback(container, error instanceof Error ? error.message : 'No se pudo marcar como default.');
+          if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo marcar como default.');
         }
       });
       card.querySelector('[data-template-export]')?.addEventListener('click', async () => {
         try {
           const result = await window.api.pdfTemplates.export(id);
+          if (!isActive()) return;
           if (!result?.canceled) setFeedback(container, 'Plantilla exportada.');
         } catch (error) {
-          setFeedback(container, error instanceof Error ? error.message : 'No se pudo exportar la plantilla.');
+          if (isActive()) setFeedback(container, error instanceof Error ? error.message : 'No se pudo exportar la plantilla.');
         }
       });
     });
@@ -828,7 +868,24 @@ async function mountManager(container, params = {}) {
  * @param {HTMLElement} container
  * @param {{id?: string, matchId?: string}} params
  */
-export async function renderPdfTemplateEditor(container, params = {}) {
+export function renderPdfTemplateEditor(container, params = {}, lifecycle = {}) {
+  const state = {
+    disposed: false,
+    cleanup: null,
+    walkthroughTimer: 0,
+    isActive: () => lifecycle?.isCurrent?.() !== false && lifecycle?.signal?.aborted !== true,
+  };
+  const cleanup = () => {
+    state.disposed = true;
+    if (state.walkthroughTimer) window.clearTimeout(state.walkthroughTimer);
+    state.walkthroughTimer = 0;
+    state.cleanup?.();
+    state.cleanup = null;
+    container.__pdfTemplateEditorKeydownCleanup?.();
+    container.__pdfTemplateEditorKeydownCleanup = null;
+    document.querySelector('[data-pdf-template-walkthrough-root]')?.remove();
+    document.querySelector('[data-template-name-dialog]')?.remove();
+  };
   container.__pdfTemplateEditorKeydownCleanup?.();
   container.__pdfTemplateEditorKeydownCleanup = null;
   setSidebarExpanded(false);
@@ -844,20 +901,34 @@ export async function renderPdfTemplateEditor(container, params = {}) {
     </section>
   `;
 
+  void mountPdfTemplateEditor(container, params, state).catch(() => {
+    if (state.disposed || !state.isActive()) return;
+    container.innerHTML = renderTemplateManager({
+      available: false,
+      templates: [SYSTEM_TEMPLATE_FALLBACK],
+      message: PDF_TEMPLATE_MANAGER_UNAVAILABLE_MESSAGE,
+    });
+  });
+  return cleanup;
+}
+
+async function mountPdfTemplateEditor(container, params, state) {
+  const isActive = () => !state.disposed && state.isActive();
   if (params.id) {
     try {
       const template = await window.api.pdfTemplates.get(params.id);
-      mountEditor(container, template, params);
+      if (!isActive()) return;
+      mountEditor(container, template, params, state);
     } catch {
+      if (!isActive()) return;
       container.innerHTML = renderTemplateManager({
         available: false,
         templates: [SYSTEM_TEMPLATE_FALLBACK],
         message: PDF_TEMPLATE_MANAGER_UNAVAILABLE_MESSAGE,
       });
     }
-    return undefined;
+    return;
   }
 
-  await mountManager(container, params);
-  return undefined;
+  await mountManager(container, params, isActive);
 }

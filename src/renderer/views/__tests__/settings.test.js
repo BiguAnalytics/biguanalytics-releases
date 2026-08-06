@@ -391,6 +391,23 @@ describe('settings theme selection', () => {
   });
 });
 
+describe('settings lifecycle cleanup', () => {
+  it('returns cleanup synchronously and cancels the debounced threshold save', () => {
+    expect(settingsSource).toContain('export function renderSettings(');
+    expect(settingsSource).not.toContain('export async function renderSettings(');
+    expect(settingsSource).toContain('window.clearTimeout(state.thresholdSaveTimer)');
+    expect(settingsSource).toContain('state.thresholdSaveTimer = null;');
+    expect(settingsSource).toContain('if (!isActive()) return;');
+  });
+
+  it('does not keep microphone resources from a disposed settings view', () => {
+    expect(settingsSource).toContain('if (!isActive()) {');
+    expect(settingsSource).toContain('stopMediaStream(stream);');
+    expect(settingsSource).toContain('audioContext?.close?.();');
+    expect(settingsSource).toContain('window.cancelAnimationFrame(animationFrame)');
+  });
+});
+
 describe('settings interaction polish', () => {
   it('keeps the save action visible while the settings content scrolls', () => {
     expect(settingsSource).toContain('settings-save-bar');

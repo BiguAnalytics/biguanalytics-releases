@@ -25,6 +25,7 @@ const routes = {
 let currentRoute = null;
 let currentHash = null;
 let currentCleanup = null;
+let currentAbortController = null;
 let transitionToken = 0;
 let routerInitialized = false;
 let activeRouteViewTransition = null;
@@ -166,6 +167,8 @@ function dispatchRouteChanged(route, params) {
 }
 
 function runRouteCleanup() {
+  currentAbortController?.abort();
+  currentAbortController = null;
   if (!currentCleanup) return;
   try {
     currentCleanup?.();
@@ -186,8 +189,19 @@ function runRouteCleanup() {
  * @param {number} token
  * @param {boolean} animate
  */
-function finalizeRouteRender(container, route, params, cleanup, token, animate = true) {
-  if (token !== transitionToken) return;
+function finalizeRouteRender(container, route, params, resolvedCleanup, token, animate = true) {
+  if (token !== transitionToken) {
+    if (typeof resolvedCleanup === 'function') {
+      try {
+        resolvedCleanup?.();
+      } catch (error) {
+        window.dispatchEvent(new CustomEvent('bigu:route-cleanup-error', {
+          detail: { error },
+        }));
+      }
+    }
+    return;
+  }
   if (typeof cleanup === 'function') currentCleanup = cleanup;
   if (animate) startRouteEnter(container);
   else clearRouteTransitionState(container);
@@ -219,6 +233,12 @@ function handleRouteRenderError(container, error, token, animate = true) {
  */
 function renderRoute(container, route, params, renderFn, token, animate = true) {
   runRouteCleanup();
+  const abortController = new AbortController();
+  currentAbortController = abortController;
+  const routeContext = {
+    signal: abortController.signal,
+    isCurrent: () => token === transitionToken && !abortController.signal.aborted,
+  };
 
   currentRoute = route;
   setSidebarActive(route);
@@ -230,7 +250,7 @@ function renderRoute(container, route, params, renderFn, token, animate = true) 
   if (animate) prepareRouteEnter(container);
   let cleanup;
   try {
-    cleanup = renderFn(container, params);
+    cleanup = renderFn(container, params, routeContext);
   } catch (error) {
     handleRouteRenderError(container, error, token, animate);
     return;
@@ -264,6 +284,7 @@ export function navigate(route, params = {}) {
   const renderFn = routes[route];
   if (renderFn) {
     const token = ++transitionToken;
+    runRouteCleanup();
     const hasMountedRoute = Boolean(currentRoute);
     const updateRouteDom = () => {
       if (token !== transitionToken) return;

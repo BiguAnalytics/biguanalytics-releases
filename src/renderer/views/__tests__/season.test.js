@@ -32,4 +32,17 @@ describe('season view', () => {
     expect(seasonSource).toContain('window.api.settings.get()');
     expect(seasonSource).toContain('getEventLabels(settings.tagging)');
   });
+
+  it('does not render async season results after the route is disposed', () => {
+    expect(seasonSource).toContain('const isActive = () => !disposed');
+    expect(seasonSource).toContain('if (!isActive()) return;');
+    expect(seasonSource).toContain('renderSeasonCharts(container, state, isActive)');
+  });
+
+  it('uses chart tokens for all theme-dependent colors', () => {
+    expect(seasonSource).toContain("styles.getPropertyValue('--color-text-primary')");
+    expect(seasonSource).toContain("styles.getPropertyValue('--tag-neutral-soft')");
+    expect(seasonSource).not.toContain("'#F0F4F8'");
+    expect(seasonSource).not.toContain("'rgba(118, 139, 166, 0.12)'");
+  });
 });

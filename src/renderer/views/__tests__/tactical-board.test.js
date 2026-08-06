@@ -325,4 +325,18 @@ describe('tactical board view', () => {
     expect(tacticalSource).toContain("item.addEventListener('contextmenu'");
     expect(tacticalCss).toContain('.tactical-board-name-input');
   });
+
+  it('renders a recoverable load error with a retry action', () => {
+    expect(tacticalSource).toContain('let loadError = null;');
+    expect(tacticalSource).toContain('data-tactical-retry');
+    expect(tacticalSource).toContain('catch (error)');
+    expect(tacticalSource).toContain('loadError = error;');
+    expect(tacticalSource).toContain('load();');
+  });
+
+  it('does not render or focus the tactical board after disposal', () => {
+    expect(tacticalSource).toContain('const isActive = () => !disposed');
+    expect(tacticalSource).toContain('if (!isActive()) return;');
+    expect(tacticalSource).toContain('window.cancelAnimationFrame(playbackAnimationFrame)');
+  });
 });

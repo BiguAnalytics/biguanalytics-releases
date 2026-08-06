@@ -90,4 +90,12 @@ describe('PDF template editor renderer', () => {
     expect(editorCss).toContain('@media (max-width: 980px)');
     expect(preloadSource).toContain('pdfTemplates: {');
   });
+
+  it('returns synchronous route cleanup for keydown, timers and walkthrough surfaces', () => {
+    expect(editorSource).toContain('export function renderPdfTemplateEditor(');
+    expect(editorSource).not.toContain('export async function renderPdfTemplateEditor(');
+    expect(editorSource).toContain('window.clearTimeout(lifecycleState.walkthroughTimer)');
+    expect(editorSource).toContain('data-pdf-template-walkthrough-root');
+    expect(editorSource).toContain("window.removeEventListener('keydown'");
+  });
 });

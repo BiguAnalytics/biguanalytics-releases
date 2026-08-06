@@ -122,12 +122,12 @@ describe('app theme support', () => {
     expect(timelineCss).toContain('.timeline-block.won { background: var(--tag-success); }');
     expect(timelineCss).toContain('.timeline-block.attack { background: var(--tag-neutral); }');
     expect(timelineCss).not.toContain('rgba(59, 130, 246');
-    expect(dashboardSource).toContain("rivalLight: 'rgba(79, 121, 174, 0.18)'");
+    expect(dashboardSource).toContain("styles.getPropertyValue('--tag-success-soft')");
     expect(dashboardSource).not.toContain("rivalLight: 'rgba(59, 130, 246, 0.28)'");
-    expect(dashboardSource).toContain('stop-color="#26405F"');
-    expect(dashboardSource).toContain('stop-color="#172337"');
+    expect(dashboardSource).toContain('stop-color="${colors.fieldNavy}"');
+    expect(dashboardSource).toContain('stop-color="${colors.fieldBase}"');
     expect(dashboardSource).not.toContain('stop-color="#0B8F4E"');
-    expect(seasonSource).toContain("backgroundColor: 'rgba(118, 139, 166, 0.12)'");
+    expect(seasonSource).toContain('backgroundColor: colors.area');
     expect(seasonSource).not.toContain("backgroundColor: 'rgba(59, 130, 246, 0.16)'");
   });
 

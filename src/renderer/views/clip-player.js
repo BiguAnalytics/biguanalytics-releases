@@ -114,18 +114,30 @@ function ensureYouTubeIframeApi() {
 
   youtubeApiPromise = new Promise((resolve, reject) => {
     const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
+    let script = null;
+    const handleReady = () => {
       if (typeof previousReady === 'function') previousReady();
       resolve(window.YT);
     };
+    const fail = (error) => {
+      if (script?.parentNode) script.remove();
+      if (window.onYouTubeIframeAPIReady === handleReady) window.onYouTubeIframeAPIReady = previousReady;
+      youtubeApiPromise = null;
+      reject(error);
+    };
+    window.onYouTubeIframeAPIReady = handleReady;
 
     const existing = document.querySelector(`script[src="${YOUTUBE_IFRAME_API_SRC}"]`);
-    if (existing) return;
+    if (existing) {
+      script = existing;
+      script.addEventListener('error', () => fail(new Error('No se pudo cargar la API de YouTube')), { once: true });
+      return;
+    }
 
-    const script = document.createElement('script');
+    script = document.createElement('script');
     script.src = YOUTUBE_IFRAME_API_SRC;
     script.async = true;
-    script.onerror = () => reject(new Error('No se pudo cargar la API de YouTube'));
+    script.onerror = () => fail(new Error('No se pudo cargar la API de YouTube'));
     document.head.appendChild(script);
   });
 
@@ -782,7 +794,7 @@ function renderClipMatchSelection(container, matches) {
  * @param {HTMLElement} container
  * @param {object} params
  */
-export function renderClipPlayer(container, params = {}) {
+export function renderClipPlayer(container, params = {}, lifecycle = {}) {
   if (activeCleanup) activeCleanup();
 
   let disposed = false;
@@ -801,15 +813,22 @@ export function renderClipPlayer(container, params = {}) {
   let currentParams = { ...params };
   let playlistEnabled = false;
   const cleanupFns = [];
+  const isActive = () => !disposed
+    && lifecycle?.isCurrent?.() !== false
+    && lifecycle?.signal?.aborted !== true;
 
   const cleanup = () => {
     disposed = true;
     if (ticker) window.clearInterval(ticker);
     cleanupFns.splice(0).forEach(remove => remove?.());
+    youtubePlayer?.stopVideo?.();
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
     localVideo?.pause?.();
+    localVideo?.removeAttribute('src');
+    localVideo?.load?.();
     localVideo = null;
+    if (activeCleanup === cleanup) activeCleanup = null;
   };
   activeCleanup = cleanup;
 
@@ -836,7 +855,7 @@ export function renderClipPlayer(container, params = {}) {
     try {
       if (!currentParams.matchId) {
         const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
-        if (!disposed) renderClipMatchSelection(container, matches);
+        if (isActive()) renderClipMatchSelection(container, matches);
         return;
       }
 
@@ -844,13 +863,14 @@ export function renderClipPlayer(container, params = {}) {
         cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true }),
         window.api.settings.get(),
       ]);
-      if (disposed) return;
+      if (!isActive()) return;
       match = loadedMatch;
       settings = loadedSettings || {};
       await verifyLocalVideoAvailability();
-      if (disposed) return;
+      if (!isActive()) return;
       renderCurrentState(0);
     } catch (error) {
+      if (!isActive()) return;
       renderClipPlayerMessage(container, 'No se pudieron cargar los clips', error instanceof Error ? error.message : 'Error desconocido.');
     }
   }
@@ -859,11 +879,12 @@ export function renderClipPlayer(container, params = {}) {
     if (!match?.video || (match.video.type !== 'local' && match.video.sourceType !== 'local_mp4') || !match.video.path) return;
     if (typeof window.api.media?.localVideoExists !== 'function') return;
     const exists = await window.api.media.localVideoExists(match.video.path);
+    if (!isActive()) return;
     if (!exists) match = { ...match, video: { ...match.video, localMissing: true, needsLocalFile: true } };
   }
 
   function renderCurrentState(nextActiveIndex = activeIndex) {
-    if (!match) return;
+    if (!isActive() || !match) return;
     cleanupFns.splice(0).forEach(remove => remove?.());
     clipState = buildClipPlayerState(match, settings, currentParams);
     clips = clipState.clips;
@@ -952,19 +973,21 @@ export function renderClipPlayer(container, params = {}) {
   }
 
   async function associateLocalMp4() {
-    if (!match?.id) return;
+    if (!isActive() || !match?.id) return;
     const selected = await window.api.media.selectLocalVideo();
-    if (!selected) return;
+    if (!isActive() || !selected) return;
     const previousVideo = match.video && match.video.type !== 'local' ? { remoteVideo: match.video } : {};
     match = await cloudMatchService.updateMatch(match.id, {
       video: { ...selected, ...previousVideo },
       status: match.status === 'created' ? 'tagging' : match.status,
     });
+    if (!isActive()) return;
     await verifyLocalVideoAvailability();
     renderCurrentState(activeIndex);
   }
 
   async function exportSelectedClips() {
+    if (!isActive()) return;
     if (!match?.id || !clipState?.source?.canExport) {
       updateStatus(clipState?.source?.message || 'La exportación requiere un MP4 local.');
       return;
@@ -996,10 +1019,14 @@ export function renderClipPlayer(container, params = {}) {
   }
 
   function initializePlayer() {
+    if (!isActive()) return;
+    youtubePlayer?.stopVideo?.();
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
     youtubePlayerReady = false;
     localVideo?.pause?.();
+    localVideo?.removeAttribute('src');
+    localVideo?.load?.();
     localVideo = null;
     if (ticker) {
       window.clearInterval(ticker);
@@ -1007,7 +1034,9 @@ export function renderClipPlayer(container, params = {}) {
     }
     if (!clipState?.video || clips.length === 0) return;
     if (clipState.video.type === 'youtube') {
-      initializeYouTubePlayer().catch(error => updateStatus(error instanceof Error ? error.message : 'No se pudo cargar YouTube.'));
+      initializeYouTubePlayer().catch(error => {
+        if (isActive()) updateStatus(error instanceof Error ? error.message : 'No se pudo cargar YouTube.');
+      });
       return;
     }
     initializeLocalPlayer();
@@ -1017,10 +1046,11 @@ export function renderClipPlayer(container, params = {}) {
     const frame = container.querySelector('#clip-youtube-player-frame');
     if (!frame) return;
     const YT = await ensureYouTubeIframeApi();
-    if (disposed) return;
+    if (!isActive()) return;
     youtubePlayer = new YT.Player(frame, {
       events: {
         onReady: () => {
+          if (!isActive()) return;
           youtubePlayerReady = true;
           ticker = window.setInterval(tick, 250);
         },
@@ -1033,7 +1063,9 @@ export function renderClipPlayer(container, params = {}) {
     localVideo = /** @type {HTMLVideoElement|null} */ (container.querySelector('[data-clip-local-video]'));
     if (!localVideo) return;
     localVideo.addEventListener('timeupdate', tick);
-    localVideo.addEventListener('error', () => updateStatus(CLIP_LOCAL_VIDEO_MISSING_MESSAGE));
+    localVideo.addEventListener('error', () => {
+      if (isActive()) updateStatus(CLIP_LOCAL_VIDEO_MISSING_MESSAGE);
+    });
     localVideo.load?.();
   }
 
@@ -1086,8 +1118,23 @@ export function renderClipPlayer(container, params = {}) {
   }
 
   function updateStatus(message) {
+    if (!isActive()) return;
     const status = container.querySelector('[data-clip-player-status]');
     if (status) status.textContent = message;
+    if (!/youtube/i.test(String(message)) || clipState?.video?.type !== 'youtube') return;
+    const stage = container.querySelector('[data-clip-player-stage]');
+    if (!stage || stage.querySelector('[data-clip-youtube-retry]')) return;
+    const retry = document.createElement('button');
+    retry.type = 'button';
+    retry.className = 'btn btn-secondary';
+    retry.dataset.clipYoutubeRetry = 'true';
+    retry.textContent = 'Reintentar carga de YouTube';
+    retry.addEventListener('click', () => {
+      if (!isActive()) return;
+      retry.remove();
+      initializePlayer();
+    });
+    stage.appendChild(retry);
   }
 
   function updateExportProgress(payload = {}) {

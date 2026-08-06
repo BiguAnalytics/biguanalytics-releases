@@ -383,7 +383,7 @@ function getBoardFrames(board) {
 /**
  * @param {HTMLElement} container
  */
-export function renderTacticalBoard(container) {
+export function renderTacticalBoard(container, params = {}, lifecycle = {}) {
   setSidebarExpanded(false);
   updateTopbarContext('Tablero tactico');
   const scrollContainer = container.closest('.main-content-body');
@@ -407,6 +407,13 @@ export function renderTacticalBoard(container) {
   let thumbnailHydrationInFlight = false;
   let openActionMenuId = '';
   let saveStatus = 'saved';
+  let loadError = null;
+  let contextMenuTimer = 0;
+  let contextMenuListenerCleanup = null;
+  let dialogFocusFrame = 0;
+  const isActive = () => !disposed
+    && lifecycle?.isCurrent?.() !== false
+    && lifecycle?.signal?.aborted !== true;
 
   void load();
 
@@ -414,20 +421,57 @@ export function renderTacticalBoard(container) {
     disposed = true;
     stopPlayback();
     window.clearTimeout(thumbnailSyncTimer);
+    window.clearTimeout(contextMenuTimer);
+    contextMenuListenerCleanup?.();
+    contextMenuListenerCleanup = null;
+    if (dialogFocusFrame) window.cancelAnimationFrame(dialogFocusFrame);
+    dialogFocusFrame = 0;
     scrollContainer?.classList.remove('main-content-body--drawing-fixed');
     editor?.close?.(false);
+    editor = null;
+    thumbnailHydrationInFlight = false;
     document.querySelector('.tactical-board-context-menu')?.remove();
     document.querySelector('[data-sequence-name-dialog]')?.remove();
   };
 
   async function load(selectedId = null) {
-    boards = await window.api.tacticalBoards.list();
-    if (selectedId) activeBoard = await window.api.tacticalBoards.get(selectedId);
-    else if (activeBoard?.id) activeBoard = await window.api.tacticalBoards.get(activeBoard.id).catch(() => null);
-    else activeBoard = boards.length ? await window.api.tacticalBoards.get(boards[0].id) : null;
-    const frames = getFrames();
-    if (!frames.some(frame => frame.id === activeFrameId)) activeFrameId = '';
-    if (!disposed) render();
+    if (!isActive()) return;
+    try {
+      boards = await window.api.tacticalBoards.list();
+      if (!isActive()) return;
+      if (selectedId) activeBoard = await window.api.tacticalBoards.get(selectedId);
+      else if (activeBoard?.id) activeBoard = await window.api.tacticalBoards.get(activeBoard.id).catch(() => null);
+      else activeBoard = boards.length ? await window.api.tacticalBoards.get(boards[0].id) : null;
+      if (!isActive()) return;
+      const frames = getFrames();
+      if (!frames.some(frame => frame.id === activeFrameId)) activeFrameId = '';
+      loadError = null;
+      render();
+    } catch (error) {
+      if (!isActive()) return;
+      loadError = error;
+      editor?.close?.(false);
+      editor = null;
+      renderLoadError(error);
+    }
+  }
+
+  function renderLoadError(error) {
+    container.innerHTML = `
+      <section class="tactical-board-view view-enter">
+        <div class="error-state">
+          <h3 class="error-state-title">No se pudo cargar el tablero tactico</h3>
+          <p class="error-state-text">${escapeHtml(error?.message || 'Reintenta para volver a cargar tus secuencias.')}</p>
+          <button class="btn btn-primary" type="button" data-tactical-retry>Reintentar</button>
+        </div>
+      </section>
+    `;
+    container.querySelector('[data-tactical-retry]')?.addEventListener('click', () => {
+      if (!isActive()) return;
+      loadError = null;
+      container.innerHTML = '<section class="tactical-board-view view-enter"><div class="tactical-loading" role="status">Cargando tablero tactico...</div></section>';
+      void load();
+    });
   }
 
   function getFrames() {
@@ -469,6 +513,7 @@ export function renderTacticalBoard(container) {
   }
 
   function setSaveStatus(status) {
+    if (!isActive()) return;
     saveStatus = status;
     const statusNode = container.querySelector('[data-save-status]');
     if (!statusNode) return;
@@ -585,6 +630,11 @@ export function renderTacticalBoard(container) {
   }
 
   function render() {
+    if (!isActive()) return;
+    if (loadError) {
+      renderLoadError(loadError);
+      return;
+    }
     const canvasSettings = normalizeCanvas(activeBoard?.canvas);
     const activeFrame = getActiveFrame();
     const activeFrames = getFrames();
@@ -810,6 +860,7 @@ export function renderTacticalBoard(container) {
           },
         ],
       });
+      if (!isActive()) return null;
       if (shouldReplaceActive) activeBoard = saved;
       syncBoardSummary(saved);
       setSaveStatus('saved');
@@ -826,11 +877,11 @@ export function renderTacticalBoard(container) {
     const editorRef = editor;
     window.clearTimeout(thumbnailSyncTimer);
     thumbnailSyncTimer = window.setTimeout(async () => {
-      if (!editorRef || editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
+      if (!isActive() || !editorRef || editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
       try {
         const editorState = editorRef.getState();
         const thumbnail = await generateCuadroThumbnail({ elements: editorState.strokes }, activeBoard?.canvas);
-        if (editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
+        if (!isActive() || editorRef !== editor || frameId !== activeFrameId || isPlaybackPlaying) return;
         const payload = { ...editorState, imageDataUrl: thumbnail };
         const nextFrames = snapshotActiveFrame(payload);
         activeBoard = {
@@ -846,7 +897,7 @@ export function renderTacticalBoard(container) {
         };
         await persistActiveBoard(activeBoard);
       } catch {
-        setSaveStatus('error');
+        if (isActive()) setSaveStatus('error');
       }
     }, 450);
   }
@@ -860,6 +911,7 @@ export function renderTacticalBoard(container) {
     try {
       const editorState = editor.getState();
       const thumbnail = await generateCuadroThumbnail({ elements: editorState.strokes }, activeBoard?.canvas);
+      if (!isActive()) return null;
       const payload = { ...editorState, imageDataUrl: thumbnail };
       const nextFrames = snapshotActiveFrame(payload).map(frame => frame.id === activeFrameId
         ? {
@@ -877,6 +929,7 @@ export function renderTacticalBoard(container) {
       };
       return persistActiveBoard(activeBoard);
     } catch {
+      if (!isActive()) return null;
       setSaveStatus('error');
       return persistActiveBoard({ ...activeBoard, frames: snapshotActiveFrame() });
     }
@@ -922,20 +975,21 @@ export function renderTacticalBoard(container) {
       thumbnails.forEach((item, frameId) => updateCuadroThumbnailDom(frameId, item.thumbnail));
       await persistActiveBoard(activeBoard);
     } catch {
-      setSaveStatus('error');
+      if (isActive()) setSaveStatus('error');
     } finally {
       thumbnailHydrationInFlight = false;
     }
   }
 
   async function saveActiveSequence(payload = null) {
-    if (!activeBoard) return;
+    if (!activeBoard || !isActive()) return;
     const editorState = payload || editor?.getState?.() || {};
     const canvasSettings = normalizeCanvas({
       ...(activeBoard.canvas || {}),
       ...(editorState?.canvas || {}),
     });
     const thumbnail = editorState?.imageDataUrl || await generateCuadroThumbnail({ elements: editorState?.strokes || [] }, canvasSettings);
+    if (!isActive()) return;
     const payloadWithThumbnail = { ...editorState, imageDataUrl: thumbnail };
     let nextFrames = snapshotActiveFrame(payloadWithThumbnail);
     const activeFrame = getActiveFrame();
@@ -980,6 +1034,7 @@ export function renderTacticalBoard(container) {
       submitLabel: 'Crear secuencia',
       fallbackName,
       onSubmit: async (name) => {
+        if (!isActive()) return;
         activeBoard = await window.api.tacticalBoards.create({
           name,
           thumbnail: '',
@@ -987,6 +1042,7 @@ export function renderTacticalBoard(container) {
           frames: [],
           drawingSequences: [{ name, isOpen: true, frames: [] }],
         });
+        if (!isActive()) return;
         activeFrameId = '';
         viewMode = 'detail';
         await load(activeBoard.id);
@@ -995,11 +1051,12 @@ export function renderTacticalBoard(container) {
   }
 
   async function addFrame(boardId = activeBoard?.id) {
-    if (!boardId) return;
+    if (!boardId || !isActive()) return;
     const capturedBoard = captureActiveFrameSnapshot();
     const sameBoard = activeBoard?.id === boardId;
     if (capturedBoard && !sameBoard) void persistActiveBoard(capturedBoard, { replaceActive: false });
     if (!sameBoard) activeBoard = await window.api.tacticalBoards.get(boardId);
+    if (!isActive() || !activeBoard) return;
     const frames = getFrames();
     const frame = normalizeFrameForView(createCuadroFromPrevious({ ...activeBoard, frames }), frames.length);
     activeBoard = { ...activeBoard, frames: [...frames, frame] };
@@ -1018,6 +1075,7 @@ export function renderTacticalBoard(container) {
     const sameBoard = activeBoard?.id === boardId;
     if (capturedBoard && !sameBoard) void persistActiveBoard(capturedBoard, { replaceActive: false });
     if (!sameBoard) activeBoard = await window.api.tacticalBoards.get(boardId);
+    if (!isActive() || !activeBoard) return;
     activeFrameId = frameId;
     viewMode = 'detail';
     render();
@@ -1031,6 +1089,7 @@ export function renderTacticalBoard(container) {
     const sameBoard = activeBoard?.id === boardId;
     if (capturedBoard && !sameBoard) void persistActiveBoard(capturedBoard, { replaceActive: false });
     if (!sameBoard) activeBoard = await window.api.tacticalBoards.get(boardId);
+    if (!isActive() || !activeBoard) return;
     const frames = getFrames();
     const source = frames.find(frame => frame.id === frameId);
     if (!source) return;
@@ -1063,6 +1122,7 @@ export function renderTacticalBoard(container) {
     const sameBoard = activeBoard?.id === boardId;
     if (capturedBoard && !sameBoard) void persistActiveBoard(capturedBoard, { replaceActive: false });
     if (!sameBoard) activeBoard = await window.api.tacticalBoards.get(boardId);
+    if (!isActive() || !activeBoard) return;
     const frames = getFrames();
     const removeIndex = frames.findIndex(frame => frame.id === frameId);
     if (removeIndex < 0) return;
@@ -1075,9 +1135,10 @@ export function renderTacticalBoard(container) {
   }
 
   async function openSequenceDetail(id) {
-    if (!id) return;
+    if (!id || !isActive()) return;
     stopPlayback();
     if (activeBoard?.id && activeBoard.id !== id) await flushActiveFrameSnapshot();
+    if (!isActive()) return;
     openActionMenuId = '';
     activeFrameId = '';
     viewMode = 'detail';
@@ -1085,9 +1146,11 @@ export function renderTacticalBoard(container) {
   }
 
   async function returnToSequenceList() {
+    if (!isActive()) return;
     stopPlayback();
     openActionMenuId = '';
     if (activeBoard?.id) await flushActiveFrameSnapshot();
+    if (!isActive()) return;
     activeFrameId = '';
     viewMode = 'list';
     render();
@@ -1240,16 +1303,19 @@ export function renderTacticalBoard(container) {
     dialog.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') close();
     });
-    window.requestAnimationFrame(() => {
+    dialogFocusFrame = window.requestAnimationFrame(() => {
+      dialogFocusFrame = 0;
+      if (!isActive()) return;
       input?.focus();
       input?.select();
     });
   }
 
   async function deleteBoard(id) {
-    if (!id) return;
+    if (!id || !isActive()) return;
     openActionMenuId = '';
     await window.api.tacticalBoards.delete(id);
+    if (!isActive()) return;
     activeBoard = null;
     activeFrameId = '';
     viewMode = 'list';
@@ -1257,10 +1323,12 @@ export function renderTacticalBoard(container) {
   }
 
   async function duplicateBoard(id) {
-    if (!id) return;
+    if (!id || !isActive()) return;
     openActionMenuId = '';
     if (activeBoard?.id) await flushActiveFrameSnapshot();
+    if (!isActive()) return;
     const source = await window.api.tacticalBoards.get(id);
+    if (!isActive()) return;
     const sourceFrames = getBoardFrames(source);
     const frames = sourceFrames.map((frame, index) => ({
       ...frame,
@@ -1277,14 +1345,16 @@ export function renderTacticalBoard(container) {
       frames,
       drawingSequences: [{ name: `${source.name || 'Jugada'} copia`, isOpen: true, frames }],
     });
+    if (!isActive()) return;
     activeFrameId = getBoardFrames(activeBoard)[0]?.id || '';
     viewMode = 'detail';
     await load(activeBoard.id);
   }
 
   async function renameBoard(id, nextName) {
-    if (!id || !nextName?.trim()) return;
+    if (!id || !nextName?.trim() || !isActive()) return;
     activeBoard = await window.api.tacticalBoards.rename(id, nextName.trim());
+    if (!isActive()) return;
     await load(activeBoard.id);
   }
 
@@ -1321,6 +1391,8 @@ export function renderTacticalBoard(container) {
   function showBoardContextMenu(id, x, y) {
     if (!id) return;
     document.querySelector('.tactical-board-context-menu')?.remove();
+    contextMenuListenerCleanup?.();
+    contextMenuListenerCleanup = null;
     const menu = document.createElement('div');
     menu.className = 'tactical-board-context-menu';
     menu.style.left = `${x}px`;
@@ -1328,14 +1400,25 @@ export function renderTacticalBoard(container) {
     menu.innerHTML = '<button class="tactical-board-context-delete" type="button">Eliminar</button>';
     document.body.appendChild(menu);
 
-    const close = () => menu.remove();
+    const close = () => {
+      menu.remove();
+      contextMenuListenerCleanup?.();
+      contextMenuListenerCleanup = null;
+    };
     menu.querySelector('button')?.addEventListener('click', async () => {
       close();
       await deleteBoard(id);
     });
-    setTimeout(() => {
+    window.clearTimeout(contextMenuTimer);
+    contextMenuTimer = window.setTimeout(() => {
+      contextMenuTimer = 0;
+      if (!isActive()) return;
       document.addEventListener('pointerdown', close, { once: true });
       document.addEventListener('keydown', close, { once: true });
+      contextMenuListenerCleanup = () => {
+        document.removeEventListener('pointerdown', close);
+        document.removeEventListener('keydown', close);
+      };
     }, 0);
   }
 

@@ -355,7 +355,7 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain('renderDashboardFloatingActions(state.match);');
     expect(dashboardSource).toContain("document.querySelector('[data-dashboard-floating-actions] [data-notes-open]')");
     expect(dashboardSource).not.toContain('<div class="dashboard-floating-actions" aria-label="Acciones del dashboard">');
-    expect(dashboardSource).toContain("window.requestAnimationFrame(() => {\n      editor?.focus();");
+    expect(dashboardSource).toContain("noteFocusFrame = window.requestAnimationFrame(() => {\n      if (!state.isActive?.()) return;\n      editor?.focus();");
     expect(dashboardCss).toMatch(/\.dashboard-floating-actions\s*{[^}]*position:\s*fixed;[^}]*right:\s*20px;[^}]*bottom:\s*92px;[^}]*z-index:\s*87;/s);
     expect(dashboardCss).toMatch(/\.dashboard-notes-button\s*{[^}]*width:\s*56px;[^}]*height:\s*56px;[^}]*radial-gradient\(circle at 32% 18%, rgba\(255,\s*255,\s*255,\s*0\.12\), transparent 38%\)[^}]*var\(--color-bg-surface\)/s);
     expect(dashboardCss).toMatch(/\.dashboard-notes-button\s*{[^}]*box-shadow:\s*0 18px 42px rgba\(0,\s*0,\s*0,\s*0\.28\), 0 0 0 4px var\(--color-accent-muted\)/s);
@@ -533,5 +533,18 @@ describe('dashboard phase 3 renderer wiring', () => {
     expect(dashboardSource).toContain("import { getEventLabel, getEventLabels } from '../tagging/event-labels.js';");
     expect(dashboardSource).toContain('taggingLabels');
     expect(dashboardSource).toContain('getEventLabel(event.type');
+  });
+
+  it('guards async chart rendering and animation frames with route disposal', () => {
+    expect(dashboardSource).toContain('state.isActive');
+    expect(dashboardSource).toContain('kpiAnimationCleanup');
+    expect(dashboardSource).toContain('if (!isActive()) return;');
+  });
+
+  it('uses theme tokens instead of literal dashboard chart colors', () => {
+    expect(dashboardSource).toContain("styles.getPropertyValue('--tag-success-soft')");
+    expect(dashboardSource).toContain("styles.getPropertyValue('--color-text-primary')");
+    expect(dashboardSource).not.toContain("'#F0F4F8'");
+    expect(dashboardSource).not.toContain("'rgba(255,255,255,0.12)'");
   });
 });

@@ -332,4 +332,17 @@ describe('clip player playback wiring', () => {
   it('uses HTML video currentTime for local MP4 clips', () => {
     expect(clipPlayerSource).toContain('localVideo.currentTime = activeClip.start');
   });
+
+  it('retries YouTube script loading after a failed attempt', () => {
+    expect(clipPlayerSource).toContain('youtubeApiPromise = null;');
+    expect(clipPlayerSource).toContain('data-clip-youtube-retry');
+    expect(clipPlayerSource).toContain('initializePlayer();');
+  });
+
+  it('releases local and YouTube players when the Clips view is disposed', () => {
+    expect(clipPlayerSource).toContain("localVideo?.removeAttribute('src')");
+    expect(clipPlayerSource).toContain('youtubePlayer?.stopVideo?.()');
+    expect(clipPlayerSource).toContain('const isActive = () => !disposed');
+    expect(clipPlayerSource).toContain('if (!isActive()) return;');
+  });
 });

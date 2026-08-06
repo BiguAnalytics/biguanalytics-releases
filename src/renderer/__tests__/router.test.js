@@ -14,4 +14,16 @@ describe('renderer router resilience', () => {
     expect(routerSource).toContain('if (token !== transitionToken) return;');
     expect(routerSource).not.toContain('currentCleanup();');
   });
+
+  it('aborts and disposes the active view before a native route transition starts', () => {
+    expect(routerSource).toContain('let currentAbortController = null;');
+    expect(routerSource).toContain('new AbortController()');
+    expect(routerSource).toContain('currentAbortController?.abort();');
+    expect(routerSource).toContain('isCurrent: () => token === transitionToken');
+  });
+
+  it('cleans up a stale async render when it resolves after navigation', () => {
+    expect(routerSource).toContain('if (token !== transitionToken) {');
+    expect(routerSource).toContain('resolvedCleanup?.();');
+  });
 });

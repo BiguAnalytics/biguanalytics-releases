@@ -203,6 +203,23 @@ describe('tagging video controls', () => {
   });
 });
 
+describe('tagging media lifecycle', () => {
+  const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
+
+  it('stops local media and microphone permission streams after disposal', () => {
+    expect(taggingSource).toContain('localVideo?.pause?.();');
+    expect(taggingSource).toContain("localVideo?.removeAttribute('src')");
+    expect(taggingSource).toContain('if (disposed) {');
+    expect(taggingSource).toContain('stopSpeechPermissionStream(stream);');
+  });
+
+  it('allows retrying a failed YouTube API load', () => {
+    expect(taggingSource).toContain('youtubeApiPromise = null;');
+    expect(taggingSource).toContain('data-youtube-retry');
+    expect(taggingSource).toContain('wireMedia();');
+  });
+});
+
 describe('tagging phase 5 polish', () => {
   const taggingSource = readFileSync(new URL('../tagging.js', import.meta.url), 'utf8');
 
@@ -728,7 +745,7 @@ describe('tagging event inspector', () => {
     expect(taggingSource).toContain('updateTimelinePlayback');
     expect(taggingSource).toContain('function updateTimelinePlaybackView()');
     expect(taggingSource).toContain('updateTimelinePlayback(host, getVisualCurrentTime())');
-    expect(taggingSource).toContain('localVideo?.addEventListener(\'timeupdate\', () => {');
+    expect(taggingSource).toContain("videoElement.addEventListener('timeupdate', () => {");
     expect(taggingSource).toContain('updateTimelinePlaybackView();');
     expect(taggingSource).toContain('renderTimelineView({ preserveScroll: true })');
   });

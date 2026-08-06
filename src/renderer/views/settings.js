@@ -551,7 +551,7 @@ function renderUpdaterStatus(container, status = {}) {
  * @param {HTMLElement|null} feedback
  * @returns {Promise<function>}
  */
-async function setupUpdaterSettings(container, feedback) {
+async function setupUpdaterSettings(container, feedback, isActive = () => true) {
   if (!window.api?.updater) {
     renderUpdaterStatus(container, { state: 'disabled', enabled: false });
     return () => {};
@@ -570,11 +570,14 @@ async function setupUpdaterSettings(container, feedback) {
 
   try {
     applyStatus(await window.api.updater.getStatus());
+    if (!isActive()) return () => {};
   } catch (error) {
+    if (!isActive()) return () => {};
     applyError(error);
   }
 
   const removeUpdaterListener = window.api.updater.onEvent((event) => {
+    if (!isActive()) return;
     const nextStatus = {
       ...(event?.status || {}),
       error: event?.message || event?.status?.error || '',
@@ -586,30 +589,38 @@ async function setupUpdaterSettings(container, feedback) {
   });
 
   checkButton?.addEventListener('click', async () => {
+    if (!isActive()) return;
     try {
       applyStatus({ ...(await window.api.updater.getStatus()), state: 'checking' });
+      if (!isActive()) return;
       applyStatus(await window.api.updater.check());
     } catch (error) {
+      if (!isActive()) return;
       applyError(error);
     }
   });
 
   downloadButton?.addEventListener('click', async () => {
+    if (!isActive()) return;
     try {
       applyStatus({ ...(await window.api.updater.getStatus()), state: 'downloading' });
+      if (!isActive()) return;
       applyStatus(await window.api.updater.download());
     } catch (error) {
+      if (!isActive()) return;
       applyError(error);
     }
   });
 
   installButton?.addEventListener('click', async () => {
+    if (!isActive()) return;
     const idleLabel = installButton.textContent || 'Reiniciar e instalar';
     installButton.disabled = true;
     installButton.textContent = 'Reiniciando...';
     try {
       await window.api.updater.install();
     } catch (error) {
+      if (!isActive()) return;
       installButton.disabled = false;
       installButton.textContent = idleLabel;
       applyError(error);
@@ -700,7 +711,7 @@ function renderMicrophoneDeviceOptions(select, devices, microphone = {}) {
  * @param {HTMLElement|null} feedback
  * @returns {function}
  */
-function setupMicrophoneSettings(container, settings, feedback) {
+function setupMicrophoneSettings(container, settings, feedback, isActive = () => true) {
   const select = /** @type {HTMLSelectElement|null} */ (container.querySelector('[data-microphone-select]'));
   const status = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-status]'));
   const level = /** @type {HTMLElement|null} */ (container.querySelector('[data-microphone-level]'));
@@ -717,12 +728,14 @@ function setupMicrophoneSettings(container, settings, feedback) {
   let isTesting = false;
 
   const setStatus = (message, tone = 'neutral') => {
+    if (!isActive()) return;
     if (!status) return;
     status.textContent = message;
     status.dataset.tone = tone;
   };
 
   const setMeter = (db = -100) => {
+    if (!isActive()) return;
     if (!level || !dbText) return;
     const normalized = Math.max(0, Math.min(1, (db + 60) / 60));
     const tone = getMicrophoneLevelTone(db);
@@ -752,6 +765,7 @@ function setupMicrophoneSettings(container, settings, feedback) {
   };
 
   const updateTestState = () => {
+    if (!isActive()) return;
     if (!testButton || !testHint) return;
     testButton.textContent = isTesting ? 'Detener prueba' : 'Probar microfono';
     testButton.setAttribute('aria-pressed', isTesting ? 'true' : 'false');
@@ -759,7 +773,7 @@ function setupMicrophoneSettings(container, settings, feedback) {
   };
 
   const updateMeter = () => {
-    if (!analyser) return;
+    if (!isActive() || !analyser) return;
     const samples = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(samples);
     const rms = Math.sqrt(samples.reduce((total, sample) => total + (sample * sample), 0) / samples.length);
@@ -768,12 +782,14 @@ function setupMicrophoneSettings(container, settings, feedback) {
   };
 
   const refreshDevices = async () => {
+    if (!isActive()) return [];
     if (!navigator.mediaDevices?.enumerateDevices || !select) {
       setStatus('La configuracion de microfono no esta disponible en este entorno.', 'error');
       if (testButton) testButton.disabled = true;
       return [];
     }
     const devices = await navigator.mediaDevices.enumerateDevices();
+    if (!isActive()) return [];
     const audioInputs = devices.filter(device => device.kind === 'audioinput');
     renderMicrophoneDeviceOptions(select, audioInputs, settings.microphone || DEFAULT_MICROPHONE_SETTINGS);
     if (audioInputs.length === 0) {
@@ -785,6 +801,7 @@ function setupMicrophoneSettings(container, settings, feedback) {
 
   const startMonitor = async (allowFallback = true) => {
     stopMonitor();
+    if (!isActive()) return;
     if (!navigator.mediaDevices?.getUserMedia) {
       setStatus('La configuracion de microfono no esta disponible en este entorno.', 'error');
       if (testButton) testButton.disabled = true;
@@ -794,9 +811,18 @@ function setupMicrophoneSettings(container, settings, feedback) {
     const microphone = getMicrophoneSettingsPayload(container);
     try {
       stream = await navigator.mediaDevices.getUserMedia(getMicrophoneMediaConstraints(microphone));
+      if (!isActive()) {
+        stopMediaStream(stream);
+        stream = null;
+        return;
+      }
       const AudioContextConstructor = window.AudioContext || window.webkitAudioContext;
       if (!AudioContextConstructor) throw new Error('AudioContext no disponible.');
       audioContext = new AudioContextConstructor();
+      if (!isActive()) {
+        stopMonitor();
+        return;
+      }
       analyser = audioContext.createAnalyser();
       analyser.fftSize = 1024;
       source = audioContext.createMediaStreamSource(stream);
@@ -805,6 +831,7 @@ function setupMicrophoneSettings(container, settings, feedback) {
       setStatus(`Entrada activa: ${microphone.label || DEFAULT_MICROPHONE_SETTINGS.label}`, 'ok');
       updateMeter();
     } catch (error) {
+      if (!isActive()) return;
       if (allowFallback && microphone.deviceId && select) {
         select.value = '';
         settings.microphone = getMicrophoneSettingsPayload(container);
@@ -823,13 +850,16 @@ function setupMicrophoneSettings(container, settings, feedback) {
     .catch(error => setStatus(getMicrophoneErrorMessage(error), 'error'));
 
   select?.addEventListener('change', async () => {
+    if (!isActive()) return;
     settings.microphone = getMicrophoneSettingsPayload(container);
     await window.api.settings.set({ microphone: settings.microphone });
+    if (!isActive()) return;
     if (feedback) feedback.textContent = 'Microfono guardado.';
     await startMonitor();
   });
 
   testButton?.addEventListener('click', async () => {
+    if (!isActive()) return;
     isTesting = !isTesting;
     updateTestState();
     await startMonitor();
@@ -848,7 +878,33 @@ function setupMicrophoneSettings(container, settings, feedback) {
  * @param {HTMLElement} container
  * @param {{subsection?: string}} params
  */
-export async function renderSettings(container, params = {}) {
+export function renderSettings(container, params = {}, lifecycle = {}) {
+  const state = {
+    disposed: false,
+    thresholdSaveTimer: null,
+    cleanup: null,
+  };
+  const isActive = () => !state.disposed
+    && lifecycle?.isCurrent?.() !== false
+    && lifecycle?.signal?.aborted !== true;
+  const cleanup = () => {
+    state.disposed = true;
+    if (state.thresholdSaveTimer) window.clearTimeout(state.thresholdSaveTimer);
+    state.thresholdSaveTimer = null;
+    finishHotkeyRecording();
+    state.cleanup?.();
+    state.cleanup = null;
+  };
+  container.innerHTML = `
+    <section class="settings-view view-enter">
+      <div class="settings-loading" role="status">Cargando ajustes...</div>
+    </section>
+  `;
+  void mountSettings(container, params, state, isActive);
+  return cleanup;
+}
+
+async function mountSettings(container, params = {}, state, isActive) {
   const isHotkeysSubsection = params.subsection === 'hotkeys';
   setSidebarExpanded(true);
   updateTopbarContext('Configuracion');
@@ -857,6 +913,7 @@ export async function renderSettings(container, params = {}) {
   ], (id) => navigate(id));
 
   const settings = await window.api.settings.get();
+  if (!isActive()) return;
   const hotkeysMarkup = buildHotkeySettingsMarkup(settings);
 
   container.innerHTML = `
@@ -1163,10 +1220,16 @@ export async function renderSettings(container, params = {}) {
     navigate('settings');
   });
 
-  const cleanupMicrophoneSettings = isHotkeysSubsection ? () => {} : setupMicrophoneSettings(container, settings, feedback);
-  const cleanupUpdaterSettings = isHotkeysSubsection ? () => {} : await setupUpdaterSettings(container, feedback);
+  const cleanupMicrophoneSettings = isHotkeysSubsection ? () => {} : setupMicrophoneSettings(container, settings, feedback, isActive);
+  const cleanupUpdaterSettings = isHotkeysSubsection ? () => {} : await setupUpdaterSettings(container, feedback, isActive);
+  if (!isActive()) {
+    cleanupMicrophoneSettings();
+    cleanupUpdaterSettings?.();
+    return;
+  }
 
   const setAccountActionBusy = (busy, action = '') => {
+    if (!isActive()) return;
     accountActionButtons.forEach((button) => {
       const element = /** @type {HTMLButtonElement} */ (button);
       if (!element.dataset.idleLabel) element.dataset.idleLabel = element.textContent || '';
@@ -1181,7 +1244,7 @@ export async function renderSettings(container, params = {}) {
   };
 
   const runAccountAction = async (action) => {
-    if (!['sign-out', 'delete-account'].includes(action) || accountActionGate.inProgress) return;
+    if (!isActive() || !['sign-out', 'delete-account'].includes(action) || accountActionGate.inProgress) return;
     const confirmation = action === 'delete-account'
       ? '¿Eliminar tu cuenta y cerrar la sesión? Esta acción no se puede deshacer.'
       : '¿Cerrar la sesión en este dispositivo?';
@@ -1199,14 +1262,14 @@ export async function renderSettings(container, params = {}) {
         }
         return { ok: true };
       } catch (error) {
-        if (accountFeedback) accountFeedback.textContent = error?.message || 'No se pudo completar la acción.';
+        if (isActive() && accountFeedback) accountFeedback.textContent = error?.message || 'No se pudo completar la acción.';
         return { ok: false };
       } finally {
         setAccountActionBusy(false);
       }
     });
 
-    if (result.skipped || !result.value?.ok) return;
+    if (!isActive() || result.skipped || !result.value?.ok) return;
     window.dispatchEvent(new CustomEvent('bigu:access-denied', {
       detail: {
         state: 'unauthenticated',
@@ -1222,13 +1285,16 @@ export async function renderSettings(container, params = {}) {
     });
   });
 
-  let thresholdSaveTimer = null;
   const saveThresholds = () => {
-    if (thresholdSaveTimer) window.clearTimeout(thresholdSaveTimer);
-    thresholdSaveTimer = window.setTimeout(async () => {
+    if (!isActive()) return;
+    if (state.thresholdSaveTimer) window.clearTimeout(state.thresholdSaveTimer);
+    state.thresholdSaveTimer = window.setTimeout(async () => {
+      state.thresholdSaveTimer = null;
+      if (!isActive()) return;
       await window.api.settings.set({
         alerts: getAlertThresholdPayload(container),
       });
+      if (!isActive()) return;
       if (feedback) feedback.textContent = 'Umbrales guardados.';
     }, 250);
   };
@@ -1239,13 +1305,14 @@ export async function renderSettings(container, params = {}) {
   });
 
   container.querySelector('[data-ai-test-connection]')?.addEventListener('click', async () => {
-    if (!window.biguAIConfig?.testConnection) return;
+    if (!isActive() || !window.biguAIConfig?.testConnection) return;
     if (aiStatus) {
       aiStatus.textContent = 'Verificando...';
       aiStatus.dataset.tone = 'neutral';
     }
     try {
       const result = await window.biguAIConfig.testConnection();
+      if (!isActive()) return;
       if (aiStatus) {
         aiStatus.textContent = result?.ok
           ? 'Conectado'
@@ -1253,6 +1320,7 @@ export async function renderSettings(container, params = {}) {
         aiStatus.dataset.tone = result?.ok ? 'ok' : 'error';
       }
     } catch {
+      if (!isActive()) return;
       if (aiStatus) {
         aiStatus.textContent = 'Backend IA no disponible. Revisá tu conexión e intentá nuevamente.';
         aiStatus.dataset.tone = 'error';
@@ -1261,19 +1329,23 @@ export async function renderSettings(container, params = {}) {
   });
 
   container.querySelector('[data-walkthrough-restart]')?.addEventListener('click', async (event) => {
+    if (!isActive()) return;
     const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
     const idleLabel = button.textContent || 'Ver tutorial de nuevo';
     button.disabled = true;
     button.textContent = 'Preparando...';
     try {
       const currentSettings = await window.api.settings.get();
+      if (!isActive()) return;
       const updatedSettings = await window.api.settings.set(buildWalkthroughResetSettings(currentSettings, getAccessState()));
+      if (!isActive()) return;
       window.dispatchEvent(new CustomEvent('bigu:walkthrough-restart', {
         detail: { settings: updatedSettings },
       }));
       if (feedback) feedback.textContent = 'Tutorial reiniciado.';
       navigate('home');
     } catch {
+      if (!isActive()) return;
       if (feedback) feedback.textContent = 'No se pudo reiniciar el tutorial.';
       button.disabled = false;
       button.textContent = idleLabel;
@@ -1281,18 +1353,22 @@ export async function renderSettings(container, params = {}) {
   });
 
   container.querySelector('[data-local-backup-export]')?.addEventListener('click', async (event) => {
+    if (!isActive()) return;
     const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
     const idleLabel = button.textContent || 'Exportar backup local';
     button.disabled = true;
     button.textContent = 'Exportando...';
     try {
       const result = await window.api.backup.exportLocal();
+      if (!isActive()) return;
       if (!result?.canceled && feedback) {
         feedback.textContent = `Backup exportado: ${result.fileName || 'archivo ZIP'}.`;
       }
     } catch {
+      if (!isActive()) return;
       if (feedback) feedback.textContent = 'No se pudo exportar el backup local.';
     } finally {
+      if (!isActive()) return;
       button.disabled = false;
       button.textContent = idleLabel;
     }
@@ -1303,16 +1379,20 @@ export async function renderSettings(container, params = {}) {
   });
 
   container.querySelector('[data-pdf-template-walkthrough-restart]')?.addEventListener('click', async (event) => {
+    if (!isActive()) return;
     const button = /** @type {HTMLButtonElement} */ (event.currentTarget);
     const idleLabel = button.textContent || 'Ver tutorial de plantillas';
     button.disabled = true;
     button.textContent = 'Preparando...';
     try {
       const currentSettings = await window.api.settings.get();
+      if (!isActive()) return;
       await window.api.settings.set(buildPdfTemplateEditorWalkthroughResetSettings(currentSettings));
+      if (!isActive()) return;
       if (feedback) feedback.textContent = 'Tutorial de plantillas PDF reiniciado.';
       navigate('pdfTemplates');
     } catch {
+      if (!isActive()) return;
       if (feedback) feedback.textContent = 'No se pudo reiniciar el tutorial de plantillas PDF.';
       button.disabled = false;
       button.textContent = idleLabel;
@@ -1364,6 +1444,7 @@ export async function renderSettings(container, params = {}) {
 
   settingsForm?.addEventListener('submit', async (event) => {
     event.preventDefault();
+    if (!isActive()) return;
     const selectedTheme = getSelectedThemeValue(container);
     const update = isHotkeysSubsection
       ? { tagging: getHotkeySettingsPayload(container, settings) }
@@ -1381,11 +1462,12 @@ export async function renderSettings(container, params = {}) {
           },
         };
     await window.api.settings.set(update);
+    if (!isActive()) return;
     if (!isHotkeysSubsection) applyAppTheme(selectedTheme);
     if (feedback) feedback.textContent = 'Ajustes guardados.';
   });
 
-  return () => {
+  state.cleanup = () => {
     finishHotkeyRecording();
     cleanupMicrophoneSettings();
     cleanupUpdaterSettings();

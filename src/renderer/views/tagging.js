@@ -173,18 +173,30 @@ function ensureYouTubeIframeApi() {
 
   youtubeApiPromise = new Promise((resolve, reject) => {
     const previousReady = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
+    let script = null;
+    const handleReady = () => {
       if (typeof previousReady === 'function') previousReady();
       resolve(window.YT);
     };
+    const fail = (error) => {
+      if (script?.parentNode) script.remove();
+      if (window.onYouTubeIframeAPIReady === handleReady) window.onYouTubeIframeAPIReady = previousReady;
+      youtubeApiPromise = null;
+      reject(error);
+    };
+    window.onYouTubeIframeAPIReady = handleReady;
 
     const existing = document.querySelector(`script[src="${YOUTUBE_IFRAME_API_SRC}"]`);
-    if (existing) return;
+    if (existing) {
+      script = existing;
+      script.addEventListener('error', () => fail(new Error('No se pudo cargar la API de YouTube')), { once: true });
+      return;
+    }
 
-    const script = document.createElement('script');
+    script = document.createElement('script');
     script.src = YOUTUBE_IFRAME_API_SRC;
     script.async = true;
-    script.onerror = () => reject(new Error('No se pudo cargar la API de YouTube'));
+    script.onerror = () => fail(new Error('No se pudo cargar la API de YouTube'));
     document.head.appendChild(script);
   });
 
@@ -870,11 +882,12 @@ function getSequenceKey(sequence) {
  * @param {object} params
  * @returns {function}
  */
-export function renderTagging(container, params = {}) {
+export function renderTagging(container, params = {}, lifecycle = {}) {
   if (activeCleanup) activeCleanup();
 
   const initialSeekSeconds = normalizeSeekParam(params.seekTo);
   let disposed = false;
+  const isActive = () => !disposed && lifecycle.isCurrent?.() !== false;
   let match = null;
   let settings = null;
   let state = createTaggerState();
@@ -896,6 +909,7 @@ export function renderTagging(container, params = {}) {
   let ticker = null;
   let autoCloseTicker = null;
   let mediaResizeCleanup = null;
+  let metadataVideo = null;
   let lastPossessionSaveAt = 0;
   let lastSavedPossessionFingerprint = '';
   let pendingPossessionSaveReason = '';
@@ -909,6 +923,7 @@ export function renderTagging(container, params = {}) {
   let liveDrawings = [];
   let liveDrawingRenderKey = '';
   let liveDrawingAnimationFrame = 0;
+  let mediaAnimationFrame = 0;
   let lastPlaybackSyncAt = Date.now();
   let initialSeekConsumed = false;
   let timelineContextMenu = null;
@@ -952,9 +967,21 @@ export function renderTagging(container, params = {}) {
       eventSaveStatusTimer = 0;
     }
     if (liveDrawingAnimationFrame) window.cancelAnimationFrame(liveDrawingAnimationFrame);
+    if (mediaAnimationFrame) window.cancelAnimationFrame(mediaAnimationFrame);
+    if (metadataVideo) {
+      metadataVideo.pause?.();
+      metadataVideo.removeAttribute('src');
+      metadataVideo.load?.();
+      metadataVideo = null;
+    }
     if (mediaResizeCleanup) mediaResizeCleanup();
     drawingSession?.close?.(false);
     closeTimelineContextMenu();
+    localVideo?.pause?.();
+    localVideo?.removeAttribute('src');
+    localVideo?.load?.();
+    localVideo = null;
+    youtubePlayer?.stopVideo?.();
     youtubePlayer?.destroy?.();
     youtubePlayer = null;
     delete document.body.dataset.playback;
@@ -980,7 +1007,7 @@ export function renderTagging(container, params = {}) {
 
   loadTaggingEntrypoint()
     .catch((error) => {
-      if (disposed) return;
+      if (!isActive()) return;
       const errorState = document.createElement('div');
       errorState.className = 'error-state';
       const title = document.createElement('h3');
@@ -1009,14 +1036,14 @@ export function renderTagging(container, params = {}) {
         cloudMatchService.getMatchById(params.matchId, { localFirst: true }),
         window.api.settings.get(),
       ]);
-      if (disposed) return;
+      if (!isActive()) return;
       settings = loadedSettings;
       initializeMatch(loadedMatch);
       return;
     }
 
     const matches = await cloudMatchService.listMatches({ localFirst: true, refreshInBackground: true });
-    if (disposed) return;
+    if (!isActive()) return;
     if (matches.length === 0) {
       renderNoMatch(container);
       return;
@@ -1085,6 +1112,7 @@ export function renderTagging(container, params = {}) {
    * @param {Array<object>} matches
    */
   function renderMatchSelection(host, matches) {
+    if (!isActive()) return;
     const items = getTaggingMatchSelectionItems(matches);
     host.innerHTML = `
       <section class="tagging-match-select-view view-enter">
@@ -1145,7 +1173,7 @@ export function renderTagging(container, params = {}) {
         if (!matchToEdit) return;
         openEditMatchModal(matchToEdit, async () => {
           const updatedMatches = await cloudMatchService.listMatches();
-          renderMatchSelection(host, updatedMatches);
+          if (isActive()) renderMatchSelection(host, updatedMatches);
         });
       });
     });
@@ -1155,6 +1183,7 @@ export function renderTagging(container, params = {}) {
    * @param {HTMLElement} host
    */
   function renderNoMatch(host) {
+    if (!isActive()) return;
     host.innerHTML = `
       <section class="construction-view">
         <div class="construction-panel">
@@ -1172,6 +1201,7 @@ export function renderTagging(container, params = {}) {
    * @param {HTMLElement} host
    */
   function renderShell(host) {
+    if (!isActive()) return;
     host.innerHTML = `
       <section class="tagging-view view-enter" tabindex="-1">
         <div class="tagging-main">
@@ -1308,6 +1338,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderFirstLaunchHotkeysOverlay() {
+    if (!isActive()) return;
     if (!settings?.firstLaunch || container.querySelector('.tagging-hotkeys-overlay')) return;
     const overlay = document.createElement('div');
     overlay.className = 'tagging-hotkeys-overlay';
@@ -1339,10 +1370,29 @@ export function renderTagging(container, params = {}) {
     });
   }
 
+  function releaseLocalVideo() {
+    localVideo?.pause?.();
+    localVideo?.removeAttribute('src');
+    localVideo?.load?.();
+    localVideo = null;
+  }
+
+  function releaseYouTubePlayer() {
+    youtubePlayer?.stopVideo?.();
+    youtubePlayer?.destroy?.();
+    youtubePlayer = null;
+    youtubePlayerReady = false;
+  }
+
   async function wireMedia() {
     const mediaHost = container.querySelector('#tagging-media-host');
-    if (!mediaHost || !match) return;
-    localVideo = null;
+    if (!mediaHost || !match || !isActive()) return;
+    if (mediaAnimationFrame) {
+      window.cancelAnimationFrame(mediaAnimationFrame);
+      mediaAnimationFrame = 0;
+    }
+    releaseLocalVideo();
+    releaseYouTubePlayer();
     if (mediaResizeCleanup) {
       mediaResizeCleanup();
       mediaResizeCleanup = null;
@@ -1380,11 +1430,11 @@ export function renderTagging(container, params = {}) {
 
       ensureYouTubeIframeApi()
         .then(() => {
-          if (disposed || !youtubeFrame) return;
+          if (!isActive() || !youtubeFrame) return;
           youtubePlayer = new window.YT.Player(youtubeFrame, {
             events: {
               onReady: () => {
-                if (disposed) return;
+                if (!isActive()) return;
                 youtubePlayerReady = true;
                 container.querySelector('.youtube-loading-state')?.classList.add('hidden');
                 syncYouTubePlayerSize();
@@ -1395,7 +1445,7 @@ export function renderTagging(container, params = {}) {
                 renderControls();
               },
               onStateChange: (event) => {
-                if (disposed) return;
+                if (!isActive()) return;
                 isPlaying = event.data === YOUTUBE_PLAYER_STATE.playing;
                 if (event.data === YOUTUBE_PLAYER_STATE.ended || event.data === YOUTUBE_PLAYER_STATE.paused) {
                   isPlaying = false;
@@ -1403,26 +1453,33 @@ export function renderTagging(container, params = {}) {
                 renderControls();
               },
               onError: (event) => {
-                if (disposed) return;
+                if (!isActive()) return;
                 showYouTubeError(Number(event.data));
               },
             },
           });
-          window.requestAnimationFrame(syncYouTubePlayerSize);
+          mediaAnimationFrame = window.requestAnimationFrame(() => {
+            mediaAnimationFrame = 0;
+            if (isActive()) syncYouTubePlayerSize();
+          });
         })
-        .catch(() => showYouTubeError(0));
+        .catch(() => {
+          if (isActive()) showYouTubeError(0);
+        });
       return;
     }
 
     if (match.video?.type === 'local') {
       const exists = await window.api.media.localVideoExists(match.video.path);
-      if (disposed) return;
+      if (!isActive()) return;
       if (!exists) {
         const selected = await videoReferenceService.ensurePlayableLocalVideo(match.video);
+        if (!isActive()) return;
         if (selected?.video) {
           if (selected.warning) window.biguShowToast?.(selected.warning, 'info');
           match = await window.api.matches.update(match.id, { video: selected.video, status: 'tagging' });
-          wireMedia();
+          if (!isActive()) return;
+          void wireMedia();
           renderAll();
           return;
         }
@@ -1439,22 +1496,27 @@ export function renderTagging(container, params = {}) {
       localVideo = videoElement;
       ensureLiveDrawingOverlay(mediaHost);
       renderLiveDrawingOverlay();
-      localVideo?.addEventListener('loadedmetadata', async () => {
-        duration = Number.isFinite(localVideo.duration) ? localVideo.duration : null;
+      videoElement.addEventListener('loadedmetadata', async () => {
+        if (!isActive()) return;
+        duration = Number.isFinite(videoElement.duration) ? videoElement.duration : null;
         await persistVideoDuration(duration);
+        if (!isActive()) return;
         consumeInitialSeekParam();
         renderAll();
       });
-      localVideo?.addEventListener('timeupdate', () => {
-        syncPlaybackTime(localVideo.currentTime);
+      videoElement.addEventListener('timeupdate', () => {
+        if (!isActive()) return;
+        syncPlaybackTime(videoElement.currentTime);
         renderControls();
         updateTimelinePlaybackView();
       });
-      localVideo?.addEventListener('ended', () => {
+      videoElement.addEventListener('ended', () => {
+        if (!isActive()) return;
         isPlaying = false;
         renderControls();
       });
-      localVideo?.addEventListener('error', () => {
+      videoElement.addEventListener('error', () => {
+        if (!isActive()) return;
         showMissingLocalVideoNotice(mediaHost);
       });
       return;
@@ -1476,8 +1538,9 @@ export function renderTagging(container, params = {}) {
    * @param {Element} mediaHost
    */
   function showMissingLocalVideoNotice(mediaHost) {
+    if (!isActive()) return;
     isPlaying = false;
-    localVideo = null;
+    releaseLocalVideo();
     mediaHost.innerHTML = `
       <div class="video-missing-notice" role="status">
         <span>Video no encontrado</span>
@@ -1504,15 +1567,17 @@ export function renderTagging(container, params = {}) {
       return;
     }
 
-    const metadataVideo = document.createElement('video');
+    metadataVideo = document.createElement('video');
     metadataVideo.preload = 'metadata';
     metadataVideo.src = match.video.fileUrl || toFileUrl(match.video.path);
     metadataVideo.style.display = 'none';
     metadataVideo.addEventListener('loadedmetadata', async () => {
+      if (!isActive()) return;
       const nextDuration = Number(metadataVideo.duration);
       if (!hasKnownDuration(nextDuration)) return;
       duration = nextDuration;
       await persistVideoDuration(nextDuration);
+      if (!isActive()) return;
       renderControls();
       renderTimelineView({ preserveScroll: true });
     });
@@ -1526,9 +1591,10 @@ export function renderTagging(container, params = {}) {
     if (!match?.video || !hasKnownDuration(nextDuration)) return;
     if (lastPersistedVideoDuration !== null && Math.abs(lastPersistedVideoDuration - nextDuration) < 0.5) return;
     lastPersistedVideoDuration = nextDuration;
-    match = await cloudMatchService.updateMatch(match.id, {
+    const nextMatch = await cloudMatchService.updateMatch(match.id, {
       video: buildVideoDurationPatch(match.video, nextDuration),
     });
+    if (isActive()) match = nextMatch;
   }
 
   async function ensureVideoDurationStatus() {
@@ -1538,21 +1604,23 @@ export function renderTagging(container, params = {}) {
       const updated = await cloudMatchService.updateMatch(match.id, {
         video: buildVideoDurationPatch(match.video, null),
       });
-      if (!disposed) match = updated;
+      if (isActive()) match = updated;
     } catch {
-      showTaggingFeedback('No se pudo marcar la duracion del video como pendiente.', 'error');
+      if (isActive()) showTaggingFeedback('No se pudo marcar la duracion del video como pendiente.', 'error');
     }
   }
 
   async function loadLocalVideo() {
     const selected = await window.api.media.selectLocalVideo();
-    if (!selected || !match) return;
+    if (!selected || !match || !isActive()) return;
     match = await cloudMatchService.updateMatch(match.id, { video: selected, status: 'tagging' });
-    wireMedia();
+    if (!isActive()) return;
+    void wireMedia();
     renderAll();
   }
 
   function renderAll() {
+    if (!isActive()) return;
     renderControls();
     renderEventSaveStatus();
     renderScoreboard();
@@ -1564,6 +1632,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderEventSaveStatus() {
+    if (!isActive()) return;
     const status = container.querySelector('#tagging-save-status');
     if (!(status instanceof HTMLElement)) return;
     status.hidden = eventSaveState === 'idle';
@@ -1627,11 +1696,12 @@ export function renderTagging(container, params = {}) {
 
   function renderLiveDrawingAnimationFrame() {
     liveDrawingAnimationFrame = 0;
+    if (!isActive()) return;
     renderLiveDrawingOverlay();
   }
 
   function scheduleLiveDrawingAnimationFrame() {
-    if (liveDrawingAnimationFrame || disposed || drawingSession || drawingModalOpen || statsOnlyMode || !isPlaying) return;
+    if (liveDrawingAnimationFrame || !isActive() || drawingSession || drawingModalOpen || statsOnlyMode || !isPlaying) return;
     if (!getActiveLiveDrawings(getVisualCurrentTime()).length) return;
     liveDrawingAnimationFrame = window.requestAnimationFrame(renderLiveDrawingAnimationFrame);
   }
@@ -1667,12 +1737,12 @@ export function renderTagging(container, params = {}) {
     const matchId = match.id;
     try {
       const drawingPayload = await window.api.drawings.getForMatch(match.id);
-      if (disposed || !match || match.id !== matchId) return;
+      if (!isActive() || !match || match.id !== matchId) return;
       liveDrawings = Array.isArray(drawingPayload?.live) ? drawingPayload.live : [];
       liveDrawingRenderKey = '';
       renderLiveDrawingOverlay();
     } catch {
-      if (disposed || !match || match.id !== matchId) return;
+      if (!isActive() || !match || match.id !== matchId) return;
       liveDrawings = [];
       liveDrawingRenderKey = '';
       renderLiveDrawingOverlay();
@@ -1696,6 +1766,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderLiveDrawingOverlay() {
+    if (!isActive()) return;
     const overlay = ensureLiveDrawingOverlay();
     if (!overlay) return;
     if (drawingSession || statsOnlyMode || !match?.video?.type || (match.video.type === 'local' && !localVideo)) {
@@ -1805,6 +1876,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderControls() {
+    if (!isActive()) return;
     document.body.dataset.playback = isPlaying ? 'playing' : 'paused';
     const timecode = container.querySelector('#tagging-timecode');
     const readout = container.querySelector('#video-time-readout');
@@ -1826,6 +1898,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderPopup() {
+    if (!isActive()) return;
     const host = /** @type {HTMLElement|null} */ (container.querySelector('#tag-popup-host'));
     if (!host || !match) return;
     renderTagPopup(host, state, {
@@ -1859,6 +1932,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderSequencePrompt() {
+    if (!isActive()) return;
     const host = container.querySelector('#sequence-popup-host');
     if (!host) return;
     if (!sequencePrompt) {
@@ -1904,6 +1978,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderEventInspector() {
+    if (!isActive()) return;
     const host = /** @type {HTMLElement|null} */ (container.querySelector('#event-inspector-host'));
     if (!host || !match) return;
 
@@ -2188,6 +2263,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderPossession() {
+    if (!isActive()) return;
     const visualCurrentTime = getVisualCurrentTime();
     const percentages = calculatePossessionPercentages(state.possession, visualCurrentTime);
     const split = container.querySelector('#possession-split');
@@ -2209,6 +2285,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function renderScoreboard() {
+    if (!isActive()) return;
     if (!match) return;
     const score = getScoreParts(match);
     const home = container.querySelector('#score-home');
@@ -2235,18 +2312,21 @@ export function renderTagging(container, params = {}) {
   }
 
   function updateTimelinePlaybackView() {
+    if (!isActive()) return;
     const host = /** @type {HTMLElement|null} */ (container.querySelector('#timeline-host'));
     if (!host) return;
     updateTimelinePlayback(host, getVisualCurrentTime());
   }
 
   function updateTimelinePossessionView() {
+    if (!isActive()) return;
     const host = /** @type {HTMLElement|null} */ (container.querySelector('#timeline-host'));
     if (!host) return;
     updateTimelinePossession(host, getPossessionTimelineSegments(state.possession, getTimelinePossessionScaleEnd()), getTimelinePossessionScaleEnd());
   }
 
   function renderTimelineView(options = {}) {
+    if (!isActive()) return;
     const host = /** @type {HTMLElement|null} */ (container.querySelector('#timeline-host'));
     if (!host || !match) return;
     renderTimeline(host, {
@@ -2364,6 +2444,7 @@ export function renderTagging(container, params = {}) {
    * @param {'info'|'error'} tone
    */
   function showTaggingFeedback(message, tone = 'info') {
+    if (!isActive()) return;
     let toast = document.getElementById('tagging-feedback-toast');
     if (!toast) {
       toast = document.createElement('div');
@@ -2399,6 +2480,7 @@ export function renderTagging(container, params = {}) {
    * @param {string|null} outputDir
    */
   function showClipExportToast(message, outputDir = null) {
+    if (!isActive()) return;
     let toast = document.getElementById('tagging-clip-export-toast');
     if (!toast) {
       toast = document.createElement('div');
@@ -3139,11 +3221,20 @@ export function renderTagging(container, params = {}) {
    * @param {number} code
    */
   function showYouTubeError(code) {
+    if (!isActive()) return;
     const errorEl = container.querySelector('#youtube-error-state');
     if (!errorEl) return;
-    errorEl.textContent = getYouTubeErrorMessage(code);
+    errorEl.innerHTML = `
+      <span>${escapeHtml(getYouTubeErrorMessage(code))}</span>
+      <button class="btn btn-secondary btn-sm" type="button" data-youtube-retry>Reintentar</button>
+    `;
     errorEl.classList.remove('hidden');
     container.querySelector('.youtube-loading-state')?.classList.add('hidden');
+    errorEl.querySelector('[data-youtube-retry]')?.addEventListener('click', (event) => {
+      if (!isActive()) return;
+      event.currentTarget.disabled = true;
+      void wireMedia();
+    });
     isPlaying = false;
     renderControls();
   }
@@ -3227,6 +3318,7 @@ export function renderTagging(container, params = {}) {
   }
 
   function updateScrubberPreview(event) {
+    if (!isActive()) return;
     const scrubber = /** @type {HTMLInputElement} */ (event.currentTarget);
     const preview = container.querySelector('#video-hover-time');
     if (!preview) return;
@@ -3636,6 +3728,7 @@ export function renderTagging(container, params = {}) {
    * @param {{transcript?: string, isFinal?: boolean, confidence?: number}} payload
    */
   function applyNativeSpeechResult(payload) {
+    if (!isActive()) return;
     const noteInput = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('[data-popup-note]'));
     const transcript = String(payload?.transcript || '').trim();
     if (!noteInput || !transcript) return;
@@ -3670,7 +3763,7 @@ export function renderTagging(container, params = {}) {
    * @returns {Promise<boolean>}
    */
   async function startNativeSpeechNote(noteInput) {
-    if (!window.api?.speech?.start) return false;
+    if (!isActive() || !window.api?.speech?.start) return false;
 
     resetSpeechSession(noteInput);
     stopNativeSpeechSubscriptions();
@@ -3681,11 +3774,11 @@ export function renderTagging(container, params = {}) {
     speechErrorMessage = '';
 
     nativeSpeechResultCleanup = window.api.speech.onResult?.((payload) => {
-      if (speechEngine !== 'native' || speechStopRequested) return;
+      if (!isActive() || speechEngine !== 'native' || speechStopRequested) return;
       applyNativeSpeechResult(payload);
     });
     nativeSpeechErrorCleanup = window.api.speech.onError?.((payload) => {
-      if (speechEngine !== 'native' || speechStopRequested) return;
+      if (!isActive() || speechEngine !== 'native' || speechStopRequested) return;
       speechListening = false;
       speechStatus = 'error';
       speechErrorMessage = payload?.message || 'No se pudo iniciar el dictado nativo de Windows.';
@@ -3693,7 +3786,7 @@ export function renderTagging(container, params = {}) {
       renderPopup();
     });
     nativeSpeechStatusCleanup = window.api.speech.onStatus?.((payload) => {
-      if (speechEngine !== 'native' || speechStopRequested) return;
+      if (!isActive() || speechEngine !== 'native' || speechStopRequested) return;
       if (payload?.status === 'idle') {
         speechListening = false;
         speechStatus = 'idle';
@@ -3703,6 +3796,7 @@ export function renderTagging(container, params = {}) {
 
     try {
       const result = await window.api.speech.start({ language: settings?.microphone?.language || 'es-AR' });
+      if (!isActive()) return true;
       if (result?.ok) {
         renderPopup();
         return true;
@@ -3714,6 +3808,7 @@ export function renderTagging(container, params = {}) {
       renderPopup();
       return true;
     } catch (error) {
+      if (!isActive()) return true;
       speechListening = false;
       speechStatus = 'error';
       speechErrorMessage = getSpeechErrorMessage(error);
@@ -3751,14 +3846,22 @@ export function renderTagging(container, params = {}) {
   }
 
   async function requestSpeechMicrophoneAccess() {
-    if (!navigator.mediaDevices?.getUserMedia) return;
+    if (!isActive() || !navigator.mediaDevices?.getUserMedia) return;
     const microphone = settings?.microphone || {};
     try {
       const stream = await navigator.mediaDevices.getUserMedia(getSpeechMicrophoneConstraints(microphone));
+      if (disposed) {
+        stopSpeechPermissionStream(stream);
+        return;
+      }
       stopSpeechPermissionStream(stream);
     } catch (error) {
       if (microphone.deviceId && isSelectedMicrophoneUnavailable(error)) {
         const fallbackStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        if (disposed) {
+          stopSpeechPermissionStream(fallbackStream);
+          return;
+        }
         stopSpeechPermissionStream(fallbackStream);
         return;
       }
@@ -3783,6 +3886,7 @@ export function renderTagging(container, params = {}) {
    * @param {SpeechRecognitionEvent} event
    */
   function applySpeechResult(event) {
+    if (!isActive()) return;
     const noteInput = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('[data-popup-note]'));
     if (!noteInput) return;
 
@@ -3814,6 +3918,7 @@ export function renderTagging(container, params = {}) {
   }
 
   async function startSpeechNote() {
+    if (!isActive()) return;
     const noteInput = /** @type {HTMLTextAreaElement|null} */ (container.querySelector('[data-popup-note]'));
     if (!noteInput) {
       speechStatus = 'disabled';
@@ -3823,6 +3928,7 @@ export function renderTagging(container, params = {}) {
     }
 
     if (await startNativeSpeechNote(noteInput)) return;
+    if (!isActive()) return;
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
@@ -3834,6 +3940,7 @@ export function renderTagging(container, params = {}) {
 
     try {
       await requestSpeechMicrophoneAccess();
+      if (!isActive()) return;
       resetSpeechSession(noteInput);
       speechStopRequested = false;
       speechListening = true;
@@ -3849,6 +3956,7 @@ export function renderTagging(container, params = {}) {
       recognition.maxAlternatives = 3;
       recognition.onresult = applySpeechResult;
       recognition.onerror = (event) => {
+        if (!isActive()) return;
         if (speechStopRequested && event.error === 'aborted') return;
         speechListening = false;
         speechStatus = 'error';
@@ -3856,6 +3964,7 @@ export function renderTagging(container, params = {}) {
         renderPopup();
       };
       recognition.onend = () => {
+        if (!isActive()) return;
         speechRecognition = null;
         speechListening = false;
         if (!speechStopRequested && speechStatus === 'listening') {
