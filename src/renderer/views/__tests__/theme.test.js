@@ -91,8 +91,8 @@ describe('app theme support', () => {
     expect(tokensCss).not.toContain('#8B5CF6');
     expect(tokensCss).not.toContain('#06B6D4');
     expect(baseCss).not.toContain('rgba(59, 130, 246');
-    expect(baseCss).toMatch(/\.club-gradient-text\s*{[^}]*background:\s*var\(--gradient-brand-text\);/s);
-    expect(layoutCss).toMatch(/\.home-welcome span\s*{[^}]*background:\s*var\(--gradient-brand-text\);/s);
+    expect(baseCss).toMatch(/\.club-gradient-text\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
+    expect(layoutCss).toMatch(/\.home-welcome span\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
     expect(layoutCss).toMatch(/\.match-list-new-btn\s*{[^}]*background:\s*var\(--gradient-brand-text\);/s);
     expect(matchCardCss).not.toContain('rgba(53, 105, 180');
     expect(matchCardCss).not.toContain('rgba(245, 158, 11, 0.42');
@@ -132,7 +132,7 @@ describe('app theme support', () => {
   });
 
   it('keeps light-mode brand and playback controls high contrast', () => {
-    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.topbar-logo-text \.accent\s*{[^}]*background:\s*var\(--gradient-brand-text\);/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.topbar-logo-text \.accent\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.video-play-btn\s*{[^}]*background:\s*var\(--gradient-brand\);/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.video-play-btn:hover\s*{[^}]*box-shadow:\s*0 16px 36px rgba\(200,\s*16,\s*46,\s*0\.26\);/s);
   });
@@ -155,6 +155,6 @@ describe('app theme support', () => {
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.main-content-body\s*{[^}]*background:\s*var\(--color-bg-base\);/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.tagging-view\s*{[^}]*background:\s*var\(--color-bg-base\);/s);
     expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.match-card\.pending\s*{[^}]*rgba\(98,\s*123,\s*153,\s*0\.48\)/s);
-    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.match-card-thumbnail\s*{[^}]*rgba\(232,\s*239,\s*248,\s*0\.58\)/s);
+    expect(themeCss).toMatch(/:root\[data-theme="light"\]\s+\.match-card-thumbnail\s*{[^}]*#f8fafc/s);
   });
 });

@@ -1,6 +1,6 @@
 {
   "name": "biguanalytics",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Rugby match analysis tool for Bigua Rugby Club",
   "main": "src/main/main.js",
   "scripts": {
@@ -95,11 +95,12 @@
     }
   },
   "devDependencies": {
-    "electron": "^42.3.3",
-    "electron-builder": "^26.0.0",
+    "electron": "^42.9.0",
+    "electron-builder": "^26.15.0",
     "resedit": "^1.7.2",
-    "vitest": "^4.1.8",
-    "typescript": "^5.8.3"
+    "supabase": "^2.111.0",
+    "typescript": "^5.8.3",
+    "vitest": "^4.1.8"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
@@ -110,11 +111,10 @@
     "electron-updater": "^6.8.9",
     "ffmpeg-static": "^5.3.0",
     "ffprobe-static": "^3.1.0",
-    "supabase": "^2.105.0",
     "uuid": "^11.1.0"
   },
   "overrides": {
     "fast-uri": "3.1.5",
-    "js-yaml": "4.3.0"
+    "js-yaml": "4.3.1"
   }
 }

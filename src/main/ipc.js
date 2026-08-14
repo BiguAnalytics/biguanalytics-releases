@@ -35,7 +35,7 @@ const VIDEO_KEYS = new Set([
 ]);
 const PENDING_SYNC_KEYS = new Set([
   'id', 'status', 'createdAt', 'updatedAt', 'matchId', 'entity', 'action', 'dedupeKey', 'payload',
-  'recoveredFromCorruptQueue',
+  'recoveredFromCorruptQueue', 'syncStatus', 'syncError', 'failedAt', 'attempts',
 ]);
 const PENDING_SYNC_ENTITIES = new Set(['matches', 'video_references', 'match_events', 'match_possessions', 'match_sequences', 'match_notes']);
 const PENDING_SYNC_ACTIONS = new Set(['upsert', 'replace', 'delete']);
@@ -278,17 +278,31 @@ function validatePendingSyncOperation(operation) {
   assertJsonValue(operation, 'pending sync');
   assertDtoSize(operation, 'pending sync');
   ['id', 'createdAt', 'updatedAt', 'dedupeKey'].forEach(key => assertOptionalString(operation[key], `pending sync.${key}`, 4096));
+  assertOptionalString(operation.syncStatus, 'pending sync.syncStatus', 64);
+  if (operation.syncStatus !== undefined && operation.syncStatus !== 'error') invalidIpcDto('pending sync.syncStatus invalido.');
+  assertOptionalString(operation.syncError, 'pending sync.syncError', 4096);
+  assertOptionalString(operation.failedAt, 'pending sync.failedAt', 128);
+  assertOptionalFiniteNumber(operation.attempts, 'pending sync.attempts', { min: 0 });
   if (operation.matchId !== undefined && operation.matchId !== null && operation.matchId !== '') validateIpcMatchId(operation.matchId);
   if (operation.entity !== undefined && !PENDING_SYNC_ENTITIES.has(operation.entity)) invalidIpcDto('pending sync.entity invalido.');
   if (operation.action !== undefined && !PENDING_SYNC_ACTIONS.has(operation.action)) invalidIpcDto('pending sync.action invalido.');
   if (operation.status !== undefined && operation.status !== 'pending_sync') invalidIpcDto('pending sync.status invalido.');
   if (operation.recoveredFromCorruptQueue !== undefined && typeof operation.recoveredFromCorruptQueue !== 'boolean') invalidIpcDto('pending sync.recoveredFromCorruptQueue invalido.');
+  if (operation.entity === 'match_events' && operation.action !== 'delete' && operation.payload === undefined) {
+    invalidIpcDto('pending sync.match_events requiere un payload canonico.');
+  }
   if (operation.entity === 'match_events' && operation.payload !== undefined) {
+    const normalizePendingEvent = row => {
+      if (operation.action !== 'delete' && row?.payload === undefined) {
+        invalidIpcDto('pending sync.match_events requiere un payload canonico.');
+      }
+      return normalizeCloudEventRow(row);
+    };
     if (Array.isArray(operation.payload)) {
       if (operation.payload.length > MAX_PENDING_SYNC_OPERATIONS) invalidIpcDto('pending sync.payload supera el limite.');
-      return { ...operation, payload: operation.payload.map(normalizeCloudEventRow) };
+      return { ...operation, payload: operation.payload.map(normalizePendingEvent) };
     }
-    return { ...operation, payload: normalizeCloudEventRow(operation.payload) };
+    return { ...operation, payload: normalizePendingEvent(operation.payload) };
   }
   return { ...operation };
 }

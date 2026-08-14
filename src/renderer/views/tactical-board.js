@@ -5,6 +5,7 @@ import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { createCuadroFromPrevious } from '../drawing/drawing-sequence.js';
 import { drawStrokes, serializeDrawingSvg } from '../drawing/drawing-engine.js';
 import { interpolateFrame } from '../drawing/frame-interpolation.js';
+import { navigate } from '../router.js';
 
 const FIELD_BACKGROUNDS = [
   { value: '#26405F', label: 'Azul Bigua' },
@@ -389,8 +390,10 @@ export function renderTacticalBoard(container, params = {}, lifecycle = {}) {
   const scrollContainer = container.closest('.main-content-body');
   scrollContainer?.classList.add('main-content-body--drawing-fixed');
   setTopbarActions([
+    { id: 'home', label: 'Inicio' },
     { id: 'export', label: 'Exportar PNG' },
   ], (id) => {
+    if (id === 'home') return navigate('home');
     if (id === 'export') void exportActiveBoard();
   });
 

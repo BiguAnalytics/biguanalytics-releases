@@ -133,7 +133,7 @@
 - [x] 2.9.2 Mismo panel de tagging pero sin reproductor — campo de timestamp manual (o dejar vacío)
 - [x] 2.9.3 Timestamps omitidos no rompen la timeline ni el dashboard
 
-> **Auditoría Fase 2 — 2026-05-26:** la vista Tagging quedó operativa con reproductor MP4 local, fuente YouTube en `webview`, controles sincronizados, motor `tagger.js`, 11 popups de eventos, posesión, secuencias, zonas de campo, hotkey bar, timeline y modo solo estadísticas. Cobertura automatizada agregada para media, storage/eventos y motor de tagging.
+> **Auditoría Fase 2 — 2026-05-26:** la vista Tagging quedó operativa con reproductor MP4 local, fuente YouTube mediante IFrame API oficial, controles sincronizados, motor `tagger.js`, 11 popups de eventos, posesión, secuencias, zonas de campo, hotkey bar, timeline y modo solo estadísticas. Cobertura automatizada agregada para media, storage/eventos y motor de tagging.
 
 ---
 
@@ -340,7 +340,7 @@
 - [x] 5.4.5 Todas las hotkeys responden sin conflictos
 - [x] 5.4.6 PDF generado es presentable y todos los gráficos se renderizan correctamente    
 
-> **Auditoria Fase 5 - 2026-06-04:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos via `BrowserWindow` oculta + `webContents.printToPDF()` y build NSIS `BiguAnalytics-Setup-1.0.0.exe` quedaron implementados. Verificacion automatizada: `npm test`, `npm run test:perf:timeline`, checklist de instalacion limpia y `npm run check:windows-build` para artefactos. La ejecucion en una maquina fisica nueva del club queda como verificacion operativa final, no como alcance de codigo.
+> **Auditoria Fase 5 - 2026-06-04:** pulido de estados vacios/loading/errores IPC, onboarding firstLaunch, validaciones inline, hotkeys acotadas a Tagging, lazy render de Chart.js con IntersectionObserver, PDF con render forzado de graficos via `BrowserWindow` oculta + `webContents.printToPDF()` y build NSIS versionado quedaron implementados. Verificacion automatizada: `npm test`, `npm run test:perf:timeline`, checklist de instalacion limpia y `npm run check:windows-build` para artefactos. La ejecucion en una maquina fisica nueva del club queda como verificacion operativa final, no como alcance de codigo.
     
 --- 
     

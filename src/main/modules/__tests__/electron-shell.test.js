@@ -108,7 +108,10 @@ describe('Electron shell YouTube integration', () => {
     expect(csp).toContain("script-src 'self' https://www.youtube.com https://s.ytimg.com");
     expect(indexHtml).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(indexHtml).not.toContain("'unsafe-eval'");
-    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("style-src 'self'");
+    expect(csp).toContain("style-src-elem 'self'");
+    expect(csp).toContain("style-src-attr 'unsafe-inline'");
+    expect(csp).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(csp).toContain("img-src 'self' data: blob: https://*.ytimg.com");
     expect(csp).toContain("media-src 'self' file: blob:");
     expect(csp).toContain("connect-src 'self' https://www.youtube.com https://*.googlevideo.com https://*.ytimg.com https://*.supabase.co wss://*.supabase.co");
@@ -142,9 +145,14 @@ describe('Electron shell YouTube integration', () => {
     expect(mainSource).toContain("const devIconPath = path.join(__dirname, '../../build/icon.ico');");
     expect(mainSource).toContain("const packagedIconPath = path.join(process.resourcesPath, 'icon.ico');");
     expect(mainSource).toContain('const appIconPath = app.isPackaged ? packagedIconPath : devIconPath;');
-    expect(mainSource).toContain("const appUserModelId = 'com.biguanalytics.app';");
+    expect(mainSource).toContain('const appIcon = nativeImage.createFromPath(appIconPath);');
+    expect(mainSource).toContain("const packagedAppUserModelId = 'com.biguanalytics.app';");
+    expect(mainSource).toContain("const devAppUserModelId = 'com.biguanalytics.app.dev';");
+    expect(mainSource).toContain('const appUserModelId = app.isPackaged ? packagedAppUserModelId : devAppUserModelId;');
     expect(mainSource).toContain('app.setAppUserModelId(appUserModelId);');
-    expect(mainSource).toMatch(/icon:\s*appIconPath/);
+    expect(mainSource).toMatch(/icon:\s*appIcon/);
+    expect(mainSource).toContain('mainWindow.setIcon(appIcon);');
+    expect(mainSource).toMatch(/mainWindow\.setAppDetails\(\{\s*appId:\s*appUserModelId,\s*appIconPath,\s*appIconIndex:\s*0,\s*\}\);/s);
     expect(packageJson.build?.appId).toBe('com.biguanalytics.app');
     expect(packageJson.build?.directories?.buildResources).toBe('build');
     expect(packageJson.build?.win?.icon).toBe(iconPath);

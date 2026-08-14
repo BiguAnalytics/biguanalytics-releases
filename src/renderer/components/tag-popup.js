@@ -219,7 +219,7 @@ export function renderTagPopup(host, state, context, handlers, uiState = {}) {
         </div>
         ${speech.errorMessage ? `<small class="tag-popup-speech-error" role="status">${escapeHtml(speech.errorMessage)}</small>` : ''}
       </label>
-      <details class="tag-popup-zone" ${selectedZone ? 'open' : ''}>
+      <details class="tag-popup-zone" open>
         <summary>Zona del campo ${selectedZone ? `<span>${escapeHtml(selectedZone.label)}</span>` : ''}</summary>
         <div class="tag-popup-field-grid" role="group" aria-label="Zonas del campo">
           ${getZones().map(zone => `
@@ -240,6 +240,11 @@ export function renderTagPopup(host, state, context, handlers, uiState = {}) {
     </section>
   `;
 
+  host.querySelector('.tag-popup-zone summary')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    const details = event.currentTarget.closest('details');
+    if (details) details.open = !details.open;
+  });
   host.querySelector('[data-popup-close]')?.addEventListener('click', handlers.onClose);
   host.querySelector('[data-popup-complete]')?.addEventListener('click', handlers.onComplete);
   host.querySelector('[data-popup-mic]')?.addEventListener('click', handlers.onMic);

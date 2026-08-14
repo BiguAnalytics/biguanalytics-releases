@@ -389,3 +389,45 @@ body.modal-open {
   color: var(--color-text-muted);
   margin-top: var(--space-3);
 }
+
+:root[data-theme="light"] .modal-overlay {
+  background: rgba(15, 35, 64, 0.28);
+}
+
+:root[data-theme="light"] .modal-container {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  box-shadow: 0 28px 84px rgba(15, 35, 64, 0.2);
+}
+
+:root[data-theme="light"] .modal-header,
+:root[data-theme="light"] .modal-footer {
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .modal-title,
+:root[data-theme="light"] .modal-close,
+:root[data-theme="light"] .form-label,
+:root[data-theme="light"] .confirm-dialog-message,
+:root[data-theme="light"] .confirm-dialog-warning {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .form-input,
+:root[data-theme="light"] .form-select,
+:root[data-theme="light"] .form-tabs {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .form-input::placeholder,
+:root[data-theme="light"] .form-help,
+:root[data-theme="light"] .form-error {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .modal-container .btn-primary {
+  color: var(--color-text-primary);
+}

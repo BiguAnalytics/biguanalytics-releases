@@ -133,3 +133,35 @@
     animation: none;
   }
 }
+
+/* Light mode: cards retain hierarchy without white-on-white or pale metadata. */
+:root[data-theme="light"] .kpi-card.kpi-card {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(232, 239, 248, 0.62)),
+    #f8fafc;
+  border-color: rgba(15, 35, 64, 0.18);
+  box-shadow: 0 18px 48px rgba(15, 35, 64, 0.11);
+}
+
+:root[data-theme="light"] .kpi-card.kpi-card:hover {
+  border-color: rgba(15, 35, 64, 0.28);
+  box-shadow: 0 22px 58px rgba(15, 35, 64, 0.15);
+}
+
+:root[data-theme="light"] .kpi-card.kpi-card.alert {
+  background: rgba(200, 16, 46, 0.065);
+  border-color: rgba(184, 14, 42, 0.36);
+}
+
+:root[data-theme="light"] .kpi-card.kpi-card .kpi-label,
+:root[data-theme="light"] .kpi-card.kpi-card .kpi-delta {
+  color: #425873;
+}
+
+:root[data-theme="light"] .kpi-card.kpi-card .kpi-value {
+  color: #102033;
+}
+
+:root[data-theme="light"] .kpi-card.kpi-card.positive .kpi-value {
+  color: var(--tag-ganado);
+}

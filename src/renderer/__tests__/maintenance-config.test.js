@@ -13,7 +13,7 @@ const tsconfig = existsSync(tsconfigPath)
   : { compilerOptions: {} };
 
 function getBodyCss() {
-  return baseCss.match(/body\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+  return baseCss.match(/(?:^|\n)body\s*\{([\s\S]*?)\n\}/)?.[1] || '';
 }
 
 function getRendererCsp() {
@@ -21,11 +21,12 @@ function getRendererCsp() {
 }
 
 describe('residual maintenance configuration', () => {
-  it('keeps normal document text selectable while restricting selection to interactive controls', () => {
-    expect(getBodyCss()).not.toMatch(/user-select\s*:\s*none/);
-    expect(baseCss).not.toMatch(/select,\s*button,\s*label\s*\{\s*user-select\s*:\s*none/);
-    expect(baseCss).toMatch(/button:not\(:disabled\),[\s\S]*?select:not\(:disabled\),[\s\S]*?\[role="button"\]:not\(\[aria-disabled="true"\]\),[\s\S]*?\[role="tab"\]:not\(\[aria-disabled="true"\]\),[\s\S]*?\[role="option"\]:not\(\[aria-disabled="true"\]\),[\s\S]*?\[role="menuitem"\]:not\(\[aria-disabled="true"\]\)[\s\S]*?user-select:\s*none/);
-    expect(baseCss).toMatch(/label:has\(input:not\(:disabled\)\)[\s\S]*?user-select:\s*none/);
+  it('prevents accidental selection while preserving selection inside editable fields', () => {
+    expect(getBodyCss()).toMatch(/user-select\s*:\s*none/);
+    expect(getBodyCss()).toMatch(/-webkit-user-select\s*:\s*none/);
+    expect(baseCss).toMatch(/input,\s*select,\s*textarea\s*\{[\s\S]*?user-select:\s*text;/);
+    expect(baseCss).toMatch(/img,\s*svg,\s*video,\s*canvas\s*\{[\s\S]*?-webkit-user-drag:\s*none;/);
+    expect(baseCss).toMatch(/img,\s*svg,\s*video,\s*canvas\s*\{[\s\S]*?user-select:\s*none;/);
   });
 
   it('keeps npm test side-effect free and exposes dependency installation separately', () => {
@@ -50,7 +51,10 @@ describe('residual maintenance configuration', () => {
     expect(csp).toContain("script-src-attr 'none'");
     expect(csp).not.toContain("script-src 'self' 'unsafe-inline'");
     expect(csp).not.toContain("'unsafe-eval'");
-    expect(csp).toContain("style-src 'self' 'unsafe-inline'");
+    expect(csp).toContain("style-src 'self'");
+    expect(csp).toContain("style-src-elem 'self'");
+    expect(csp).toContain("style-src-attr 'unsafe-inline'");
+    expect(csp).not.toContain("style-src 'self' 'unsafe-inline'");
     expect(indexHtml).toContain('SEC-01');
     expect(indexHtml).not.toMatch(/<script(?![^>]*\ssrc=)[^>]*>/i);
   });

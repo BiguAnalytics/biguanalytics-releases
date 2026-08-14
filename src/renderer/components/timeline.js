@@ -2,13 +2,15 @@
 import { getDrawingSequenceDuration } from '../drawing/drawing-sequence.js';
 import { getEventLabel } from '../tagging/event-labels.js';
 
-const TRACKS = [
-  { id: 'set-piece', label: 'Formaciones', types: ['scrum', 'lineout', 'maul'] },
-  { id: 'breakdown', label: 'Breakdown', types: ['ruck', 'turnover'] },
-  { id: 'discipline', label: 'Disciplina', types: ['penal', 'card'] },
-  { id: 'attack', label: 'Ataque', types: ['points', 'break-line', 'kick'] },
-  { id: 'notes', label: 'Notas', types: ['note'] },
+export const TAGGING_CHANNELS = [
+  { id: 'set-piece', label: 'Formaciones', types: ['scrum', 'lineout', 'maul'], color: '#ff3b5f' },
+  { id: 'breakdown', label: 'Breakdown', types: ['ruck', 'turnover'], color: '#2f8fff' },
+  { id: 'discipline', label: 'Disciplina', types: ['penal', 'card'], color: '#ffd23f' },
+  { id: 'attack', label: 'Ataque', types: ['points', 'break-line', 'kick'], color: '#31d158' },
+  { id: 'notes', label: 'Notas', types: ['note'], color: '#b66cff' },
 ];
+
+const TRACKS = TAGGING_CHANNELS;
 
 const MIN_TIMELINE_SECONDS = 60;
 const TIMELINE_PIXELS_PER_MINUTE = 72;
@@ -531,8 +533,8 @@ export function renderTimeline(host, options) {
     <section class="tagging-timeline" aria-label="Timeline de eventos">
       <div class="timeline-track-labels" aria-hidden="true">
         <div class="timeline-label-ruler"></div>
-        <span class="timeline-track-label timeline-possession-label" style="--timeline-label-row:2">Posesion</span>
-        ${TRACKS.map((track, index) => `<span class="timeline-track-label" style="--timeline-label-row:${index + 3}" data-track-label="${track.id}">${track.label}</span>`).join('')}
+        <span class="timeline-track-label timeline-possession-label" style="--timeline-track-row:2">Posesion</span>
+        ${TRACKS.map((track, index) => `<span class="timeline-track-label" style="--timeline-track-row:${index + 3}; --timeline-channel-color:${track.color}" data-track-label="${track.id}">${track.label}</span>`).join('')}
       </div>
       <div class="timeline-scroll">
         <div class="timeline-content" style="width:${timelineWidth}px" data-timeline-duration="${duration}">
@@ -561,8 +563,8 @@ export function renderTimeline(host, options) {
               return `<span class="timeline-possession-segment ${segment.team}" style="left:${formatPercent(left)}%; width:max(2px, ${formatPercent(width)}%)" data-possession-team="${segment.team}" title="${escapeHtml(title)}"></span>`;
             }).join('')}
           </div>
-          ${TRACKS.map(track => `
-            <div class="timeline-track" data-track="${track.id}">
+          ${TRACKS.map((track, index) => `
+            <div class="timeline-track" data-track="${track.id}" style="--timeline-track-row:${index + 3}; --timeline-channel-color:${track.color}">
               ${track.id === 'notes' ? sequences.map(sequence => {
                 const left = Math.min(100, (sequence.start / duration) * 100);
                 const sequenceId = sequence.id || `${sequence.start}-${sequence.end}-${sequence.result || 'sequence'}`;
@@ -614,7 +616,7 @@ export function renderTimeline(host, options) {
                 `;
               }).join('') : ''}
               ${events.filter(event => getTrackId(event) === track.id).map(event => {
-                const left = Math.min(100, (event.timestamp / duration) * 100);
+                const left = Math.max(0, Math.min(100, (event.timestamp / duration) * 100));
                 const eventResult = formatEventValue(event.result || event.subtype);
                 const hasNote = Boolean(String(event.note || '').trim());
                 const hasDrawing = Boolean(event.drawingId);
@@ -625,6 +627,8 @@ export function renderTimeline(host, options) {
                   String(eventId) === selectedEventId ? 'selected' : '',
                   hasNote ? 'has-note' : '',
                   hasDrawing ? 'has-drawing' : '',
+                  left <= 0 ? 'timeline-block-at-start' : '',
+                  left >= 100 ? 'timeline-block-at-end' : '',
                   newEventIds.has(String(eventId)) ? 'is-new' : '',
                 ].filter(Boolean).join(' ');
                 const title = `${getEventLabel(event.type, options.eventLabels)} · ${event.result || event.subtype || 'sin resultado'} · ${event.note || formatClock(event.timestamp)}`;
@@ -832,6 +836,8 @@ function handleTimelinePointerMove(host, event) {
   dragState.nextTimestamp = nextTimestamp;
   dragState.block.classList.add('dragging');
   dragState.block.style.left = getTimelineSeekPercent(nextTimestamp, state.duration);
+  dragState.block.classList.toggle('timeline-block-at-start', nextTimestamp <= 0);
+  dragState.block.classList.toggle('timeline-block-at-end', nextTimestamp >= state.duration);
   if (dragState.type === 'drawing') {
     dragState.block.dataset.drawingTimestamp = String(nextTimestamp);
     updateDrawingPreview(host, dragState.block);

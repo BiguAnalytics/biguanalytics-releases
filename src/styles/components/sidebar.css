@@ -344,7 +344,7 @@
 
 .sidebar-profile-name {
   font: 700 13px var(--font-brand);
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;

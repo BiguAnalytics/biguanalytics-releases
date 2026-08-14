@@ -44,3 +44,20 @@
 .hotkey-bar.collapsed .hotkey-items {
   display: none;
 }
+
+:root[data-theme="light"] .hotkey-bar {
+  background: var(--gradient-surface);
+  border-top-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .hotkey-toggle,
+:root[data-theme="light"] .hotkey-bar kbd {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .hotkey-items span {
+  color: var(--color-text-secondary);
+}

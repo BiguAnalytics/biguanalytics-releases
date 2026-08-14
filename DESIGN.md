@@ -149,31 +149,30 @@ BiguAnalytics es una herramienta profesional de uso interno. El diseño debe com
   --sidebar-width:      56px;   /* Sidebar colapsado (solo íconos) */
   --sidebar-width-open: 220px;  /* Sidebar expandido */
   --topbar-height:      48px;
-  --player-controls-h:  52px;
-  --timeline-height:    140px;  /* Timeline de edición */
-  --tagging-panel-popup-w: 280px;
+  --player-controls-h:  54px;
+  --timeline-height:    clamp(220px, 24vh, 280px); /* Timeline operativa responsive */
+  --tagging-panel-w:    clamp(360px, 30vw, 460px);
 }
 ```
 
 ### Grid del Layout Principal (Pantalla de Tagging)
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  TOPBAR (48px) — logo, info partido, estado, acciones│
-├───┬─────────────────────────────────────────────────┤
-│ S │                                                   │
-│ I │         VIDEO PLAYER (flex, ocupa todo el         │
-│ D │         espacio disponible menos la timeline)     │
-│ E │                                                   │
-│ B │   [POPUP de tag aparece sobre el video]           │
-│ A ├─────────────────────────────────────────────────┤
-│ R │  PLAYER CONTROLS (52px)                           │
-│   ├─────────────────────────────────────────────────┤
-│ 5 │  TIMELINE (140px) — estilo editor de video        │
-│ 6 │  con tracks por tipo de evento                    │
-│ p ├─────────────────────────────────────────────────┤
-│ x │  HOTKEY HINTS (32px, colapsable)                  │
-└───┴─────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────┐
+│ TOPBAR (48px) — partido, estado, acciones                  │
+├──────┬──────────────────────────────────────┬───────────────┤
+│      │                                      │ PANEL OPERAT. │
+│ SIDE │           VIDEO PLAYER               │ 360–460px     │
+│ BAR  │                                      │ estado / tag  │
+│ 56px │                                      │ secuencia /   │
+│      │                                      │ inspector     │
+│      ├──────────────────────────────────────┤               │
+│      │ PLAYER CONTROLS (54px)               │               │
+├──────┴──────────────────────────────────────┴───────────────┤
+│ TIMELINE (clamp(220px, 24vh, 280px)) — tracks por evento    │
+├─────────────────────────────────────────────────────────────┤
+│ HOTKEY HINTS (40px, colapsable)                             │
+└─────────────────────────────────────────────────────────────┘
 ```
 
 ### Grid del Dashboard
@@ -205,19 +204,21 @@ BiguAnalytics es una herramienta profesional de uso interno. El diseño debe com
 ```
 [Logo BiguAnalytics — 40px]
 ─────────────────
+[⌂] Inicio        (ícono: home)
 [▶] Tagging       (ícono: play)
 [📊] Dashboard    (ícono: bar chart)
-[✏️] Dibujo       (ícono: pencil)
-[🔥] Heatmap      (ícono: flame)
+[▣] Clips         (ícono: clips)
+[✏] Tablero       (ícono: pencil)
 [📅] Temporada    (ícono: calendar)
 ─────────────────
 (espaciador flex)
 ─────────────────
-[👥] Usuarios
 [⚙️] Ajustes
 ─────────────────
 [Avatar] Nombre usuario
 ```
+
+Heatmap pertenece al Dashboard y no es una entrada independiente de navegación. El dibujo sobre video es contextual a Tagging; Tablero es la superficie independiente para trabajo táctico.
 
 **Estilos:**
 ```css
@@ -426,22 +427,17 @@ Estructura:
 
 ### 4.4 Popup de Tag (componente más crítico de la app)
 
-**Aparece al presionar una hotkey. Flota sobre el video, lado derecho o donde haya espacio. El video NO se pausa.**
+**Aparece al presionar una hotkey dentro del panel operativo. El video NO se pausa y los controles permanecen visibles.**
 
 ```css
 .tag-popup {
-  position: absolute;
-  top: 50%;
-  right: var(--space-6);
-  transform: translateY(-50%);
-  width: var(--tagging-panel-popup-w);
-  background: var(--color-bg-elevated);
+  width: min(420px, 100%);
+  background: var(--color-bg-surface);
   border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-xl);
   box-shadow: 0 24px 64px rgba(0, 0, 0, 0.7),
               0 0 0 1px rgba(200, 16, 46, 0.1),
               inset 0 1px 0 rgba(255, 255, 255, 0.05);
-  z-index: 50;
   overflow: hidden;
   
   /* Animación de entrada */
@@ -451,11 +447,11 @@ Estructura:
 @keyframes popup-enter {
   from {
     opacity: 0;
-    transform: translateY(-50%) scale(0.96) translateX(8px);
+    transform: scale(0.94);
   }
   to {
     opacity: 1;
-    transform: translateY(-50%) scale(1) translateX(0);
+    transform: scale(1);
   }
 }
 
@@ -1171,12 +1167,13 @@ body {
 ### 5.2 Tagging (pantalla principal de trabajo)
 - Sidebar **colapsado** (56px, solo íconos)
 - Topbar fijo con info del partido + indicador REC
-- Video ocupa ~65% del área vertical disponible
-- Player controls (scrubber, tiempo, velocidad, botones)
-- Timeline (140px) con tracks y bloques de colores
-- Hotkey bar (colapsable, 32px)
-- Popup de tag flota sobre el video (posición relativa al evento)
-- **No hay panel lateral de eventos** — toda la info de tagging va en el popup
+- Área principal dividida en video a la izquierda y panel operativo a la derecha (`360–460px`)
+- El panel operativo es una superficie única con estados mutuamente excluyentes: estado del partido, popup de tag, popup de secuencia e inspector de evento
+- El popup de tag no cubre el video: se presenta dentro del panel operativo para conservar visibles el reproductor, los controles y la timeline
+- Player controls bajo el video (scrubber, tiempo, velocidad y botones), con altura de `54px`
+- Timeline responsive (`clamp(220px, 24vh, 280px)`) con tracks y bloques de colores
+- Hotkey bar colapsable de `40px`
+- El inspector edita el evento seleccionado de forma contextual; no se muestra una lista lateral persistente de eventos
 
 ### 5.3 Dashboard
 - Sidebar colapsado o semi-expandido
@@ -1187,19 +1184,26 @@ body {
 - Botón exportar PDF sticky en topbar
 
 ### 5.4 Dibujo sobre Video
-- Mismo layout que Tagging pero con canvas activo
-- Toolbar flotante de herramientas (posición fija, esquina inferior izquierda del video)
+- Herramienta contextual dentro de Tagging o desde la timeline, con canvas activo sobre el frame
+- Toolbar flotante de herramientas en la esquina inferior izquierda del video
 - Paleta de colores + grosor de trazo
 
 ### 5.5 Heatmap
-- Canvas del campo de rugby con zonas clickeables
-- Filtros por tipo de evento (chips horizontales arriba del campo)
-- Intensidad de color en gradiente rojo
+- Sección del Dashboard, no pantalla ni ruta independiente
+- Canvas/SVG del campo de rugby con zonas clickeables y foco navegable desde el Dashboard
+- Filtros por tipo de evento, equipo, período y zona
+- Intensidad de color mediante gradiente rojo; el filtro activo debe quedar visible
 
 ### 5.6 Tablero Táctico
 - Canvas en blanco con campo de rugby de fondo
 - Mismas herramientas de dibujo
 - Sin video, sin partido activo — standalone
+
+### 5.7 Asistencia con IA
+- La asistencia de IA es opcional y se presenta como una capacidad de análisis, sin selector de proveedor en la interfaz
+- Gemini es el único proveedor oficial inicial; la UI no expone nombres de modelos, API keys ni credenciales
+- Estados visuales mínimos: no disponible/no configurada, analizando, resultado listo y error o límite alcanzado
+- El estado de carga debe ser no bloqueante para el resto del Dashboard; el resultado debe mantener su vínculo con el partido y el período analizado
 
 ---
 
@@ -1207,8 +1211,8 @@ body {
 
 - **Hover en sidebar items:** fondo `--color-bg-hover`, color texto a primario — 150ms ease
 - **Click en bloque de timeline:** seek instantáneo en video + highlight del bloque (brillo +30%) — feedback visual inmediato
-- **Apertura de popup de tag:** scale(0.96→1) + fadeIn — 120ms ease-out
-- **Cierre de popup de tag:** scale(1→0.96) + fadeOut — 80ms ease-in
+- **Apertura de panel contextual:** scale(0.98→1) + fadeIn — 120ms ease-out
+- **Cierre de panel contextual:** scale(1→0.98) + fadeOut — 80ms ease-in
 - **KPI card alert:** glow rojo pulsante (2s infinite)
 - **Botón confirmar del popup:** fondo oscurece en hover — 100ms
 - **Match card hover:** translateY(-2px) + border más visible — 200ms ease
@@ -1220,12 +1224,12 @@ body {
 ## 7. Accesibilidad y UX
 
 - Todos los hotkeys deben ser distinguibles visualmente con el indicador `--color-accent`
-- El popup de tag nunca debe tapar los controles del reproductor ni el scrubber
-- El popup se posiciona automáticamente: si el video es pequeño, va centrado; si es grande, va a la derecha
+- El panel contextual nunca debe tapar los controles del reproductor ni el scrubber
+- El panel operativo mantiene una geometría estable; sus estados internos no deben desplazar ni cubrir el video
 - En la timeline, el click debe tener área mínima de 20px incluso si el bloque es pequeño
 - Todos los textos de datos deben tener `font-variant-numeric: tabular-nums` para alineación
-- El foco de teclado nunca debe perderse: al abrir el popup, el foco va al primer botón de opción
-- `Escape` siempre cierra el modal/popup más reciente
+- El foco de teclado nunca debe perderse: al abrir un popup o inspector, el foco va al primer control accionable de ese estado
+- `Escape` siempre cierra la superficie contextual más reciente y devuelve el foco al disparador
 
 ---
 

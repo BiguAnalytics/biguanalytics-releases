@@ -16,6 +16,8 @@ export { hydrateCloudMatch, normalizeMatchForHome } from './match-mapper.js';
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const CLOUD_LIST_CACHE_TTL_MS = 30_000;
 const CLOUD_LIST_PAGE_SIZE = 50;
+const CLOUD_DETAIL_PAGE_SIZE = 1000;
+const CLOUD_DETAIL_MAX_PAGES = 100;
 
 /**
  * @param {number|null|undefined} seconds
@@ -61,6 +63,43 @@ export function mapLocalMatchToCloud(match, context) {
 }
 
 /**
+ * Downloads a complete child collection without replacing the local cache
+ * with a server-truncated page.
+ * @param {object} client
+ * @param {string} table
+ * @param {string} matchId
+ * @param {string} orderColumn
+ * @param {boolean} [ascending]
+ * @returns {Promise<Array<object>>}
+ */
+async function downloadCloudDetailRows(client, table, matchId, orderColumn, ascending = true) {
+  const rows = [];
+  let offset = 0;
+  let pageCount = 0;
+
+  while (true) {
+    let query = client
+      .from(table)
+      .select('*')
+      .eq('match_id', matchId)
+      .order(orderColumn, { ascending });
+    const supportsRange = typeof query?.range === 'function';
+    if (supportsRange) query = query.range(offset, offset + CLOUD_DETAIL_PAGE_SIZE - 1);
+    const result = await query;
+    assertSupabaseOk(result);
+    const page = Array.isArray(result.data) ? result.data : [];
+    rows.push(...page);
+
+    if (!supportsRange || page.length < CLOUD_DETAIL_PAGE_SIZE) return rows;
+    pageCount += 1;
+    if (pageCount >= CLOUD_DETAIL_MAX_PAGES) {
+      throw new Error(`La descarga de ${table} superó el límite de páginas.`);
+    }
+    offset += CLOUD_DETAIL_PAGE_SIZE;
+  }
+}
+
+/**
  * @param {object|Array<object>|null|undefined} possession
  * @returns {Array<object>}
  */
@@ -94,12 +133,13 @@ function possessionToSegments(possession) {
  */
 export function mapPossessionToCloudRows(matchId, possession, context) {
   return possessionToSegments(possession).map(segment => ({
+    ...(UUID_RE.test(String(segment.id || '')) ? { id: segment.id } : {}),
     match_id: matchId,
     club_id: context.clubId,
     team: segment.team,
     start_ms: secondsToMs(segment.start),
     end_ms: secondsToMs(segment.end),
-    created_by: context.userId,
+    created_by: segment.createdBy || segment.created_by || context.userId,
   }));
 }
 
@@ -113,9 +153,11 @@ export function mapCloudPossessionsToLocal(rows = []) {
     activeStart: null,
     activeEnd: null,
     intervals: rows.map(row => ({
+      ...(row.id ? { id: row.id } : {}),
       team: row.team,
       start: msToSeconds(row.start_ms),
       end: msToSeconds(row.end_ms),
+      ...(row.created_by ? { createdBy: row.created_by } : {}),
     })),
   };
 }
@@ -138,7 +180,7 @@ export function mapSequencesToCloudRows(matchId, sequences = [], context) {
     phases_count: Number(sequence.phases ?? sequence.phases_count) || 0,
     start_zone: sequence.zoneStart || sequence.startZone || null,
     end_zone: sequence.zoneEnd || sequence.endZone || null,
-    created_by: context.userId,
+    created_by: sequence.createdBy || sequence.created_by || context.userId,
   }));
 }
 
@@ -157,6 +199,7 @@ export function mapCloudSequencesToLocal(rows = []) {
     phases: Number(row.phases_count) || 0,
     zoneStart: row.start_zone || null,
     zoneEnd: row.end_zone || null,
+    ...(row.created_by ? { createdBy: row.created_by } : {}),
   }));
 }
 
@@ -300,7 +343,8 @@ function buildUpdateOperations(context, match, updates) {
       payload: {
         match_id: match.id,
         club_id: context.clubId,
-        author_id: context.userId,
+        ...(match.cloud?.noteId ? { id: match.cloud.noteId } : {}),
+        author_id: match.cloud?.noteAuthorId || context.userId,
         content: match.coachNotes || '',
       },
     });
@@ -462,25 +506,27 @@ export function createCloudMatchService(deps = {}) {
 
   async function downloadMatchDetail(matchId) {
     const context = await resolveCloudContext(deps);
-    const [matchResult, eventsResult, possessionsResult, sequencesResult, notesResult] = await Promise.all([
+    const [matchResult, events, possessions, sequences, notes] = await Promise.all([
       context.client.from('matches').select('*, video_references(*)').eq('id', matchId).single(),
-      context.client.from('match_events').select('*').eq('match_id', matchId).order('timestamp_ms', { ascending: true }),
-      context.client.from('match_possessions').select('*').eq('match_id', matchId).order('start_ms', { ascending: true }),
-      context.client.from('match_sequences').select('*').eq('match_id', matchId).order('start_ms', { ascending: true }),
-      context.client.from('match_notes').select('*').eq('match_id', matchId).order('updated_at', { ascending: false }),
+      downloadCloudDetailRows(context.client, 'match_events', matchId, 'timestamp_ms'),
+      downloadCloudDetailRows(context.client, 'match_possessions', matchId, 'start_ms'),
+      downloadCloudDetailRows(context.client, 'match_sequences', matchId, 'start_ms'),
+      downloadCloudDetailRows(context.client, 'match_notes', matchId, 'updated_at', false),
     ]);
     assertSupabaseOk(matchResult);
-    assertSupabaseOk(eventsResult);
-    assertSupabaseOk(possessionsResult);
-    assertSupabaseOk(sequencesResult);
-    assertSupabaseOk(notesResult);
 
+    const baseMatch = mapCloudMatchToLocal(matchResult.data);
     const local = {
-      ...mapCloudMatchToLocal(matchResult.data),
-      events: (eventsResult.data || []).map(mapCloudEventToLocal),
-      possession: mapCloudPossessionsToLocal(possessionsResult.data || []),
-      sequences: mapCloudSequencesToLocal(sequencesResult.data || []),
-      coachNotes: notesResult.data?.[0]?.content || '',
+      ...baseMatch,
+      events: events.map(mapCloudEventToLocal),
+      possession: mapCloudPossessionsToLocal(possessions),
+      sequences: mapCloudSequencesToLocal(sequences),
+      coachNotes: notes[0]?.content || '',
+      cloud: {
+        ...baseMatch.cloud,
+        ...(notes[0]?.id ? { noteId: notes[0].id } : {}),
+        ...(notes[0]?.author_id ? { noteAuthorId: notes[0].author_id } : {}),
+      },
     };
     return localApi.matches.upsertCache(local);
   }
@@ -772,7 +818,7 @@ export function createCloudMatchService(deps = {}) {
       if (options.localFirst && typeof localApi.matches?.getById === 'function') {
         try {
           const cachedMatch = await timeStartup('data:match-local-cache', () => localApi.matches.getById(matchId));
-          if (cachedMatch) return cachedMatch;
+          if (cachedMatch && (!options.requireDetails || Array.isArray(cachedMatch.events))) return cachedMatch;
         } catch {
           // Continue with the cloud detail path when the local cache is unavailable.
         }

@@ -13,4 +13,10 @@ describe('heatmap dashboard-only integration', () => {
     expect(dashboardSource).toContain('function renderHeatmap');
     expect(dashboardSource).toContain('<svg id="dashboard-heatmap"');
   });
+
+  it('keeps exported heatmap text styling in attributes instead of an inline SVG style element', () => {
+    expect(dashboardSource).not.toContain('    <style>');
+    expect(dashboardSource).toContain('class="heatmap-zone-number"');
+    expect(dashboardSource).toContain('style="fill: color-mix');
+  });
 });

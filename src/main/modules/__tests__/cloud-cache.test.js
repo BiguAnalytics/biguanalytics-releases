@@ -83,6 +83,31 @@ describe('cloud sync local cache', () => {
     expect(await getPendingSync()).toEqual([]);
   });
 
+  it('drops pending child writes when a match deletion is queued', async () => {
+    await enqueuePendingSync({
+      matchId: 'match-cloud-1',
+      entity: 'match_events',
+      action: 'upsert',
+      dedupeKey: 'match_events:evt-1',
+      payload: { id: 'evt-1' },
+    });
+    await enqueuePendingSync({
+      matchId: 'match-cloud-1',
+      entity: 'matches',
+      action: 'delete',
+      dedupeKey: 'matches:match-cloud-1:delete',
+      payload: { id: 'match-cloud-1' },
+    });
+
+    expect(await getPendingSync()).toEqual([
+      expect.objectContaining({
+        matchId: 'match-cloud-1',
+        entity: 'matches',
+        action: 'delete',
+      }),
+    ]);
+  });
+
   it('preserves concurrent pending enqueue read-modify-writes', async () => {
     await Promise.all([
       enqueuePendingSync({

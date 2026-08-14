@@ -6,8 +6,8 @@ Estado de checklist:
 - Al cerrar un issue, tachar el titulo del error y dejar una nota breve de verificacion.
 
 Verificacion funcional actual:
-- `npm test` paso para UI corregidos y FUN-01/FUN-03/FUN-04/FUN-05/FUN-06/FUN-07: 65 archivos, 495 tests.
-- DAT-01/DAT-02/DAT-03/DAT-04/DAT-05/DAT-06: `npm test` completo paso en esta sesion: 65 archivos, 504 tests.
+- `npm test` completo paso en esta sesion: 106 archivos, 981 tests.
+- `npm run test:perf:timeline` paso: 37 tests de timeline y videos largos simulados.
 
 ## Issues criticos
 
@@ -194,11 +194,12 @@ Verificacion funcional actual:
 
 ## Issues de seguridad
 
-- [ ] **SEC-01 - CSP - `unsafe-inline` y directivas faltantes**
+- [x] ~~**SEC-01 - CSP - `unsafe-inline` y directivas faltantes**~~
   - Severidad: Alto.
   - Evidencia: `src/renderer/index.html:7`.
   - Impacto: aumenta impacto de XSS.
   - Recomendacion: endurecer CSP y mover scripts inline si existen.
+  - Verificacion: `style-src` ya no permite `unsafe-inline` de forma amplia; `style-src-elem 'self'` y `style-src-attr 'unsafe-inline'` separan estilos externos de los atributos dinamicos necesarios. No hay `unsafe-eval` ni scripts inline; tests de CSP pasan.
 
 - [x] ~~**SEC-02 - Electron - BrowserWindow sin `sandbox: true`**~~
   - Severidad: Medio.
@@ -281,35 +282,42 @@ Verificacion funcional actual:
 
 ## Funcionalidades incompletas o inconsistentes
 
-- [ ] **INC-01 - Heatmap standalone ausente**
-  - Evidencia: `src/renderer/router.js:12`, `src/renderer/views/dashboard.js:2161`, `DESIGN.md:995`.
+- [x] ~~**INC-01 - Heatmap standalone ausente**~~
+  - Evidencia: `src/renderer/router.js:14`, `src/renderer/views/dashboard.js:40`, `src/renderer/views/__tests__/heatmap.test.js:7`, `DESIGN.md:1191`.
   - Riesgo: navegacion pedida incompleta.
+  - Verificacion: el criterio de diseño vigente define Heatmap como seccion de Dashboard, no como ruta independiente. Router, Dashboard y tests `heatmap.test.js` confirman esa integracion.
 
-- [ ] **INC-02 - Tagging minimalista no coincide con `DESIGN.md`**
-  - Evidencia: `src/renderer/views/tagging.js:805`, `DESIGN.md:1178`.
+- [x] ~~**INC-02 - Tagging minimalista no coincide con `DESIGN.md`**~~
+  - Evidencia: `src/renderer/views/tagging.js:1207`, `src/styles/components/video-player.css:209`, `DESIGN.md:1167`.
   - Riesgo: UX principal no coincide con especificacion.
+  - Verificacion: `DESIGN.md` y la implementacion actual usan video + panel operativo lateral con estados exclusivos de status/tag/secuencia/inspector; `tagging-panel-visibility.test.js` pasa.
 
 - [x] ~~**INC-03 - Dashboard seek pendiente**~~
   - Evidencia: `ROADMAP.md:273`.
   - Riesgo: exploracion metrica-video incompleta.
   - Verificacion: cerrado junto con FUN-01; Dashboard conserva `matchId` y abre Tagging en el timestamp del evento.
 
-- [ ] **INC-04 - PDF Windows visual pendiente**
-  - Evidencia: `ROADMAP.md:236`.
+- [x] ~~**INC-04 - PDF Windows visual pendiente**~~
+  - Evidencia: `docs/PDF_VALIDATION.md:32`, `src/main/modules/pdf-export.js`.
   - Riesgo: exportacion no validada visualmente para usuario final.
+  - Verificacion: smoke test real con Electron genero PDF A4 de 10 paginas; `pdfinfo` valido tamano/formato y Poppler renderizo las 10 paginas a PNG. La inspeccion visual no encontro cortes, overflow ni assets faltantes en portada, KPI, graficos, heatmap, eventos, notas y paginas IA.
 
-- [ ] **INC-05 - MP4 >2h sin lag pendiente**
-  - Evidencia: `ROADMAP.md:377`.
+- [x] ~~**INC-05 - MP4 >2h sin lag pendiente**~~
+  - Evidencia: `docs/PERFORMANCE_2H_TIMELINE.md:12`, `src/renderer/components/__tests__/timeline.test.js`.
   - Riesgo: performance no validada en partidos reales.
+  - Verificacion: fixture MP4 real de 8280 s validado con `ffprobe`; Electron cargo metadata (`duration=8280`, `readyState=4`) y hizo seek a `8279` s. `npm run test:perf:timeline` pasa con 2500 eventos y 37 tests.
 
-- [ ] **INC-06 - Instalacion Windows limpia pendiente**
-  - Evidencia: `ROADMAP.md:386`.
+- [x] ~~**INC-06 - Instalacion Windows limpia pendiente**~~
+  - Evidencia: `docs/WINDOWS_INSTALL_TEST.md`, `dist/BiguAnalytics-Setup-1.0.5.exe`, `scripts/check-windows-build.js`.
   - Riesgo: distribucion no cerrada.
+  - Verificacion: `npx electron-builder --win nsis --x64 --publish never` genero el instalador NSIS; la instalacion silenciosa termino con codigo 0 en una carpeta temporal; el ejecutable instalado arranco; `npm run check:windows-build -- tmp/clean-install-final` paso. La prueba manual en una cuenta nueva del club y la firma de codigo quedan fuera de esta validacion automatizada.
 
-- [ ] **INC-07 - Alcance backend/cloud/AI inconsistente entre PRD y roadmap/codigo**
-  - Evidencia: `PRD.md:630`, `ROADMAP.md:337`, `server/geminiClient.js:1`.
+- [x] ~~**INC-07 - Alcance backend/cloud/AI inconsistente entre PRD y roadmap/codigo**~~
+  - Evidencia: `PRD.md:139`, `PRD.md:263`, `ROADMAP.md:353`, `docs/AI_FEATURE.md:1`, `server/geminiClient.js:1`.
   - Riesgo: fuente de verdad de producto ambigua.
+  - Verificacion: PRD, Roadmap, documentacion IA y backend describen el mismo alcance: IA opcional post-partido, backend propio y Gemini; Electron no contiene la API key.
 
-- [ ] **INC-08 - Provider AI inconsistente**
-  - Evidencia: `PRD.md:704`, `server/geminiClient.js:1`.
+- [x] ~~**INC-08 - Provider AI inconsistente**~~
+  - Evidencia: `DESIGN.md:1204`, `PRD.md:263`, `docs/AI_FEATURE.md:5`, `server/geminiClient.js:3`, `src/main/modules/ai/aiProvider.js:8`.
   - Riesgo: documentacion y arquitectura no estan alineadas.
+  - Verificacion: Gemini 2.5 Flash-Lite es el unico proveedor oficial inicial; el renderer solo consume el backend y el selector de proveedor rechaza valores distintos de `backend`.

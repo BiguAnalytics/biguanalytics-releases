@@ -44,6 +44,14 @@ const immutableOwnershipMigrationExists = existsSync(immutableOwnershipMigration
 const immutableOwnershipMigration = immutableOwnershipMigrationExists
   ? readFileSync(immutableOwnershipMigrationUrl, 'utf8')
   : '';
+const accountDeletionOwnershipMigrationUrl = new URL(
+  '../../../../supabase/migrations/20260806000000_allow_account_deletion_anonymization.sql',
+  import.meta.url
+);
+const accountDeletionOwnershipMigrationExists = existsSync(accountDeletionOwnershipMigrationUrl);
+const accountDeletionOwnershipMigration = accountDeletionOwnershipMigrationExists
+  ? readFileSync(accountDeletionOwnershipMigrationUrl, 'utf8')
+  : '';
 
 describe('cloud sync lightweight migration', () => {
   it('creates only lightweight rugby sync tables with RLS enabled', () => {
@@ -187,5 +195,19 @@ describe('cloud sync immutable ownership migration', () => {
     expect(immutableOwnershipMigration).toContain('author_id');
     expect(immutableOwnershipMigration).toContain('club_id');
     expect(immutableOwnershipMigration).not.toContain('service_role');
+  });
+});
+
+describe('account deletion ownership compatibility migration', () => {
+  it('allows only self-anonymization while keeping club ownership immutable', () => {
+    expect(accountDeletionOwnershipMigrationExists).toBe(true);
+    expect(accountDeletionOwnershipMigration).toContain('create or replace function public.prevent_sync_ownership_changes');
+    expect(accountDeletionOwnershipMigration).toContain("created_by') is null");
+    expect(accountDeletionOwnershipMigration).toContain("created_by') = auth.uid()::text");
+    expect(accountDeletionOwnershipMigration).toContain("author_id') is null");
+    expect(accountDeletionOwnershipMigration).toContain("author_id') = auth.uid()::text");
+    expect(accountDeletionOwnershipMigration).toContain('club_id is immutable after creation');
+    expect(accountDeletionOwnershipMigration).not.toContain('set_config');
+    expect(accountDeletionOwnershipMigration).not.toContain('service_role');
   });
 });

@@ -859,3 +859,136 @@
   background: rgba(200, 16, 46, 0.12);
   outline: none;
 }
+
+/* Light mode: the board is a light workspace; dark mode remains unchanged. */
+:root[data-theme="light"] .tactical-board-view {
+  background: #f4f7fb;
+}
+
+:root[data-theme="light"] .tactical-canvas-frame {
+  background: #e8eef5;
+  border-color: rgba(15, 35, 64, 0.2);
+  box-shadow: 0 18px 48px rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .tactical-board-options {
+  background: rgba(248, 250, 252, 0.97);
+  border-color: rgba(15, 35, 64, 0.22);
+  box-shadow: 0 16px 36px rgba(15, 35, 64, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+:root[data-theme="light"] .tactical-board-options label,
+:root[data-theme="light"] .tactical-library-header h2,
+:root[data-theme="light"] .tactical-sequence-open,
+:root[data-theme="light"] .tactical-sequence-detail-header h2,
+:root[data-theme="light"] .tactical-cuadro-card,
+:root[data-theme="light"] .tactical-board-load,
+:root[data-theme="light"] .tactical-sequence-dialog strong,
+:root[data-theme="light"] .tactical-empty strong,
+:root[data-theme="light"] .tactical-sequence-empty strong {
+  color: #102033;
+}
+
+:root[data-theme="light"] .tactical-board-options select,
+:root[data-theme="light"] .tactical-board-options input[type="color"],
+:root[data-theme="light"] .tactical-playback-controls input,
+:root[data-theme="light"] .tactical-board-name-input,
+:root[data-theme="light"] .tactical-sequence-dialog input {
+  background: #f8fafc;
+  border-color: rgba(15, 35, 64, 0.2);
+  color: #102033;
+}
+
+:root[data-theme="light"] .tactical-board-library {
+  background: #eaf0f6;
+  border-left-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .tactical-library-header [data-save-status],
+:root[data-theme="light"] .tactical-playback-controls label,
+:root[data-theme="light"] .tactical-sequence-copy small,
+:root[data-theme="light"] .tactical-sequence-hint,
+:root[data-theme="light"] .tactical-cuadro-meta small,
+:root[data-theme="light"] .tactical-board-load small,
+:root[data-theme="light"] .tactical-empty span,
+:root[data-theme="light"] .tactical-sequence-empty span,
+:root[data-theme="light"] .tactical-canvas-empty,
+:root[data-theme="light"] .tactical-sequence-dialog label span {
+  color: #425873;
+}
+
+:root[data-theme="light"] .tactical-board-item,
+:root[data-theme="light"] .tactical-sequence-card,
+:root[data-theme="light"] .tactical-cuadro-card,
+:root[data-theme="light"] .tactical-sequence-empty,
+:root[data-theme="light"] .tactical-empty {
+  background: rgba(248, 250, 252, 0.88);
+  border-color: rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .tactical-sequence-card:hover,
+:root[data-theme="light"] .tactical-sequence-card:focus-within,
+:root[data-theme="light"] .tactical-sequence-card.active,
+:root[data-theme="light"] .tactical-cuadro-card:hover,
+:root[data-theme="light"] .tactical-cuadro-card:focus-visible,
+:root[data-theme="light"] .tactical-cuadro-card.active {
+  background: #ffffff;
+  border-color: rgba(15, 35, 64, 0.24);
+}
+
+:root[data-theme="light"] .tactical-cuadro-thumb,
+:root[data-theme="light"] .tactical-cuadro-placeholder {
+  background: #dce6f0;
+}
+
+:root[data-theme="light"] .tactical-cuadro-placeholder::before {
+  border-color: rgba(15, 35, 64, 0.28);
+}
+
+:root[data-theme="light"] .tactical-cuadro-placeholder::after,
+:root[data-theme="light"] .tactical-cuadro-placeholder span {
+  background: rgba(15, 35, 64, 0.22);
+}
+
+:root[data-theme="light"] .tactical-sequence-chevron,
+:root[data-theme="light"] .tactical-sequence-menu-btn,
+:root[data-theme="light"] .tactical-sequence-back,
+:root[data-theme="light"] .tactical-cuadro-icon,
+:root[data-theme="light"] .tactical-sequence-menu-popover button,
+:root[data-theme="light"] .tactical-board-delete {
+  color: #425873;
+}
+
+:root[data-theme="light"] .tactical-cuadro-icon,
+:root[data-theme="light"] .tactical-sequence-menu-popover,
+:root[data-theme="light"] .tactical-board-context-menu {
+  background: #f8fafc;
+  border-color: rgba(15, 35, 64, 0.2);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .tactical-cuadro-icon:hover,
+:root[data-theme="light"] .tactical-cuadro-icon:focus-visible,
+:root[data-theme="light"] .tactical-sequence-menu-popover button:hover,
+:root[data-theme="light"] .tactical-sequence-menu-popover button:focus-visible {
+  background: #e7edf5;
+  color: #102033;
+}
+
+:root[data-theme="light"] .tactical-new-sequence-btn,
+:root[data-theme="light"] .tactical-play-btn {
+  color: var(--color-brand-white);
+  border-color: rgba(15, 35, 64, 0.24);
+}
+
+:root[data-theme="light"] .tactical-cuadro-add,
+:root[data-theme="light"] .tactical-sequence-empty button {
+  color: #102033;
+  border-color: rgba(15, 35, 64, 0.24);
+}
+
+:root[data-theme="light"] .tactical-sequence-dialog {
+  background: linear-gradient(180deg, #f8fafc, #eaf0f6);
+  border-color: rgba(15, 35, 64, 0.2);
+  box-shadow: 0 24px 70px rgba(15, 35, 64, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}

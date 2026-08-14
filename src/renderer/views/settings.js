@@ -879,6 +879,8 @@ function setupMicrophoneSettings(container, settings, feedback, isActive = () =>
  * @param {{subsection?: string}} params
  */
 export function renderSettings(container, params = {}, lifecycle = {}) {
+  container.classList.remove('main-content-body--drawing-fixed');
+  container.classList.remove('dashboard-content-body');
   const state = {
     disposed: false,
     thresholdSaveTimer: null,

@@ -21,6 +21,7 @@ import { setSidebarExpanded } from '../components/sidebar.js';
 import { formatClock } from '../components/timeline.js';
 import { setTopbarActions, updateTopbarContext } from '../components/topbar.js';
 import { navigate } from '../router.js';
+import { isLocalVideoAvailable } from '../media/local-video.js';
 
 let activeCleanup = null;
 let youtubeApiPromise = null;
@@ -860,7 +861,7 @@ export function renderClipPlayer(container, params = {}, lifecycle = {}) {
       }
 
       const [loadedMatch, loadedSettings] = await Promise.all([
-        cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true }),
+        cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true, requireDetails: true }),
         window.api.settings.get(),
       ]);
       if (!isActive()) return;
@@ -878,7 +879,7 @@ export function renderClipPlayer(container, params = {}, lifecycle = {}) {
   async function verifyLocalVideoAvailability() {
     if (!match?.video || (match.video.type !== 'local' && match.video.sourceType !== 'local_mp4') || !match.video.path) return;
     if (typeof window.api.media?.localVideoExists !== 'function') return;
-    const exists = await window.api.media.localVideoExists(match.video.path);
+    const exists = await isLocalVideoAvailable(window.api.media, match.video.path);
     if (!isActive()) return;
     if (!exists) match = { ...match, video: { ...match.video, localMissing: true, needsLocalFile: true } };
   }

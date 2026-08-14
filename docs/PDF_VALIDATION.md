@@ -29,4 +29,6 @@ npm test src/main/modules/__tests__/pdf-export.test.js src/renderer/__tests__/da
 
 ## Resultado
 
-La validacion automatizada cubre payload, renderer de impresion, ventana oculta de Electron y `printToPDF`. La inspeccion visual final debe ejecutarse con un PDF real generado desde el build Windows que se entregue al club.
+La validacion automatizada cubre payload, renderer de impresion, ventana oculta de Electron y `printToPDF`. El 2026-08-05 se genero un PDF real mediante Electron/Chromium: 10 paginas A4, 1.1 MB, renderizadas con Poppler a 10 PNG. La inspeccion visual de todas las paginas no detecto cortes, overflow, graficos vacios ni assets faltantes en el fixture de validacion.
+
+La ejecucion sobre el instalador firmado/distribuido del club sigue siendo una verificacion operativa separada.

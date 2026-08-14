@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 
 import {
+  TAGGING_CHANNELS,
   getSequenceColor,
   getTimelineScale,
   getTimelineWheelDelta,
@@ -209,6 +210,27 @@ describe('timeline track labels', () => {
     expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*grid-template-columns:\s*136px\s+minmax\(0,\s*1fr\);/s);
     expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*grid-column:\s*1;[^}]*overflow:\s*hidden;/s);
     expect(timelineCss).toMatch(/\.timeline-scroll\s*{[^}]*grid-column:\s*2;/s);
+  });
+
+  it('uses vivid differentiated colors for every tagging channel', () => {
+    expect(TAGGING_CHANNELS.map(channel => channel.color)).toEqual([
+      '#ff3b5f',
+      '#2f8fff',
+      '#ffd23f',
+      '#31d158',
+      '#b66cff',
+    ]);
+    expect(new Set(TAGGING_CHANNELS.map(channel => channel.color)).size).toBe(TAGGING_CHANNELS.length);
+
+    const host = new FakeTimelineHost();
+    renderTimeline(host, { duration: 600, currentTime: 0, events: [] });
+
+    TAGGING_CHANNELS.forEach((channel, index) => {
+      expect(host.html).toContain(`data-track-label="${channel.id}"`);
+      expect(host.html).toContain(`data-track="${channel.id}" style="--timeline-track-row:${index + 3}; --timeline-channel-color:${channel.color}"`);
+    });
+    expect(timelineCss).toMatch(/\.timeline-track-label\[data-track-label\]\s*{[^}]*color:\s*var\(--timeline-channel-color\);/s);
+    expect(timelineCss).toMatch(/\.timeline-track\[data-track\]\s*>\s*\.timeline-block\s*{[^}]*background:\s*var\(--timeline-channel-color\);/s);
   });
 });
 
@@ -472,8 +494,9 @@ describe('timeline sequences', () => {
 
   it('reserves a scrollbar lane below the notes track instead of covering it', () => {
     expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*--timeline-scrollbar-lane:\s*12px;/s);
+    expect(timelineCss).toMatch(/\.tagging-timeline\s*{[^}]*--timeline-scrollbar-height:\s*10px;/s);
     expect(timelineCss).toMatch(/\.timeline-scroll\s*{[^}]*box-sizing:\s*border-box;/s);
-    expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*height:\s*calc\(100%\s*-\s*var\(--timeline-scrollbar-lane\)\);/s);
+    expect(timelineCss).toMatch(/\.timeline-track-labels\s*{[^}]*height:\s*calc\(100%\s*-\s*var\(--timeline-scrollbar-lane\)\s*-\s*var\(--timeline-scrollbar-height\)\);/s);
     expect(timelineCss).toMatch(/\.timeline-content\s*{[^}]*height:\s*calc\(100%\s*-\s*var\(--timeline-scrollbar-lane\)\);[^}]*display:\s*grid;[^}]*grid-template-rows:\s*var\(--timeline-track-rows\);/s);
     expect(timelineCss).not.toMatch(/\.timeline-track\s*{[^}]*height:\s*calc\(\(100%\s*-\s*22px\)\s*\/\s*5\);/s);
   });
@@ -489,10 +512,32 @@ describe('timeline sequences', () => {
   });
 
   it('pins each label to the same grid row as its timeline channel', () => {
-    expect(timelineSource).toContain('style="--timeline-label-row:2"');
-    expect(timelineSource).toContain('style="--timeline-label-row:${index + 3}"');
+    expect(timelineSource).toContain('style="--timeline-track-row:2"');
+    expect(timelineSource).toContain('style="--timeline-track-row:${index + 3};');
+    expect(timelineSource).toContain('style="--timeline-track-row:${index + 3}; --timeline-channel-color:${track.color}"');
+    expect(timelineSource).toContain('data-track="${track.id}" style="--timeline-track-row:${index + 3}; --timeline-channel-color:${track.color}"');
     expect(timelineCss).toMatch(/\.timeline-label-ruler\s*{[^}]*grid-row:\s*1;/s);
-    expect(timelineCss).toMatch(/\.timeline-track-label\s*{[^}]*grid-row:\s*var\(--timeline-label-row\);[^}]*align-self:\s*stretch;/s);
+    expect(timelineCss).toMatch(/\.timeline-track-label\s*{[^}]*grid-row:\s*var\(--timeline-track-row\);[^}]*align-self:\s*stretch;/s);
+    expect(timelineCss).toMatch(/\.timeline-track\s*{[^}]*grid-row:\s*var\(--timeline-track-row\);/s);
+    expect(timelineCss).toMatch(/\.timeline-possession-track\s*{[^}]*grid-row:\s*2;/s);
+  });
+
+  it('keeps markers at the timeline edges inside the channel frame', () => {
+    const host = new FakeTimelineHost();
+
+    renderTimeline(host, {
+      duration: 600,
+      currentTime: 0,
+      events: [
+        { id: 'at-start', type: 'ruck', timestamp: 0 },
+        { id: 'at-end', type: 'ruck', timestamp: 600 },
+      ],
+    });
+
+    expect(host.html).toMatch(/class="[^"]*timeline-block-at-start[^"]*"[^>]*data-event-id="at-start"/);
+    expect(host.html).toMatch(/class="[^"]*timeline-block-at-end[^"]*"[^>]*data-event-id="at-end"/);
+    expect(timelineCss).toMatch(/\.timeline-block\.timeline-block-at-start\s*{[^}]*transform:\s*translate\(0,\s*-50%\);/s);
+    expect(timelineCss).toMatch(/\.timeline-block\.timeline-block-at-end\s*{[^}]*transform:\s*translate\(-100%,\s*-50%\);/s);
   });
 
   it('keeps separator borders inside shared grid rows so label and channel lines align', () => {

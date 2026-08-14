@@ -60,6 +60,54 @@ describe('syncService', () => {
     }));
   });
 
+  it('does not send an undefined id through the IPC DTO', async () => {
+    const localApi = {
+      matches: {
+        enqueuePendingSync: vi.fn(async operation => operation),
+      },
+    };
+    const service = createSyncService({ localApi, clientSource: async () => ({}) });
+
+    await service.enqueue({
+      matchId: 'match-1',
+      entity: 'matches',
+      action: 'upsert',
+      payload: { id: 'match-1' },
+    });
+
+    const operation = localApi.matches.enqueuePendingSync.mock.calls[0][0];
+    expect(Object.prototype.hasOwnProperty.call(operation, 'id')).toBe(false);
+  });
+
+  it('preserves a useful message when the cloud client returns a plain error object', async () => {
+    const pending = [{
+      id: 'pending-1',
+      matchId: 'match-1',
+      entity: 'matches',
+      action: 'upsert',
+      payload: { id: 'match-1' },
+    }];
+    const localApi = {
+      matches: {
+        getPendingSync: vi.fn(async () => pending),
+        enqueuePendingSync: vi.fn(async operation => operation),
+        markPendingSyncApplied: vi.fn(async () => true),
+      },
+    };
+    const client = {
+      from() {
+        return { upsert: async () => ({ error: { code: 'PGRST116', message: 'cloud permission denied' } }) };
+      },
+    };
+    const service = createSyncService({ clientSource: async () => client, localApi });
+
+    await expect(service.flushPendingSync()).resolves.toEqual({
+      applied: 0,
+      failed: 1,
+      errors: [expect.objectContaining({ matchId: 'match-1', message: 'cloud permission denied' })],
+    });
+  });
+
   it('hydrates pending operations with the current club and user before flushing', async () => {
     const calls = [];
     const client = {
@@ -277,6 +325,43 @@ describe('syncService', () => {
       { table: 'match_events', method: 'upsert' },
       { table: 'match_events', method: 'delete-in', column: 'id', values: ['old-1'] },
     ]);
+  });
+
+  it('upserts existing cloud sequences instead of inserting the same primary key again', async () => {
+    const calls = [];
+    const client = {
+      from(table) {
+        return {
+          select: () => ({
+            eq: async () => ({ data: [{ id: 'sequence-1' }], error: null }),
+          }),
+          upsert: async (payload, options) => {
+            calls.push({ table, method: 'upsert', payload, options });
+            return { error: null };
+          },
+          delete: () => ({
+            in: async (column, values) => {
+              calls.push({ table, method: 'delete-in', column, values });
+              return { error: null };
+            },
+          }),
+        };
+      },
+    };
+
+    await applyCloudOperation(client, {
+      matchId: 'match-1',
+      entity: 'match_sequences',
+      action: 'replace',
+      payload: [{ id: 'sequence-1', match_id: 'match-1', start_ms: 1000, end_ms: 5000 }],
+    });
+
+    expect(calls).toEqual([{
+      table: 'match_sequences',
+      method: 'upsert',
+      payload: [{ id: 'sequence-1', match_id: 'match-1', start_ms: 1000, end_ms: 5000 }],
+      options: { onConflict: 'id' },
+    }]);
   });
 
   it('keeps failed operations pending with visible per-match error state', async () => {

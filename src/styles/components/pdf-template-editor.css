@@ -442,6 +442,58 @@
   font: 800 13px var(--font-brand);
 }
 
+:root[data-theme="light"] .pdf-template-editor-view {
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+}
+
+:root[data-theme="light"] .pdf-template-header,
+:root[data-theme="light"] .pdf-template-toolbar,
+:root[data-theme="light"] .pdf-template-card,
+:root[data-theme="light"] .pdf-template-sidebar,
+:root[data-theme="light"] .pdf-template-page-card,
+:root[data-theme="light"] .pdf-template-library-block,
+:root[data-theme="light"] .pdf-template-grid-block,
+:root[data-theme="light"] .pdf-template-name-dialog {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .pdf-template-toolbar select,
+:root[data-theme="light"] .pdf-template-properties-form input,
+:root[data-theme="light"] .pdf-template-properties-form select,
+:root[data-theme="light"] .pdf-template-properties-form textarea,
+:root[data-theme="light"] .pdf-template-name-dialog input {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .pdf-template-header span,
+:root[data-theme="light"] .pdf-template-card header span,
+:root[data-theme="light"] .pdf-template-sidebar h2,
+:root[data-theme="light"] .pdf-template-page-card header span,
+:root[data-theme="light"] .pdf-template-toolbar label,
+:root[data-theme="light"] .pdf-template-properties-form label,
+:root[data-theme="light"] .pdf-template-library-block small,
+:root[data-theme="light"] .pdf-template-grid-block small,
+:root[data-theme="light"] .pdf-template-library-description,
+:root[data-theme="light"] .pdf-template-technical-name,
+:root[data-theme="light"] .pdf-template-card p,
+:root[data-theme="light"] .pdf-template-feedback,
+:root[data-theme="light"] .pdf-template-validation,
+:root[data-theme="light"] .pdf-template-empty-panel {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .pdf-template-grid-canvas {
+  background:
+    linear-gradient(to right, rgba(15, 35, 64, 0.1) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 35, 64, 0.1) 1px, transparent 1px),
+    var(--color-bg-base);
+}
+
 @media (max-width: 980px) {
   .pdf-template-header {
     align-items: flex-start;

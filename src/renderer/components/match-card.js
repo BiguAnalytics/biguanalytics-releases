@@ -286,7 +286,6 @@ export function createNewMatchCard(onClick) {
   card.id = 'new-match-card';
   card.setAttribute('role', 'button');
   card.setAttribute('tabindex', '0');
-  card.setAttribute('data-no-route-swipe', 'true');
 
   card.innerHTML = `
     <div class="match-card-new-icon">

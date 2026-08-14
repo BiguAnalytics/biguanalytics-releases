@@ -28,12 +28,12 @@
 :root[data-theme="light"] .home-welcome span,
 :root[data-theme="light"] .match-list-new-btn,
 :root[data-theme="light"] .club-gradient-text {
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   color: transparent;
 }
 
 :root[data-theme="light"] .topbar-logo-text .accent {
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   color: transparent;
 }
 
@@ -299,7 +299,7 @@
 
 :root[data-theme="light"] .match-card-thumbnail {
   background-image:
-    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 48%, rgba(232, 239, 248, 0.58) 100%),
+    linear-gradient(180deg, var(--match-top-start) 0%, var(--match-top-mid) 48%, #f8fafc 100%),
     radial-gradient(ellipse at 16% 0%, var(--match-tone-soft), transparent 42%),
     radial-gradient(ellipse at 82% 8%, var(--match-tone-soft), transparent 46%),
     radial-gradient(ellipse at 50% 42%, var(--match-tone-soft), transparent 54%);
@@ -308,14 +308,24 @@
 :root[data-theme="light"] .match-card-thumbnail::before {
   background:
     linear-gradient(90deg, rgba(255, 255, 255, 0.24), transparent 18%, transparent 82%, rgba(255, 255, 255, 0.18)),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(15, 35, 64, 0.10) 88%);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(15, 35, 64, 0.04) 88%);
 }
 
 :root[data-theme="light"] .match-card-score,
 :root[data-theme="light"] .match-card-score .home,
 :root[data-theme="light"] .match-card-score .away,
 :root[data-theme="light"] .match-card-score .separator {
-  color: rgba(15, 35, 64, var(--match-score-opacity));
+  color: rgba(15, 35, 64, 0.78);
+}
+
+:root[data-theme="light"] .match-card-thumbnail::after,
+:root[data-theme="light"] .match-card-field {
+  border-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .match-card-field::before,
+:root[data-theme="light"] .match-card-field::after {
+  background: linear-gradient(90deg, transparent, rgba(15, 35, 64, 0.16), transparent);
 }
 
 :root[data-theme="light"] .modal-overlay {
@@ -621,4 +631,481 @@
 :root:not([data-theme="light"]) .dashboard-controls,
 :root:not([data-theme="light"]) .dashboard-customizer {
   background: var(--color-bg-surface);
+}
+
+/* Light-mode contrast pass. The dark theme above remains the source of truth for brand gradients. */
+:root[data-theme="light"] .home-welcome span,
+:root[data-theme="light"] .match-list-new-btn,
+:root[data-theme="light"] .club-gradient-text,
+:root[data-theme="light"] .topbar-logo-text .accent,
+:root[data-theme="light"] .sidebar-profile-name,
+:root[data-theme="light"] .access-brand-name span {
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: club-gradient-shift 7s ease-in-out infinite;
+}
+
+:root[data-theme="light"] .bigu-startup-wordmark {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .home-eyebrow,
+:root[data-theme="light"] .home-subtitle,
+:root[data-theme="light"] .home-hero-note,
+:root[data-theme="light"] .empty-state-text,
+:root[data-theme="light"] .construction-text,
+:root[data-theme="light"] .construction-meta,
+:root[data-theme="light"] .topbar-context,
+:root[data-theme="light"] .topbar-score-rival,
+:root[data-theme="light"] .topbar-action-btn,
+:root[data-theme="light"] .topbar-license small,
+:root[data-theme="light"] .sidebar-item:not(.active),
+:root[data-theme="light"] .sidebar-profile-role {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .sidebar,
+:root[data-theme="light"] .sidebar-logo,
+:root[data-theme="light"] .sidebar-profile,
+:root[data-theme="light"] .topbar,
+:root[data-theme="light"] .custom-titlebar,
+:root[data-theme="light"] .settings-save-bar,
+:root[data-theme="light"] .dashboard-view-toggle,
+:root[data-theme="light"] .hotkey-bar {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .sidebar-active-indicator {
+  border-color: var(--color-border-strong);
+  box-shadow:
+    0 14px 34px rgba(15, 35, 64, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.42);
+}
+
+:root[data-theme="light"] .sidebar-active-indicator::before {
+  background: var(--color-brand-white);
+}
+
+:root[data-theme="light"] .sidebar-item.active::before {
+  background: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .sidebar-item:hover,
+:root[data-theme="light"] .sidebar-profile:hover,
+:root[data-theme="light"] .sidebar-profile:focus-visible,
+:root[data-theme="light"] .topbar-action-btn:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .sidebar-item-icon,
+:root[data-theme="light"] .topbar-action-btn,
+:root[data-theme="light"] .dashboard-toggle-btn,
+:root[data-theme="light"] .dashboard-panel-toggle,
+:root[data-theme="light"] .video-control-btn,
+:root[data-theme="light"] .hotkey-toggle {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .sidebar-item.active,
+:root[data-theme="light"] .sidebar-item.active .sidebar-item-label,
+:root[data-theme="light"] .sidebar-item.active .sidebar-item-icon {
+  color: var(--color-brand-white);
+}
+
+:root[data-theme="light"] .access-card,
+:root[data-theme="light"] .construction-panel,
+:root[data-theme="light"] .kpi-card,
+:root[data-theme="light"] .match-card,
+:root[data-theme="light"] .match-card-new,
+:root[data-theme="light"] .modal-container,
+:root[data-theme="light"] .dashboard-section,
+:root[data-theme="light"] .chart-shell,
+:root[data-theme="light"] .dashboard-ai-panel,
+:root[data-theme="light"] .dashboard-controls,
+:root[data-theme="light"] .dashboard-customizer,
+:root[data-theme="light"] .tagging-match-card,
+:root[data-theme="light"] .event-inspector,
+:root[data-theme="light"] .tag-popup,
+:root[data-theme="light"] .status-card,
+:root[data-theme="light"] .video-controls,
+:root[data-theme="light"] .stats-only-panel,
+:root[data-theme="light"] .video-empty-state {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .dashboard-ai-empty,
+:root[data-theme="light"] .dashboard-ai-summary,
+:root[data-theme="light"] .dashboard-ai-block article,
+:root[data-theme="light"] .dashboard-ai-recommendations article,
+:root[data-theme="light"] .dashboard-sequence-card,
+:root[data-theme="light"] .dashboard-sequence-list div,
+:root[data-theme="light"] .dashboard-custom-events-summary div,
+:root[data-theme="light"] .dashboard-section-picker-row,
+:root[data-theme="light"] .heatmap-filter-chip,
+:root[data-theme="light"] .dashboard-note-toolbar button,
+:root[data-theme="light"] .dashboard-notes-editor {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .dashboard-control select,
+:root[data-theme="light"] .dashboard-section-picker-row button,
+:root[data-theme="light"] .dashboard-toggle-btn,
+:root[data-theme="light"] .dashboard-panel-toggle,
+:root[data-theme="light"] .video-control-btn,
+:root[data-theme="light"] .video-speed,
+:root[data-theme="light"] .hotkey-toggle,
+:root[data-theme="light"] .tag-popup-option,
+:root[data-theme="light"] .event-inspector-stat,
+:root[data-theme="light"] .event-inspector-note-preview,
+:root[data-theme="light"] .sequence-inspector-stat,
+:root[data-theme="light"] .score-stepper button {
+  color: var(--color-text-primary);
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .dashboard-toggle-btn:hover,
+:root[data-theme="light"] .dashboard-toggle-btn.active,
+:root[data-theme="light"] .dashboard-panel-toggle:hover,
+:root[data-theme="light"] .dashboard-panel-toggle:focus-visible,
+:root[data-theme="light"] .dashboard-note-toolbar button.active,
+:root[data-theme="light"] .dashboard-note-toolbar button[aria-pressed="true"] {
+  color: var(--color-text-primary);
+  background: var(--color-accent-muted);
+  border-color: var(--color-border-accent);
+}
+
+:root[data-theme="light"] .tagging-view,
+:root[data-theme="light"] .tagging-match-select-view,
+:root[data-theme="light"] .tactical-board-view,
+:root[data-theme="light"] .pdf-template-editor-view,
+:root[data-theme="light"] .season-view {
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+}
+
+:root[data-theme="light"] .tagging-timecode,
+:root[data-theme="light"] .timeline-track-label,
+:root[data-theme="light"] .timeline-tick,
+:root[data-theme="light"] .timeline-possession-label,
+:root[data-theme="light"] .hotkey-items span,
+:root[data-theme="light"] .form-label,
+:root[data-theme="light"] .tag-popup-zone-cell,
+:root[data-theme="light"] .pdf-template-toolbar label,
+:root[data-theme="light"] .pdf-template-properties-form label,
+:root[data-theme="light"] .tactical-playback-controls label,
+:root[data-theme="light"] .tactical-sequence-hint,
+:root[data-theme="light"] .tactical-library-header [data-save-status] {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .timeline-ruler,
+:root[data-theme="light"] .timeline-label-ruler,
+:root[data-theme="light"] .timeline-track,
+:root[data-theme="light"] .timeline-possession-track,
+:root[data-theme="light"] .timeline-track-label {
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .timeline-possession-track,
+:root[data-theme="light"] .timeline-host,
+:root[data-theme="light"] .timeline-scroll::-webkit-scrollbar-track {
+  background: var(--color-bg-elevated);
+}
+
+:root[data-theme="light"] .timeline-scroll {
+  scrollbar-color: var(--color-text-muted) var(--color-bg-elevated);
+}
+
+:root[data-theme="light"] .timeline-scroll::-webkit-scrollbar-thumb,
+:root[data-theme="light"] .main-content-body::-webkit-scrollbar-thumb {
+  background: var(--color-text-muted);
+}
+
+/* The drawing/editor layers use their own dark surfaces in component CSS. */
+:root[data-theme="light"] .drawing-editor-shell {
+  background: rgba(15, 35, 64, 0.10);
+}
+
+:root[data-theme="light"] .drawing-editor-bg {
+  background: var(--color-bg-hover);
+}
+
+:root[data-theme="light"] .drawing-toolbar,
+:root[data-theme="light"] .drawing-sequence-strip,
+:root[data-theme="light"] .tagging-live-drawing-editor .drawing-toolbar {
+  background: rgba(248, 250, 252, 0.97);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 20px 54px rgba(15, 35, 64, 0.18);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .drawing-sequence-step,
+:root[data-theme="light"] .drawing-sequence-control,
+:root[data-theme="light"] .drawing-tool-btn,
+:root[data-theme="light"] .drawing-width-btn,
+:root[data-theme="light"] .drawing-size-btn,
+:root[data-theme="light"] .drawing-action-btn,
+:root[data-theme="light"] .drawing-player-field {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .drawing-sequence-step.active,
+:root[data-theme="light"] .drawing-tool-btn.active,
+:root[data-theme="light"] .drawing-width-btn.active {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .drawing-color-btn.active {
+  border-color: var(--color-text-primary);
+}
+
+/* Tactical-board library/readout surfaces follow the same light hierarchy. */
+:root[data-theme="light"] .tactical-board-main,
+:root[data-theme="light"] .tactical-canvas-frame {
+  background: var(--color-bg-base);
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .tactical-board-options,
+:root[data-theme="light"] .tactical-board-library {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .tactical-board-options select,
+:root[data-theme="light"] .tactical-board-options input[type="color"],
+:root[data-theme="light"] .tactical-playback-controls input,
+:root[data-theme="light"] .tactical-sequence-menu-popover {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .tactical-board-item,
+:root[data-theme="light"] .tactical-sequence-card {
+  background: var(--color-bg-elevated);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .tactical-sequence-card:hover,
+:root[data-theme="light"] .tactical-sequence-card:focus-within,
+:root[data-theme="light"] .tactical-sequence-card.active {
+  background: var(--color-bg-hover);
+}
+
+:root[data-theme="light"] .tactical-sequence-chevron,
+:root[data-theme="light"] .tactical-sequence-menu-btn,
+:root[data-theme="light"] .tactical-sequence-back {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .tactical-sequence-menu-popover button:hover,
+:root[data-theme="light"] .tactical-sequence-menu-popover button:focus-visible {
+  background: var(--color-bg-hover);
+  color: var(--color-text-primary);
+}
+
+/* PDF editor and season surfaces no longer inherit opaque dark component fills. */
+:root[data-theme="light"] .pdf-template-header,
+:root[data-theme="light"] .pdf-template-toolbar,
+:root[data-theme="light"] .pdf-template-card,
+:root[data-theme="light"] .pdf-template-sidebar,
+:root[data-theme="light"] .pdf-template-page-card,
+:root[data-theme="light"] .pdf-template-library-block,
+:root[data-theme="light"] .pdf-template-grid-block,
+:root[data-theme="light"] .pdf-template-name-dialog {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .pdf-template-grid-canvas {
+  background:
+    linear-gradient(to right, rgba(15, 35, 64, 0.10) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 35, 64, 0.10) 1px, transparent 1px),
+    var(--color-bg-base);
+}
+
+:root[data-theme="light"] .pdf-template-library-block small,
+:root[data-theme="light"] .pdf-template-grid-block small,
+:root[data-theme="light"] .pdf-template-library-description,
+:root[data-theme="light"] .pdf-template-technical-name,
+:root[data-theme="light"] .pdf-template-card p,
+:root[data-theme="light"] .pdf-template-feedback,
+:root[data-theme="light"] .pdf-template-validation,
+:root[data-theme="light"] .pdf-template-empty-panel {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .season-table-panel,
+:root[data-theme="light"] .season-chart-card,
+:root[data-theme="light"] .season-empty-state {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+/* Gradient controls retain the original red/navy visual and a readable foreground. */
+:root[data-theme="light"] .btn-primary,
+:root[data-theme="light"] .access-primary-btn,
+:root[data-theme="light"] .video-play-btn,
+:root[data-theme="light"] .dashboard-ai-button.primary,
+:root[data-theme="light"] .tactical-new-sequence-btn,
+:root[data-theme="light"] .tactical-play-btn,
+:root[data-theme="light"] .tactical-cuadro-add,
+:root[data-theme="light"] .tactical-sequence-empty button,
+:root[data-theme="light"] .drawing-action-btn.primary,
+:root[data-theme="light"] .pdf-template-button.primary,
+:root[data-theme="light"] .settings-updater-install,
+:root[data-theme="light"] .walkthrough-primary,
+:root[data-theme="light"] .ai-chatbot-send,
+:root[data-theme="light"] .account-profile-primary {
+  background: var(--gradient-brand);
+  background-size: 220% 100%;
+  color: var(--color-brand-white);
+  text-shadow: none;
+}
+
+:root[data-theme="light"] .btn-primary,
+:root[data-theme="light"] .access-primary-btn,
+:root[data-theme="light"] .video-play-btn,
+:root[data-theme="light"] .dashboard-ai-button.primary,
+:root[data-theme="light"] .tactical-new-sequence-btn,
+:root[data-theme="light"] .tactical-play-btn,
+:root[data-theme="light"] .tactical-cuadro-add,
+:root[data-theme="light"] .tactical-sequence-empty button,
+:root[data-theme="light"] .drawing-action-btn.primary,
+:root[data-theme="light"] .pdf-template-button.primary,
+:root[data-theme="light"] .settings-updater-install,
+:root[data-theme="light"] .walkthrough-primary,
+:root[data-theme="light"] .ai-chatbot-send,
+:root[data-theme="light"] .account-profile-primary {
+  animation: club-gradient-shift 7s ease-in-out infinite;
+}
+
+/* Light-mode settings controls use the same white surface hierarchy as the rest of the form. */
+:root[data-theme="light"] .settings-toggle,
+:root[data-theme="light"] .settings-theme-option,
+:root[data-theme="light"] .settings-hotkey-row,
+:root[data-theme="light"] .settings-custom-hotkey-row,
+:root[data-theme="light"] .settings-hotkey-record,
+:root[data-theme="light"] .settings-hotkey-reset,
+:root[data-theme="light"] .settings-microphone-card,
+:root[data-theme="light"] .settings-ai-card,
+:root[data-theme="light"] .settings-updater-card,
+:root[data-theme="light"] .settings-onboarding-card,
+:root[data-theme="light"] .settings-microphone-test,
+:root[data-theme="light"] .settings-ai-test,
+:root[data-theme="light"] .settings-updater-button:not(.settings-updater-install),
+:root[data-theme="light"] .settings-onboarding-restart {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .settings-theme-option:has(input:checked),
+:root[data-theme="light"] .settings-hotkey-record.is-recording,
+:root[data-theme="light"] .settings-microphone-test[aria-pressed="true"] {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border-accent);
+}
+
+:root[data-theme="light"] .settings-microphone-test:hover,
+:root[data-theme="light"] .settings-microphone-test:focus-visible,
+:root[data-theme="light"] .settings-ai-test:hover,
+:root[data-theme="light"] .settings-ai-test:focus-visible,
+:root[data-theme="light"] .settings-updater-button:hover:not(:disabled),
+:root[data-theme="light"] .settings-updater-button:focus-visible:not(:disabled),
+:root[data-theme="light"] .settings-onboarding-restart:hover:not(:disabled) {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .settings-subsection-link,
+:root[data-theme="light"] .settings-subsection-back {
+  background: var(--color-bg-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .settings-subsection-link:hover,
+:root[data-theme="light"] .settings-subsection-back:hover {
+  background: var(--color-bg-hover);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+/* Native light selects avoid the duplicated custom arrow and keep option popovers readable. */
+:root[data-theme="light"] .form-select,
+:root[data-theme="light"] select {
+  appearance: auto;
+  -webkit-appearance: auto;
+  background-image: none;
+  background-repeat: no-repeat;
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .form-select.settings-microphone-select,
+:root[data-theme="light"] .form-select.settings-microphone-select:hover,
+:root[data-theme="light"] .form-select.settings-microphone-select:focus {
+  appearance: auto;
+  -webkit-appearance: auto;
+  background-image: none;
+  background-repeat: no-repeat;
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+  color-scheme: light;
+}
+
+:root[data-theme="light"] .settings-view select option {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .form-select.settings-microphone-select option {
+  background-color: var(--color-bg-surface);
+  color: var(--color-text-primary);
+}
+
+/* Sensitive account actions retain a red semantic surface in the light theme. */
+:root[data-theme="light"] .settings-account-danger {
+  border-color: var(--color-border-accent);
+  background: var(--color-accent-muted);
+}
+
+:root[data-theme="light"] .settings-account-button {
+  border-color: var(--color-border-accent);
+  background: rgba(200, 16, 46, 0.09);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .settings-account-button:hover:not(:disabled),
+:root[data-theme="light"] .settings-account-button:focus-visible:not(:disabled) {
+  border-color: var(--color-accent-hover);
+  background: rgba(200, 16, 46, 0.18);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .settings-account-delete {
+  background: rgba(200, 16, 46, 0.16);
 }

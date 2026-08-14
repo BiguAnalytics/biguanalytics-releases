@@ -613,3 +613,68 @@
   }
 
 }
+
+:root[data-theme="light"] .clip-player-view {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .clip-player-header,
+:root[data-theme="light"] .clip-player-source,
+:root[data-theme="light"] .clip-player-filters,
+:root[data-theme="light"] .clip-player-queue,
+:root[data-theme="light"] .clip-player-controls,
+:root[data-theme="light"] .clip-player-export-progress {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.1);
+}
+
+:root[data-theme="light"] .clip-player-filter-grid select,
+:root[data-theme="light"] .clip-player-filter-grid input,
+:root[data-theme="light"] .clip-filter-chip,
+:root[data-theme="light"] .clip-player-carousel-button,
+:root[data-theme="light"] .clip-player-queue-item,
+:root[data-theme="light"] .clip-player-play-label,
+:root[data-theme="light"] .clip-player-status {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .clip-player-queue-item:hover,
+:root[data-theme="light"] .clip-player-queue-item.active,
+:root[data-theme="light"] .clip-filter-chip:hover,
+:root[data-theme="light"] .clip-filter-chip.active {
+  background: var(--color-accent-muted);
+  border-color: var(--color-border-accent);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .clip-player-source,
+:root[data-theme="light"] .clip-player-filters,
+:root[data-theme="light"] .clip-player-queue,
+:root[data-theme="light"] .clip-player-controls {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .clip-player-header p,
+:root[data-theme="light"] .clip-player-empty p,
+:root[data-theme="light"] .clip-player-source p,
+:root[data-theme="light"] .clip-player-source small,
+:root[data-theme="light"] .clip-player-queue-copy em,
+:root[data-theme="light"] .clip-player-note,
+:root[data-theme="light"] .clip-player-meta-item span,
+:root[data-theme="light"] .clip-player-controls small,
+:root[data-theme="light"] .clip-player-carousel-controls span,
+:root[data-theme="light"] .clip-player-loading {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .clip-player-stage,
+:root[data-theme="light"] .clip-player-frame {
+  border-color: var(--color-border-strong);
+}
+
+:root[data-theme="light"] .clip-player-no-video {
+  background: var(--color-bg-hover);
+}

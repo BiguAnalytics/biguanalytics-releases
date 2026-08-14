@@ -66,18 +66,76 @@ describe('IPC security validation', () => {
       matchId: 'match-1',
       entity: 'match_events',
       action: 'upsert',
-      payload: { id: 'evt-1' },
+      payload: {
+        id: 'evt-1',
+        event_type: 'note',
+        timestamp_ms: null,
+        team: null,
+        result: '',
+        subtype: '',
+        note: '',
+        payload: { id: 'evt-1', type: 'note', timestamp: null, team: null, result: '', subtype: '', note: '' },
+      },
     })).toMatchObject({ entity: 'match_events', action: 'upsert' });
     expect(() => validatePendingSyncOperation({
       matchId: 'match-1',
       entity: 'match_events',
       action: 'upsert',
-      payload: { id: 'evt-1' },
+      payload: {
+        id: 'evt-1',
+        event_type: 'note',
+        timestamp_ms: null,
+        team: null,
+        result: '',
+        subtype: '',
+        note: '',
+        payload: { id: 'evt-1', type: 'note', timestamp: null, team: null, result: '', subtype: '', note: '' },
+      },
       injected: 'reject',
     })).toThrow(/campo|sync/i);
     expect(() => validatePendingSyncFilters({ matchId: '../escape' })).toThrow(/match id/i);
     expect(() => validatePendingSyncIds(Array.from({ length: 1001 }, (_, index) => `id-${index}`)))
       .toThrow(/limite|id/i);
+  });
+
+  it('accepts persisted sync failure metadata produced by the flush service', () => {
+    expect(validatePendingSyncOperation({
+      id: 'pending-1',
+      matchId: 'match-1',
+      entity: 'match_events',
+      action: 'upsert',
+      payload: {
+        id: 'evt-1',
+        event_type: 'note',
+        timestamp_ms: null,
+        team: null,
+        result: '',
+        subtype: '',
+        note: '',
+        payload: { id: 'evt-1', type: 'note', timestamp: null, team: null, result: '', subtype: '', note: '' },
+      },
+      syncStatus: 'error',
+      syncError: 'cloud permission denied',
+      failedAt: '2026-08-05T12:00:00.000Z',
+      attempts: 1,
+    })).toMatchObject({
+      syncStatus: 'error',
+      syncError: 'cloud permission denied',
+      failedAt: '2026-08-05T12:00:00.000Z',
+      attempts: 1,
+    });
+  });
+
+  it('rejects cloud event upserts without a validated canonical event payload', () => {
+    expect(() => validatePendingSyncOperation({
+      matchId: 'match-1',
+      entity: 'match_events',
+      action: 'upsert',
+      payload: {
+        id: 'evt-1',
+        event_type: 'not-a-canonical-event',
+      },
+    })).toThrow(/evento|tipo|payload/i);
   });
 
   it('allows only registered video files with a supported video extension', () => {

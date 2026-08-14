@@ -409,6 +409,11 @@ describe('settings lifecycle cleanup', () => {
 });
 
 describe('settings interaction polish', () => {
+  it('restores the main scroll container after a fixed tactical editor route', () => {
+    expect(settingsSource).toContain("container.classList.remove('main-content-body--drawing-fixed');");
+    expect(settingsSource).toContain("container.classList.remove('dashboard-content-body');");
+  });
+
   it('keeps the save action visible while the settings content scrolls', () => {
     expect(settingsSource).toContain('settings-save-bar');
     expect(settingsSource).toContain('Guardar ajustes');

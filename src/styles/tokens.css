@@ -136,7 +136,7 @@
   --color-bg-base:        #F4F7FB;
   --color-bg-surface:     #FFFFFF;
   --color-bg-elevated:    #F8FAFC;
-  --color-bg-hover:       #E7EDF5;
+  --color-bg-hover:       #E2E8F0;
 
   /* Marca Bigua */
   --color-brand-navy:     #0F2340;
@@ -150,22 +150,25 @@
   --color-accent-muted:   rgba(200, 16, 46, 0.11);
 
   /* Texto */
-  --color-text-primary:   #102033;
-  --color-text-secondary: #4E6075;
-  --color-text-muted:     #748399;
+  --color-text-primary:   #0B1220;
+  --color-text-secondary: #334155;
+  --color-text-muted:     #475569;
   --color-text-inverse:   #FFFFFF;
 
   /* Bordes */
-  --color-border:         rgba(15, 35, 64, 0.10);
-  --color-border-strong:  rgba(15, 35, 64, 0.18);
-  --color-border-accent:  rgba(200, 16, 46, 0.34);
+  --color-border:         rgba(15, 35, 64, 0.18);
+  --color-border-strong:  rgba(15, 35, 64, 0.30);
+  --color-border-accent:  rgba(184, 14, 42, 0.48);
 
   /* Gradientes */
   --gradient-bg:          radial-gradient(ellipse at 18% 0%, rgba(219, 228, 240, 0.92) 0%, transparent 58%),
                           radial-gradient(ellipse at 88% 18%, rgba(200, 16, 46, 0.08) 0%, transparent 44%),
                           #F4F7FB;
   --gradient-surface:     linear-gradient(135deg, #FFFFFF 0%, #EFF4FA 100%);
-  --gradient-card:        linear-gradient(145deg, rgba(255,255,255,0.86) 0%, rgba(232,239,248,0.4) 100%);
+  --gradient-card:        linear-gradient(145deg, rgba(255,255,255,0.96) 0%, rgba(226,232,240,0.72) 100%);
+  /* Keep the original dark-mode brand colors; only the surrounding surfaces change. */
+  --gradient-brand:       linear-gradient(110deg, #C8102E 0%, #26405F 48%, #C8102E 100%);
+  --gradient-brand-text:  linear-gradient(110deg, #E15A6B 0%, #DDE7F4 34%, #4F79AE 68%, #C8102E 100%);
   --gradient-accent-glow: radial-gradient(ellipse at center, rgba(200, 16, 46, 0.12) 0%, transparent 70%);
   --gradient-navy-glow:   radial-gradient(ellipse at top, rgba(195, 207, 224, 0.72) 0%, transparent 60%);
 }

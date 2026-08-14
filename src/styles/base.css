@@ -17,6 +17,8 @@ body {
   font-size: var(--text-base);
   color: var(--color-text-primary);
   line-height: var(--leading-normal);
+  -webkit-user-select: none;
+  user-select: none;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   --ambient-red-x: 6%;
@@ -108,7 +110,19 @@ input, select, textarea {
   padding: var(--space-2) var(--space-3);
   outline: none;
   transition: border-color var(--duration-fast) var(--ease-smooth);
+  -webkit-user-select: text;
   user-select: text;
+}
+
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+img, svg, video, canvas {
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 :where(
@@ -162,10 +176,11 @@ input::placeholder, textarea::placeholder {
 
 /* Club gradient utilities */
 .club-gradient-text {
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
   animation: club-gradient-shift 7s ease-in-out infinite;
 }

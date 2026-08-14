@@ -114,7 +114,7 @@ describe('match card derived match state', () => {
 
     expect(createNewMatchCardSource).toContain("card.setAttribute('role', 'button')");
     expect(createNewMatchCardSource).toContain("card.setAttribute('tabindex', '0')");
-    expect(createNewMatchCardSource).toContain("card.setAttribute('data-no-route-swipe', 'true')");
+    expect(createNewMatchCardSource).not.toContain('data-no-route-swipe');
     expect(createNewMatchCardSource).toContain("card.addEventListener('keydown'");
   });
 

@@ -440,3 +440,79 @@
     transform: none;
   }
 }
+
+/* Light mode: keep the branded dark match thumbnail and clarify the card body. */
+:root[data-theme="light"] .match-card.match-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.88), rgba(232, 239, 248, 0.62)),
+    #f8fafc;
+  border-color: rgba(15, 35, 64, 0.2);
+  box-shadow: 0 18px 54px rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .match-card.match-card:hover {
+  border-color: rgba(15, 35, 64, 0.3);
+  box-shadow: 0 30px 86px rgba(15, 35, 64, 0.17), 0 0 28px rgba(78, 96, 117, 0.12);
+}
+
+:root[data-theme="light"] .match-card.win .match-card-thumbnail {
+  background-image:
+    linear-gradient(180deg, rgba(60, 96, 150, 0.66) 0%, rgba(121, 149, 188, 0.52) 44%, #f8fafc 100%),
+    radial-gradient(ellipse at 16% 0%, rgba(79, 121, 174, 0.2), transparent 42%),
+    radial-gradient(ellipse at 82% 8%, rgba(79, 121, 174, 0.2), transparent 46%),
+    radial-gradient(ellipse at 50% 42%, rgba(79, 121, 174, 0.2), transparent 54%);
+}
+
+:root[data-theme="light"] .match-card.loss .match-card-thumbnail {
+  background-image:
+    linear-gradient(180deg, rgba(126, 44, 59, 0.7) 0%, rgba(239, 167, 178, 0.58) 44%, #f8fafc 100%),
+    radial-gradient(ellipse at 16% 0%, rgba(200, 16, 46, 0.19), transparent 42%),
+    radial-gradient(ellipse at 82% 8%, rgba(200, 16, 46, 0.19), transparent 46%),
+    radial-gradient(ellipse at 50% 42%, rgba(200, 16, 46, 0.19), transparent 54%);
+}
+
+:root[data-theme="light"] .match-card.pending .match-card-thumbnail,
+:root[data-theme="light"] .match-card.draw .match-card-thumbnail {
+  background-image:
+    linear-gradient(180deg, rgba(70, 91, 117, 0.66) 0%, rgba(198, 210, 225, 0.58) 44%, #f8fafc 100%),
+    radial-gradient(ellipse at 16% 0%, rgba(118, 139, 166, 0.15), transparent 42%),
+    radial-gradient(ellipse at 82% 8%, rgba(118, 139, 166, 0.15), transparent 46%),
+    radial-gradient(ellipse at 50% 42%, rgba(118, 139, 166, 0.15), transparent 54%);
+}
+
+:root[data-theme="light"] .match-card.match-card .match-card-score,
+:root[data-theme="light"] .match-card.match-card .match-card-score .home,
+:root[data-theme="light"] .match-card.match-card .match-card-score .away,
+:root[data-theme="light"] .match-card.match-card .match-card-score .separator {
+  color: rgba(15, 35, 64, 0.78);
+}
+
+:root[data-theme="light"] .match-card.match-card .match-card-competition,
+:root[data-theme="light"] .match-card.match-card .match-card-title,
+:root[data-theme="light"] .match-card.match-card .match-card-title strong,
+:root[data-theme="light"] .match-card.match-card .match-card-result-score {
+  color: #102033;
+}
+
+:root[data-theme="light"] .match-card.match-card .match-card-title .match-card-vs,
+:root[data-theme="light"] .match-card.match-card .match-card-meta,
+:root[data-theme="light"] .match-card.match-card .match-card-action {
+  color: #425873;
+}
+
+:root[data-theme="light"] .match-card.match-card .match-card-main {
+  border-bottom-color: rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .match-card.match-card .match-card-status.badge {
+  opacity: 0.92;
+  background: rgba(248, 250, 252, 0.74);
+}
+
+:root[data-theme="light"] .match-card-new.match-card-new {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.76), rgba(232, 239, 248, 0.62)),
+    #f0f4f8;
+  border-color: rgba(15, 35, 64, 0.24);
+  color: #425873;
+}

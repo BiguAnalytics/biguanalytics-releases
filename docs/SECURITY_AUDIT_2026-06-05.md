@@ -49,7 +49,7 @@
 
 ### Renderer y XSS
 
-- CSP bloquea scripts inline y `unsafe-eval`; `style-src 'unsafe-inline'` queda justificado por estilos dinamicos.
+- CSP bloquea scripts inline y `unsafe-eval`; `style-src` permite solo recursos propios, `style-src-elem` queda same-origin y la excepcion se limita a `style-src-attr` para variables dinamicas del renderer.
 - Tests existentes cubren casos de confirm dialog, modal y Home contra interpolacion HTML insegura.
 - Riesgo residual: hay uso extenso de `innerHTML` con helpers de escape. Mantener regla: datos de usuario siempre via `textContent` o `escapeHtml`, nunca interpolacion directa.
 

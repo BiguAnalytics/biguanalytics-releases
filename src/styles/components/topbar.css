@@ -32,7 +32,7 @@
 }
 
 .topbar-logo-text .accent {
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;

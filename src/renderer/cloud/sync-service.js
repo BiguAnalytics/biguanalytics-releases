@@ -99,17 +99,17 @@ export async function applyCloudOperation(client, operation) {
   }
   if (entity === 'match_possessions' && action === 'replace') {
     const rows = Array.isArray(payload) ? payload : [];
-    await replaceCloudRows(client, 'match_possessions', operation.matchId, rows, 'insert', rows.length > 0);
+    await replaceCloudRows(client, 'match_possessions', operation.matchId, rows, 'upsert', rows.length > 0);
     return;
   }
   if (entity === 'match_sequences' && action === 'replace') {
     const rows = Array.isArray(payload) ? payload : [];
-    await replaceCloudRows(client, 'match_sequences', operation.matchId, rows, 'insert', rows.length > 0);
+    await replaceCloudRows(client, 'match_sequences', operation.matchId, rows, 'upsert', rows.length > 0);
     return;
   }
   if (entity === 'match_notes' && action === 'replace') {
     const rows = payload?.content ? [payload] : [];
-    await replaceCloudRows(client, 'match_notes', operation.matchId, rows, 'insert', rows.length > 0);
+    await replaceCloudRows(client, 'match_notes', operation.matchId, rows, 'upsert', rows.length > 0);
     return;
   }
 
@@ -155,7 +155,16 @@ export function hydrateOperationContext(operation, context) {
  * @returns {string}
  */
 function getSyncErrorMessage(error) {
-  return error instanceof Error && error.message ? error.message : String(error || 'Error de sincronizacion');
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object') {
+    if (typeof error.message === 'string' && error.message) return error.message;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return 'Error de sincronizacion';
+    }
+  }
+  return String(error || 'Error de sincronizacion');
 }
 
 /**
@@ -275,12 +284,13 @@ export function createSyncService(deps = {}) {
      * @returns {Promise<object>}
      */
     async enqueue(operation) {
-      return localApi.matches.enqueuePendingSync({
-        id: operation.id,
+      const operationDto = {
         status: 'pending_sync',
         ...operation,
         status: 'pending_sync',
-      });
+      };
+      if (operationDto.id === undefined) delete operationDto.id;
+      return localApi.matches.enqueuePendingSync(operationDto);
     },
 
     /**

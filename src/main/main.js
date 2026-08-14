@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, nativeImage, session } = require('electron');
 const path = require('path');
 const { createStartupTimer, setStartupTimer } = require('./modules/startup-timing');
 const { registerIpcHandlers } = require('./ipc');
@@ -12,7 +12,10 @@ app.commandLine.appendSwitch('enable-features', 'WebSpeechAPI');
 const devIconPath = path.join(__dirname, '../../build/icon.ico');
 const packagedIconPath = path.join(process.resourcesPath, 'icon.ico');
 const appIconPath = app.isPackaged ? packagedIconPath : devIconPath;
-const appUserModelId = 'com.biguanalytics.app';
+const appIcon = nativeImage.createFromPath(appIconPath);
+const packagedAppUserModelId = 'com.biguanalytics.app';
+const devAppUserModelId = 'com.biguanalytics.app.dev';
+const appUserModelId = app.isPackaged ? packagedAppUserModelId : devAppUserModelId;
 const WINDOW_CLOSE_FLUSH_TIMEOUT_MS = 1500;
 
 if (process.platform === 'win32') {
@@ -79,7 +82,7 @@ const createWindow = () => {
     minHeight: 768,
     frame: false, // Custom frame
     show: false,
-    icon: appIconPath,
+    icon: appIcon,
     backgroundColor: '#080E1A',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -91,6 +94,14 @@ const createWindow = () => {
       allowRunningInsecureContent: false,
     },
   });
+  if (process.platform === 'win32') {
+    mainWindow.setIcon(appIcon);
+    mainWindow.setAppDetails({
+      appId: appUserModelId,
+      appIconPath,
+      appIconIndex: 0,
+    });
+  }
   startupTimer.mark('browser-window:create:end');
 
   mainWindow.webContents.setWindowOpenHandler(() => {

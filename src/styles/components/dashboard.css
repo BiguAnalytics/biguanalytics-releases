@@ -943,6 +943,11 @@
   justify-items: end;
 }
 
+body[data-route]:not([data-route="dashboard"]) .dashboard-floating-actions {
+  display: none !important;
+  pointer-events: none;
+}
+
 .dashboard-notes-button {
   position: relative;
   width: 56px;
@@ -1341,4 +1346,131 @@ body.has-dashboard-notes-open .ai-chatbot-root {
   .dashboard-notes-drawer {
     width: calc(100vw - var(--sidebar-width));
   }
+}
+
+/* Light mode: use ink-on-surface hierarchy instead of dark-mode translucent panels. */
+:root[data-theme="light"] .dashboard-view .dashboard-loading,
+:root[data-theme="light"] .dashboard-view .dashboard-stat-strip,
+:root[data-theme="light"] .dashboard-view .dashboard-territory-readout,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-muted,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-evidence,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-recommendations ul {
+  color: #425873;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-match-header,
+:root[data-theme="light"] .dashboard-view .dashboard-section-header,
+:root[data-theme="light"] .dashboard-view .dashboard-event-links {
+  border-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-view-toggle,
+:root[data-theme="light"] .dashboard-view .dashboard-controls,
+:root[data-theme="light"] .dashboard-view .dashboard-customizer,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-panel,
+:root[data-theme="light"] .dashboard-view .dashboard-section,
+:root[data-theme="light"] .dashboard-view .dashboard-notes-panel,
+:root[data-theme="light"] .dashboard-view .dashboard-toast {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.9), rgba(232, 239, 248, 0.62)),
+    #f8fafc;
+  border-color: rgba(15, 35, 64, 0.18);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.1);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-section-header {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-scoreline span,
+:root[data-theme="light"] .dashboard-view .dashboard-control span,
+:root[data-theme="light"] .dashboard-view .dashboard-customizer h2,
+:root[data-theme="light"] .dashboard-view .dashboard-panel-toggle,
+:root[data-theme="light"] .dashboard-view .dashboard-toggle-btn,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-badge,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-score-context span,
+:root[data-theme="light"] .dashboard-view .dashboard-sequence-list div,
+:root[data-theme="light"] .dashboard-view .dashboard-event-link,
+:root[data-theme="light"] .dashboard-view .dashboard-alert-pill {
+  color: #425873;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-scoreline strong,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-header h2,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-empty strong,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-summary strong,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-warning strong,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-block h3,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-list strong,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-recommendations strong,
+:root[data-theme="light"] .dashboard-view .dashboard-section-title,
+:root[data-theme="light"] .dashboard-view .dashboard-stat-strip strong,
+:root[data-theme="light"] .dashboard-view .dashboard-sequence-card strong,
+:root[data-theme="light"] .dashboard-view .dashboard-custom-events-summary strong,
+:root[data-theme="light"] .dashboard-view .dashboard-sequence-list strong,
+:root[data-theme="light"] .dashboard-view .dashboard-event-links header strong,
+:root[data-theme="light"] .dashboard-view .dashboard-event-link strong,
+:root[data-theme="light"] .dashboard-view .dashboard-notes-panel header h2 {
+  color: #102033;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-ai-empty,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-summary,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-warning,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-list article,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-recommendations article,
+:root[data-theme="light"] .dashboard-view .dashboard-sequence-card,
+:root[data-theme="light"] .dashboard-view .dashboard-sequence-list div,
+:root[data-theme="light"] .dashboard-view .dashboard-custom-events-summary div,
+:root[data-theme="light"] .dashboard-view .dashboard-section-picker-row,
+:root[data-theme="light"] .dashboard-view .dashboard-event-link,
+:root[data-theme="light"] .dashboard-view .dashboard-event-overflow,
+:root[data-theme="light"] .dashboard-view .heatmap-filter-chip,
+:root[data-theme="light"] .dashboard-view .dashboard-note-toolbar button,
+:root[data-theme="light"] .dashboard-view .dashboard-notes-editor,
+:root[data-theme="light"] .dashboard-view .settings-alert-row {
+  background: rgba(248, 250, 252, 0.88);
+  border-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-control select,
+:root[data-theme="light"] .dashboard-view .dashboard-section-picker-row button {
+  background: #f8fafc;
+  border-color: rgba(15, 35, 64, 0.2);
+  color: #102033;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-ai-empty p,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-summary p,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-warning p,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-list p,
+:root[data-theme="light"] .dashboard-view .dashboard-ai-recommendations p,
+:root[data-theme="light"] .dashboard-view .dashboard-event-link em {
+  color: #425873;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-ai-button.primary {
+  color: var(--color-brand-white);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-heatmap-shell {
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(255, 255, 255, 0.28), transparent 48%),
+    #dfe8f2;
+  border-color: rgba(15, 35, 64, 0.2);
+}
+
+:root[data-theme="light"] .dashboard-view .heatmap-zone-number,
+:root[data-theme="light"] .dashboard-view .heatmap-zone-count {
+  fill: #102033;
+  stroke: rgba(255, 255, 255, 0.7);
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-heatmap-empty {
+  background: rgba(248, 250, 252, 0.82);
+  color: #425873;
+}
+
+:root[data-theme="light"] .dashboard-view .dashboard-heatmap-empty strong {
+  color: #102033;
 }

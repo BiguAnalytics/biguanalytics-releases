@@ -18,6 +18,7 @@ import {
   getDrawingSequenceStrokesAtTime,
 } from '../drawing/drawing-sequence.js';
 import { navigate } from '../router.js';
+import { isLocalVideoAvailable } from '../media/local-video.js';
 import {
   EVENT_DEFINITIONS,
   SEQUENCE_RESULT_OPTIONS,
@@ -293,6 +294,16 @@ export function normalizeEventResultInput(value) {
     .trim()
     .toLowerCase()
     .replace(/\s+/g, '-');
+}
+
+/**
+ * @param {string} value
+ * @param {string|null|undefined} currentResult
+ * @returns {string}
+ */
+export function normalizeInspectorEventResult(value, currentResult = '') {
+  const normalized = normalizeEventResultInput(value);
+  return !String(currentResult || '').trim() && normalized === 'sin-dato' ? '' : normalized;
 }
 
 /**
@@ -1033,7 +1044,7 @@ export function renderTagging(container, params = {}, lifecycle = {}) {
   async function loadTaggingEntrypoint() {
     if (params.matchId) {
       const [loadedMatch, loadedSettings] = await Promise.all([
-        cloudMatchService.getMatchById(params.matchId, { localFirst: true }),
+        cloudMatchService.getMatchById(params.matchId, { localFirst: true, requireDetails: true }),
         window.api.settings.get(),
       ]);
       if (!isActive()) return;
@@ -1470,7 +1481,7 @@ export function renderTagging(container, params = {}, lifecycle = {}) {
     }
 
     if (match.video?.type === 'local') {
-      const exists = await window.api.media.localVideoExists(match.video.path);
+      const exists = await isLocalVideoAvailable(window.api.media, match.video.path);
       if (!isActive()) return;
       if (!exists) {
         const selected = await videoReferenceService.ensurePlayableLocalVideo(match.video);
@@ -2543,7 +2554,7 @@ export function renderTagging(container, params = {}, lifecycle = {}) {
     if (match?.video?.type !== 'local' || !match.video.path) {
       return 'La exportación de clips requiere tener cargado el archivo MP4 local del partido.';
     }
-    const exists = await window.api.media.localVideoExists(match.video.path);
+    const exists = await isLocalVideoAvailable(window.api.media, match.video.path);
     return exists ? null : 'No se encontró el video original. Volvé a cargar el MP4 del partido.';
   }
 
@@ -3038,7 +3049,7 @@ export function renderTagging(container, params = {}, lifecycle = {}) {
     return {
       timestamp: timestamp ?? selectedEvent?.timestamp ?? null,
       team: teamInput?.value === 'home' || teamInput?.value === 'away' ? teamInput.value : null,
-      result: normalizeEventResultInput(resultInput?.value || ''),
+      result: normalizeInspectorEventResult(resultInput?.value || '', selectedEvent?.result),
       subtype: subtypeInput?.value.trim() || '',
       zone: zoneInput?.value.trim() || null,
       player: playerInput?.value.trim() || '',

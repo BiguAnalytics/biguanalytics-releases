@@ -891,9 +891,13 @@ export function renderPdfTemplateEditor(container, params = {}, lifecycle = {}) 
   setSidebarExpanded(false);
   updateTopbarContext('Plantillas PDF');
   setTopbarActions([
+    { id: 'home', label: 'Inicio' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'settings', label: 'Ajustes' },
-  ], (id) => navigate(id, params.matchId && id === 'dashboard' ? { matchId: params.matchId } : {}));
+  ], (id) => {
+    if (id === 'home') return navigate('home');
+    return navigate(id, params.matchId && id === 'dashboard' ? { matchId: params.matchId } : {});
+  });
 
   container.innerHTML = `
     <section class="pdf-template-editor-view view-enter">

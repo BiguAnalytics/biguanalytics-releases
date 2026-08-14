@@ -13,6 +13,7 @@
   --timeline-possession-height: 16px;
   --timeline-track-min-height: 34px;
   --timeline-scrollbar-lane: 12px;
+  --timeline-scrollbar-height: 10px;
   --timeline-track-rows: var(--timeline-ruler-height) var(--timeline-possession-height) repeat(5, minmax(0, 1fr));
   position: relative;
   height: 100%;
@@ -25,6 +26,7 @@
     + var(--timeline-track-min-height)
     + var(--timeline-track-min-height)
     + var(--timeline-scrollbar-lane)
+    + var(--timeline-scrollbar-height)
   );
   overflow: hidden;
   display: grid;
@@ -73,7 +75,7 @@
 .timeline-track-labels {
   grid-column: 1;
   min-width: 0;
-  height: calc(100% - var(--timeline-scrollbar-lane));
+  height: calc(100% - var(--timeline-scrollbar-lane) - var(--timeline-scrollbar-height));
   overflow: hidden;
   display: grid;
   grid-template-rows: var(--timeline-track-rows);
@@ -99,6 +101,7 @@
 
 .timeline-ruler {
   position: relative;
+  grid-row: 1;
   height: var(--timeline-ruler-height);
   min-width: 0;
   border-bottom: 1px solid rgba(138, 155, 176, 0.12);
@@ -206,13 +209,16 @@
 
 .timeline-track {
   position: relative;
+  grid-row: var(--timeline-track-row);
   min-height: 0;
   border-bottom: 1px solid rgba(138, 155, 176, 0.08);
+  border-left: 3px solid var(--timeline-channel-color);
   z-index: 2;
 }
 
 .timeline-possession-track {
   position: relative;
+  grid-row: 2;
   height: 100%;
   border-bottom: 1px solid rgba(138, 155, 176, 0.1);
   background: rgba(138, 155, 176, 0.045);
@@ -243,7 +249,7 @@
 }
 
 .timeline-track-label {
-  grid-row: var(--timeline-label-row);
+  grid-row: var(--timeline-track-row);
   align-self: stretch;
   display: inline-flex;
   align-items: center;
@@ -259,6 +265,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.timeline-track-label[data-track-label] {
+  border-left: 3px solid var(--timeline-channel-color);
+  color: var(--timeline-channel-color);
 }
 
 .timeline-block {
@@ -343,6 +354,11 @@
 .timeline-block.defense { background: var(--tag-neutral); }
 .timeline-block.other { background: var(--tag-neutral); opacity: 0.78; }
 
+.timeline-track[data-track] > .timeline-block {
+  background: var(--timeline-channel-color);
+  opacity: 1;
+}
+
 .timeline-block:hover {
   transform: translate(-50%, -50%) scale(1.12);
   border-color: rgba(255, 255, 255, 0.32);
@@ -359,6 +375,30 @@
   border-color: rgba(255, 255, 255, 0.42);
   box-shadow: 0 12px 28px rgba(200, 16, 46, 0.24);
   z-index: 7;
+}
+
+.timeline-block.timeline-block-at-start {
+  transform: translate(0, -50%);
+}
+
+.timeline-block.timeline-block-at-end {
+  transform: translate(-100%, -50%);
+}
+
+.timeline-block.timeline-block-at-start:hover {
+  transform: translate(0, -50%) scale(1.12);
+}
+
+.timeline-block.timeline-block-at-end:hover {
+  transform: translate(-100%, -50%) scale(1.12);
+}
+
+.timeline-block.timeline-block-at-start.dragging {
+  transform: translate(0, -50%) scale(1.16);
+}
+
+.timeline-block.timeline-block-at-end.dragging {
+  transform: translate(-100%, -50%) scale(1.16);
 }
 
 .timeline-track[data-track="notes"] .timeline-block {
@@ -602,4 +642,91 @@
 @keyframes timeline-block-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
+}
+
+/* Light mode: stronger rails and labels keep the event map scannable. */
+:root[data-theme="light"] .timeline-host {
+  background: #e8eef5;
+  border-top-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-track-labels {
+  background:
+    linear-gradient(90deg, #f0f4f8, #e7edf5),
+    #e7edf5;
+  border-right-color: rgba(15, 35, 64, 0.2);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-track-label,
+:root[data-theme="light"] .tagging-timeline .timeline-tick,
+:root[data-theme="light"] .tagging-timeline .timeline-duration-pending,
+:root[data-theme="light"] .tagging-timeline .timeline-possession-label {
+  color: #425873;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-ruler,
+:root[data-theme="light"] .tagging-timeline .timeline-label-ruler,
+:root[data-theme="light"] .tagging-timeline .timeline-track,
+:root[data-theme="light"] .tagging-timeline .timeline-possession-track,
+:root[data-theme="light"] .tagging-timeline .timeline-track-label {
+  border-color: rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-tick::after {
+  background: rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-possession-track {
+  background: rgba(15, 35, 64, 0.065);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-scroll {
+  scrollbar-color: rgba(66, 88, 115, 0.62) #e7edf5;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-scroll::-webkit-scrollbar-track {
+  background: #e7edf5;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-scroll::-webkit-scrollbar-thumb {
+  background: rgba(66, 88, 115, 0.62);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-preview,
+:root[data-theme="light"] .tagging-timeline .timeline-untimed-events,
+:root[data-theme="light"] .tagging-timeline .timeline-clip-toast {
+  background: rgba(248, 250, 252, 0.96);
+  border-color: rgba(15, 35, 64, 0.2);
+  color: #102033;
+  box-shadow: 0 14px 36px rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-preview.active,
+:root[data-theme="light"] .tagging-timeline .timeline-untimed-events header,
+:root[data-theme="light"] .tagging-timeline .timeline-untimed-events header strong {
+  color: #102033;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-untimed-event {
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(15, 35, 64, 0.18);
+  color: #425873;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-block,
+:root[data-theme="light"] .tagging-timeline .timeline-sequence-block {
+  border-color: rgba(15, 35, 64, 0.24);
+  box-shadow: 0 8px 18px rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-drawing-block {
+  background: rgba(78, 96, 117, 0.34);
+  border-color: rgba(15, 35, 64, 0.24);
+  color: #102033;
+}
+
+:root[data-theme="light"] .tagging-timeline .timeline-drawing-block:hover,
+:root[data-theme="light"] .tagging-timeline .timeline-drawing-block.selected,
+:root[data-theme="light"] .tagging-timeline .timeline-drawing-block.dragging {
+  color: #102033;
 }

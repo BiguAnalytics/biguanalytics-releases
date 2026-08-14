@@ -475,3 +475,76 @@
     transition-duration: 0ms;
   }
 }
+
+/* Light mode: keep the drawing surface calm and the controls readable. */
+:root[data-theme="light"] .drawing-editor-shell {
+  background: rgba(15, 35, 64, 0.12);
+}
+
+:root[data-theme="light"] .drawing-editor-bg {
+  background: #e8eef5;
+  filter: saturate(0.92) brightness(0.96);
+}
+
+:root[data-theme="light"] .drawing-toolbar,
+:root[data-theme="light"] .tagging-live-drawing-editor .drawing-toolbar,
+:root[data-theme="light"] .drawing-sequence-strip {
+  background: rgba(248, 250, 252, 0.97);
+  border-color: rgba(15, 35, 64, 0.22);
+  box-shadow: 0 20px 54px rgba(15, 35, 64, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+:root[data-theme="light"] .drawing-sequence-step,
+:root[data-theme="light"] .drawing-sequence-control,
+:root[data-theme="light"] .drawing-tool-btn,
+:root[data-theme="light"] .drawing-player-field,
+:root[data-theme="light"] .drawing-width-btn,
+:root[data-theme="light"] .drawing-size-btn,
+:root[data-theme="light"] .drawing-action-btn {
+  background: rgba(255, 255, 255, 0.84);
+  border-color: rgba(15, 35, 64, 0.2);
+  color: #102033;
+}
+
+:root[data-theme="light"] .drawing-sequence-step:hover,
+:root[data-theme="light"] .drawing-sequence-step:focus-visible,
+:root[data-theme="light"] .drawing-sequence-control:hover,
+:root[data-theme="light"] .drawing-sequence-control:focus-visible,
+:root[data-theme="light"] .drawing-tool-btn:hover,
+:root[data-theme="light"] .drawing-tool-btn:focus-visible,
+:root[data-theme="light"] .drawing-width-btn:hover,
+:root[data-theme="light"] .drawing-size-btn:hover:not(:disabled) {
+  background: #e7edf5;
+  color: #102033;
+}
+
+:root[data-theme="light"] .drawing-sequence-step.active,
+:root[data-theme="light"] .drawing-tool-btn.active,
+:root[data-theme="light"] .drawing-width-btn.active {
+  background: rgba(200, 16, 46, 0.1);
+  color: #102033;
+}
+
+:root[data-theme="light"] .drawing-sequence-step small,
+:root[data-theme="light"] .drawing-duration-field,
+:root[data-theme="light"] .drawing-size-shortcut {
+  color: #425873;
+}
+
+:root[data-theme="light"] .drawing-player-field input,
+:root[data-theme="light"] .drawing-text-input {
+  color: #102033;
+}
+
+:root[data-theme="light"] .drawing-color-btn.active {
+  border-color: #102033;
+}
+
+:root[data-theme="light"] .drawing-width-btn span {
+  background: #102033;
+}
+
+:root[data-theme="light"] .drawing-action-btn.primary {
+  color: var(--color-brand-white);
+  border-color: rgba(15, 35, 64, 0.24);
+}

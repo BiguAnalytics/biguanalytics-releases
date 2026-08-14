@@ -144,3 +144,48 @@
 .season-empty-state .btn {
   justify-self: start;
 }
+
+:root[data-theme="light"] .season-view {
+  color: var(--color-text-primary);
+  background: var(--color-bg-base);
+}
+
+:root[data-theme="light"] .season-table-panel,
+:root[data-theme="light"] .season-chart-card,
+:root[data-theme="light"] .season-empty-state {
+  background: var(--gradient-surface);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+  box-shadow: 0 18px 44px rgba(15, 35, 64, 0.1);
+}
+
+:root[data-theme="light"] .season-filter select {
+  background: var(--color-bg-elevated);
+  border-color: var(--color-border-strong);
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .season-eyebrow,
+:root[data-theme="light"] .season-filter span,
+:root[data-theme="light"] .season-loading,
+:root[data-theme="light"] .season-empty-state span,
+:root[data-theme="light"] .season-empty-state p {
+  color: var(--color-text-secondary);
+}
+
+:root[data-theme="light"] .season-table th,
+:root[data-theme="light"] .season-table td,
+:root[data-theme="light"] .season-chart-card h2,
+:root[data-theme="light"] .season-empty-state h2 {
+  color: var(--color-text-primary);
+}
+
+:root[data-theme="light"] .season-table th,
+:root[data-theme="light"] .season-table td,
+:root[data-theme="light"] .season-table tbody tr {
+  border-color: var(--color-border);
+}
+
+:root[data-theme="light"] .season-table tbody tr:hover {
+  background: var(--color-bg-hover);
+}

@@ -18,7 +18,7 @@ const indexHtml = readFileSync(new URL('../../index.html', import.meta.url), 'ut
 describe('dashboard phase 3 renderer wiring', () => {
   it('downloads cloud match detail before rendering stats and syncs coach notes through cloudMatchService', () => {
     expect(dashboardSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
-    expect(dashboardSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
+    expect(dashboardSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true, requireDetails: true })");
     expect(dashboardSource).toContain('cloudMatchService.updateMatch(state.match.id, { coachNotes })');
     expect(dashboardSource).not.toContain('window.api.matches.update(state.match.id, { coachNotes })');
   });
@@ -349,10 +349,10 @@ describe('dashboard phase 3 renderer wiring', () => {
   });
 
   it('keeps the coach notes pencil floating directly above the chatbot button', () => {
-    expect(dashboardSource).toContain('function renderDashboardFloatingActions(match)');
-    expect(dashboardSource).toContain("document.querySelector('[data-dashboard-floating-actions]')?.remove();");
+    expect(dashboardSource).toContain('function renderDashboardFloatingActions(match, isActive = () => true)');
+    expect(dashboardSource).toContain("document.querySelectorAll('[data-dashboard-floating-actions]')");
     expect(dashboardSource).toContain('document.body.appendChild(floatingActions);');
-    expect(dashboardSource).toContain('renderDashboardFloatingActions(state.match);');
+    expect(dashboardSource).toContain('renderDashboardFloatingActions(state.match, state.isActive);');
     expect(dashboardSource).toContain("document.querySelector('[data-dashboard-floating-actions] [data-notes-open]')");
     expect(dashboardSource).not.toContain('<div class="dashboard-floating-actions" aria-label="Acciones del dashboard">');
     expect(dashboardSource).toContain("noteFocusFrame = window.requestAnimationFrame(() => {\n      if (!state.isActive?.()) return;\n      editor?.focus();");

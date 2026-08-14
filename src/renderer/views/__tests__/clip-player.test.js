@@ -326,7 +326,7 @@ describe('clip player playback wiring', () => {
   });
 
   it('opens a cached match before optional cloud detail refresh for direct clips entry', () => {
-    expect(clipPlayerSource).toContain("cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true })");
+    expect(clipPlayerSource).toContain("cloudMatchService.getMatchById(currentParams.matchId, { localFirst: true, requireDetails: true })");
   });
 
   it('uses HTML video currentTime for local MP4 clips', () => {

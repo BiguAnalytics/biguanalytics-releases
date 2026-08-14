@@ -10,6 +10,25 @@ const PENDING_SYNC_FILE = 'pending-sync.json';
 const MATCH_ID_RE = /^[A-Za-z0-9_-]{1,120}$/;
 const NON_MATCH_DATA_DIRECTORIES = new Set(['tactical-boards']);
 let pendingSyncMutation = Promise.resolve();
+const matchMutationQueues = new Map();
+
+/**
+ * Serializes local read-modify-write operations for one match.
+ * @param {string} matchId
+ * @param {() => Promise<unknown>} mutation
+ * @returns {Promise<unknown>}
+ */
+function serializeMatchMutation(matchId, mutation) {
+  const previous = matchMutationQueues.get(matchId) || Promise.resolve();
+  const next = previous.catch(() => undefined).then(mutation);
+  matchMutationQueues.set(matchId, next);
+
+  return next.finally(() => {
+    if (matchMutationQueues.get(matchId) === next) {
+      matchMutationQueues.delete(matchId);
+    }
+  });
+}
 
 /**
  * @param {unknown} error
@@ -353,48 +372,50 @@ async function createMatch(data) {
 async function upsertMatchCache(data) {
   if (!data?.id) throw new Error('Match cache id is required');
   const id = validateMatchId(data.id);
-  await ensureDataPath();
-  const now = new Date().toISOString();
-  const matchPath = getMatchDataPath(id);
-  await fs.mkdir(matchPath, { recursive: true });
+  return serializeMatchMutation(id, async () => {
+    await ensureDataPath();
+    const now = new Date().toISOString();
+    const matchPath = getMatchDataPath(id);
+    await fs.mkdir(matchPath, { recursive: true });
 
-  let existing = null;
-  try {
-    existing = await getMatchById(id);
-  } catch (error) {
-    if (error?.recoverable) throw error;
-    existing = null;
-  }
+    let existing = null;
+    try {
+      existing = await getMatchById(id);
+    } catch (error) {
+      if (error?.recoverable) throw error;
+      existing = null;
+    }
 
-  const base = existing || buildDefaultMatch(data, id, now);
-  const next = normalizeMatchForStorage({
-    ...base,
-    ...data,
-    id,
-    homeTeam: data.homeTeam || base.homeTeam || 'Local',
-    awayTeam: data.awayTeam || base.awayTeam || 'Visitante',
-    date: data.date || base.date || now.split('T')[0],
-    competition: data.competition ?? base.competition ?? '',
-    venue: data.venue || base.venue || 'home',
-    video: data.video !== undefined ? data.video : base.video || null,
-    roster: Array.isArray(data.roster) ? data.roster : (Array.isArray(base.roster) ? base.roster : []),
-    homeScore: data.homeScore !== undefined ? data.homeScore : (base.homeScore || 0),
-    awayScore: data.awayScore !== undefined ? data.awayScore : (base.awayScore || 0),
-    status: data.status || base.status || 'created',
-    events: Array.isArray(data.events) ? data.events : (Array.isArray(base.events) ? base.events : []),
-    drawings: Array.isArray(data.drawings) ? data.drawings : (Array.isArray(base.drawings) ? base.drawings : []),
-    sequences: Array.isArray(data.sequences) ? data.sequences : (Array.isArray(base.sequences) ? base.sequences : []),
-    possession: data.possession !== undefined ? data.possession : (base.possession ?? []),
-    coachNotes: data.coachNotes !== undefined ? data.coachNotes : (base.coachNotes || ''),
-    scoreAdjustment: data.scoreAdjustment !== undefined ? data.scoreAdjustment : (base.scoreAdjustment || null),
-    scoreOverride: data.scoreOverride !== undefined ? data.scoreOverride : (base.scoreOverride || null),
-    cloud: data.cloud !== undefined ? data.cloud : (base.cloud || null),
-    createdAt: data.createdAt || base.createdAt || now,
-    updatedAt: data.updatedAt || now
-  }, { now, preferPersistedScore: data.score !== undefined });
+    const base = existing || buildDefaultMatch(data, id, now);
+    const next = normalizeMatchForStorage({
+      ...base,
+      ...data,
+      id,
+      homeTeam: data.homeTeam || base.homeTeam || 'Local',
+      awayTeam: data.awayTeam || base.awayTeam || 'Visitante',
+      date: data.date || base.date || now.split('T')[0],
+      competition: data.competition ?? base.competition ?? '',
+      venue: data.venue || base.venue || 'home',
+      video: data.video !== undefined ? data.video : base.video || null,
+      roster: Array.isArray(data.roster) ? data.roster : (Array.isArray(base.roster) ? base.roster : []),
+      homeScore: data.homeScore !== undefined ? data.homeScore : (base.homeScore || 0),
+      awayScore: data.awayScore !== undefined ? data.awayScore : (base.awayScore || 0),
+      status: data.status || base.status || 'created',
+      events: Array.isArray(data.events) ? data.events : (Array.isArray(base.events) ? base.events : []),
+      drawings: Array.isArray(data.drawings) ? data.drawings : (Array.isArray(base.drawings) ? base.drawings : []),
+      sequences: Array.isArray(data.sequences) ? data.sequences : (Array.isArray(base.sequences) ? base.sequences : []),
+      possession: data.possession !== undefined ? data.possession : (base.possession ?? []),
+      coachNotes: data.coachNotes !== undefined ? data.coachNotes : (base.coachNotes || ''),
+      scoreAdjustment: data.scoreAdjustment !== undefined ? data.scoreAdjustment : (base.scoreAdjustment || null),
+      scoreOverride: data.scoreOverride !== undefined ? data.scoreOverride : (base.scoreOverride || null),
+      cloud: data.cloud !== undefined ? data.cloud : (base.cloud || null),
+      createdAt: data.createdAt || base.createdAt || now,
+      updatedAt: data.updatedAt || now
+    }, { now, preferPersistedScore: data.score !== undefined });
 
-  await writeFileAtomically(resolveMatchPath(id, 'match.json'), JSON.stringify(next, null, 2));
-  return next;
+    await writeFileAtomically(resolveMatchPath(id, 'match.json'), JSON.stringify(next, null, 2));
+    return next;
+  });
 }
 
 /**
@@ -490,17 +511,20 @@ async function getMatchById(id) {
  */
 async function updateMatch(id, updates) {
   const safeId = validateMatchId(id);
-  const match = await getMatchById(safeId);
-  const updatedMatch = normalizeMatchForStorage({
-    ...match,
-    ...updates,
-    id: match.id,
-    updatedAt: new Date().toISOString()
-  }, { preferPersistedScore: updates.score !== undefined });
+  return serializeMatchMutation(safeId, async () => {
+    const match = await getMatchById(safeId);
+    const resolvedUpdates = typeof updates === 'function' ? await updates(match) : updates;
+    const updatedMatch = normalizeMatchForStorage({
+      ...match,
+      ...resolvedUpdates,
+      id: match.id,
+      updatedAt: new Date().toISOString()
+    }, { preferPersistedScore: resolvedUpdates?.score !== undefined });
 
-  const matchPath = resolveMatchPath(safeId, 'match.json');
-  await writeFileAtomically(matchPath, JSON.stringify(updatedMatch, null, 2));
-  return updatedMatch;
+    const matchPath = resolveMatchPath(safeId, 'match.json');
+    await writeFileAtomically(matchPath, JSON.stringify(updatedMatch, null, 2));
+    return updatedMatch;
+  });
 }
 
 /**
@@ -508,12 +532,15 @@ async function updateMatch(id, updates) {
  * @param {string} id
  */
 async function deleteMatch(id) {
-  const matchPath = resolveMatchPath(id);
-  try {
-    await fs.rm(matchPath, { recursive: true, force: true });
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
+  const safeId = validateMatchId(id);
+  return serializeMatchMutation(safeId, async () => {
+    const matchPath = resolveMatchPath(safeId);
+    try {
+      await fs.rm(matchPath, { recursive: true, force: true });
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  });
 }
 
 /**
@@ -616,7 +643,7 @@ async function enqueuePendingSync(operation) {
   return withPendingSyncMutation(async () => {
     const now = new Date().toISOString();
     const pendingState = await readPendingSync({ recover: true });
-    const pending = compactPendingSync(Array.isArray(pendingState) ? pendingState : pendingState.operations);
+    let pending = compactPendingSync(Array.isArray(pendingState) ? pendingState : pendingState.operations);
     const matchId = operation.matchId ? validateMatchId(operation.matchId) : operation.matchId;
     const normalized = {
       id: operation.id || uuidv4(),
@@ -628,6 +655,13 @@ async function enqueuePendingSync(operation) {
       recoveredFromCorruptQueue: Boolean(pendingState?.recoverable),
       status: 'pending_sync'
     };
+
+    if (normalized.entity === 'matches' && normalized.action === 'delete' && normalized.matchId) {
+      pending = pending.filter(item => (
+        item?.matchId !== normalized.matchId
+        || (item.entity === 'matches' && item.action === 'delete')
+      ));
+    }
 
     const existingIndex = normalized.dedupeKey
       ? pending.findIndex(item => item.dedupeKey === normalized.dedupeKey)

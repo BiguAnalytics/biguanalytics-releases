@@ -301,6 +301,34 @@ describe('storage.js', () => {
       expect(saved.status).toBe('tagging');
     });
 
+    it('serializes read-modify-write mutations for the same match', async () => {
+      const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
+      let releaseFirstMutation;
+      let firstMutationStartedResolve;
+      const firstMutationStarted = new Promise((resolve) => {
+        firstMutationStartedResolve = resolve;
+      });
+
+      const firstUpdate = updateMatch(match.id, async (current) => {
+        firstMutationStartedResolve();
+        await new Promise((resolve) => {
+          releaseFirstMutation = resolve;
+        });
+        return { status: current.status === 'created' ? 'tagging' : current.status };
+      });
+
+      await firstMutationStarted;
+      const secondUpdate = updateMatch(match.id, { coachNotes: 'Nota concurrente' });
+      releaseFirstMutation();
+
+      await Promise.all([firstUpdate, secondUpdate]);
+
+      await expect(getMatchById(match.id)).resolves.toEqual(expect.objectContaining({
+        status: 'tagging',
+        coachNotes: 'Nota concurrente',
+      }));
+    });
+
     it('keeps the previous match.json when an intermediate durable write fails', async () => {
       const match = await createMatch({ homeTeam: 'Bigua', awayTeam: 'Rival' });
       const matchFile = resolveMatchPath(match.id, 'match.json');

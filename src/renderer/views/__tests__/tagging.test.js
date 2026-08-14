@@ -227,7 +227,7 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain("import { cloudEventService } from '../cloud/cloud-event-service.js';");
     expect(taggingSource).toContain("import { cloudMatchService } from '../cloud/cloud-match-service.js';");
     expect(taggingSource).toContain("import { videoReferenceService } from '../cloud/video-reference-service.js';");
-    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
+    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true, requireDetails: true })");
     expect(taggingSource).toContain('cloudEventService.addEvent(match.id, eventPayload)');
     expect(taggingSource).toContain('cloudEventService.updateEvent(match.id, selectedTimelineEventId');
     expect(taggingSource).toContain('cloudEventService.deleteEvent(match.id, selectedTimelineEventId)');
@@ -247,7 +247,7 @@ describe('tagging phase 5 polish', () => {
     expect(taggingSource).toContain('showMissingLocalVideoNotice');
     expect(taggingSource).toContain('video-missing-notice');
     expect(taggingSource).toContain('Cambiar ruta');
-    expect(taggingSource).toContain('window.api.media.localVideoExists');
+    expect(taggingSource).toContain('isLocalVideoAvailable(window.api.media');
   });
 
   it('shows the first-launch hotkeys overlay and dismisses the firstLaunch flag', () => {
@@ -619,7 +619,7 @@ describe('tagging match selection entrypoint', () => {
 
   it('keeps direct match entry loading the requested match instead of the selector', () => {
     expect(taggingSource).toContain('if (params.matchId) {');
-    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true })");
+    expect(taggingSource).toContain("cloudMatchService.getMatchById(params.matchId, { localFirst: true, requireDetails: true })");
     expect(taggingSource).toContain('initializeMatch(loadedMatch);');
   });
 });

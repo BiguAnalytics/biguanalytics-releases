@@ -1688,7 +1688,7 @@ function buildDashboardMarkup(stats, match, selectedView, heatmapFilter, prefere
 }
 
 function removeDashboardFloatingActions() {
-  document.querySelector('[data-dashboard-floating-actions]')?.remove();
+  document.querySelectorAll('[data-dashboard-floating-actions]').forEach((node) => node.remove());
 }
 
 function removeDashboardNotesDrawer() {
@@ -1739,8 +1739,10 @@ function renderDashboardNotesDrawer(match) {
 
 /**
  * @param {object} match
+ * @param {() => boolean} [isActive]
  */
-function renderDashboardFloatingActions(match) {
+function renderDashboardFloatingActions(match, isActive = () => true) {
+  if (!isActive()) return;
   removeDashboardFloatingActions();
   const floatingActions = document.createElement('div');
   floatingActions.className = 'dashboard-floating-actions';
@@ -2457,8 +2459,8 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0, colors = getChartColors()) 
     return `
       <g class="heatmap-zone" data-zone="${zone.id}">
         <rect x="${x}" y="${field.y}" width="${field.sectorW}" height="${field.height}" fill="${colors.local}" fill-opacity="${intensity}" />
-        <text class="heatmap-zone-number" x="${x + field.sectorW / 2}" y="${labelY}" text-anchor="middle">${escapeHtml(zone.label)}</text>
-        ${count > 0 ? `<text class="heatmap-zone-count" x="${x + field.sectorW / 2}" y="${labelY + 30}" text-anchor="middle">${count}</text>` : ''}
+        <text class="heatmap-zone-number" style="fill: color-mix(in srgb, ${colors.fieldWhite} 88%, transparent); font: 900 28px Arial Black, Arial, sans-serif; paint-order: stroke; stroke: color-mix(in srgb, ${colors.fieldInverse} 12%, transparent); stroke-width: 2px;" x="${x + field.sectorW / 2}" y="${labelY}" text-anchor="middle">${escapeHtml(zone.label)}</text>
+        ${count > 0 ? `<text class="heatmap-zone-count" style="fill: color-mix(in srgb, ${colors.fieldWhite} 86%, transparent); font: 900 18px Arial, sans-serif;" x="${x + field.sectorW / 2}" y="${labelY + 30}" text-anchor="middle">${count}</text>` : ''}
       </g>
     `;
   });
@@ -2471,10 +2473,6 @@ function drawRugbyFieldSvg(zoneCounts = {}, max = 0, colors = getChartColors()) 
         <stop offset="100%" stop-color="${colors.fieldBase}" />
       </linearGradient>
     </defs>
-    <style>
-      .heatmap-zone-number { fill: color-mix(in srgb, ${colors.fieldWhite} 88%, transparent); font: 900 28px Arial Black, Arial, sans-serif; paint-order: stroke; stroke: color-mix(in srgb, ${colors.fieldInverse} 12%, transparent); stroke-width: 2px; }
-      .heatmap-zone-count { fill: color-mix(in srgb, ${colors.fieldWhite} 86%, transparent); font: 900 18px Arial, sans-serif; }
-    </style>
     <rect x="0" y="0" width="960" height="520" rx="0" fill="url(#heatmap-field-gradient)" />
     <rect x="28" y="24" width="904" height="472" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 92%, transparent)" stroke-width="5" vector-effect="non-scaling-stroke" />
     <rect x="40" y="36" width="880" height="448" fill="none" stroke="color-mix(in srgb, ${colors.fieldWhite} 82%, transparent)" stroke-width="3" vector-effect="non-scaling-stroke" />
@@ -2718,9 +2716,14 @@ function wireDashboard(container, state) {
     navigate('pdfTemplates', { matchId: state.match.id });
   });
 
-  container.querySelector('[data-customizer-toggle]')?.addEventListener('click', () => {
+  container.querySelector('[data-customizer-toggle]')?.addEventListener('click', (event) => {
     state.customizerOpen = !state.customizerOpen;
-    renderLoadedDashboard(container, state);
+    const toggle = /** @type {HTMLButtonElement|null} */ (event.currentTarget);
+    const customizer = container.querySelector('.dashboard-customizer');
+    if (!customizer || !toggle) return;
+    customizer.hidden = !state.customizerOpen;
+    toggle.textContent = state.customizerOpen ? 'Cerrar personalizacion' : 'Personalizar';
+    toggle.setAttribute('aria-expanded', String(state.customizerOpen));
   });
 
   container.querySelectorAll('[data-kpi-slot]').forEach(select => {
@@ -2790,6 +2793,8 @@ function wireDashboard(container, state) {
     });
   };
   const closeNotesDrawer = () => {
+    const noteTrigger = document.querySelector('[data-dashboard-floating-actions] [data-notes-open]');
+    if (drawer?.contains(document.activeElement) && noteTrigger instanceof HTMLElement) noteTrigger.focus();
     drawer?.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('has-dashboard-notes-open');
   };
@@ -3042,7 +3047,7 @@ function renderLoadedDashboard(container, state) {
   });
 
   container.innerHTML = buildDashboardMarkup(state.stats, state.match, state.selectedView, state.heatmapFilter, state.preferences, state.customizerOpen, state.ai, state.aiLoading, state.aiPanelCollapsed, state.exportTemplates, state.exportTemplateId, state.eventLinkLimits, state.taggingLabels);
-  renderDashboardFloatingActions(state.match);
+  renderDashboardFloatingActions(state.match, state.isActive);
   renderDashboardNotesDrawer(state.match);
   wireDashboard(container, state);
   renderCharts(state.stats, state.selectedView, state.charts, state.taggingLabels, state.isActive).catch(() => {});
@@ -3144,7 +3149,7 @@ export function renderDashboard(container, params = {}, lifecycle = {}) {
       }
 
       const [match, settings, pdfTemplates] = await Promise.all([
-        cloudMatchService.getMatchById(params.matchId, { localFirst: true }),
+        cloudMatchService.getMatchById(params.matchId, { localFirst: true, requireDetails: true }),
         window.api.settings.get(),
         loadPdfTemplatesForExport(),
       ]);

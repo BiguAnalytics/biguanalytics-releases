@@ -10,10 +10,9 @@ import { syncService } from './cloud/sync-service.js';
 import { getDisplayUserFromProfile } from './auth/license-service.js';
 import { createSidebar, updateCurrentSidebarProfile } from './components/sidebar.js';
 import { createAIChatbot } from './components/ai-chatbot.js';
-import { initRouteSwipe } from './components/route-swipe.js';
 import { createWalkthroughController } from './components/walkthrough.js';
 import { createTopbar, setTopbarActions, updateTopbarLicense } from './components/topbar.js';
-import { getCurrentRoute, initRouter, navigate } from './router.js';
+import { initRouter, navigate } from './router.js';
 import { loadAndApplyTheme } from './theme.js';
 import { markStartup } from './startup-timing.js';
 import { renderBiguLogo, wireBiguLogoFallback } from './brand-logo.js';
@@ -24,7 +23,6 @@ const STARTUP_SPLASH_MIN_MS = 900;
 const STARTUP_SPLASH_MAX_MS = 2000;
 let shellMounted = false;
 let walkthroughCleanup = null;
-let routeSwipeCleanup = null;
 
 /**
  * Initializes the application.
@@ -223,8 +221,6 @@ async function mountAppShell(app, accessState) {
   }
   window.biguSyncCleanup?.();
   window.biguSyncCleanup = null;
-  routeSwipeCleanup?.();
-  routeSwipeCleanup = null;
   stopWalkthroughController();
   app.innerHTML = '';
   document.querySelectorAll('.ai-chatbot-root').forEach(node => node.remove());
@@ -264,10 +260,6 @@ async function mountAppShell(app, accessState) {
 
   layout.appendChild(mainContent);
   app.appendChild(layout);
-  routeSwipeCleanup = initRouteSwipe(contentBody, {
-    getCurrentRoute,
-    navigate,
-  });
   shellMounted = true;
   markStartup('shell:mounted');
   markStartup('renderer:shell-dom-ready');

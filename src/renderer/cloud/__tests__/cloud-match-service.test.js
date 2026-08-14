@@ -4,9 +4,53 @@ import {
   createCloudMatchService,
   mapCloudMatchToLocal,
   mapLocalMatchToCloud,
+  mapCloudPossessionsToLocal,
+  mapCloudSequencesToLocal,
+  mapPossessionToCloudRows,
+  mapSequencesToCloudRows,
 } from '../cloud-match-service.js';
 
 describe('cloudMatchService', () => {
+  it('preserves child ownership metadata when mapping cloud rows to local data', () => {
+    const possessions = mapCloudPossessionsToLocal([{
+      id: '44444444-4444-4444-8444-444444444444',
+      team: 'home',
+      start_ms: 1000,
+      end_ms: 5000,
+      created_by: 'creator-user',
+    }]);
+    const sequences = mapCloudSequencesToLocal([{
+      id: '55555555-5555-4555-8555-555555555555',
+      start_ms: 1000,
+      end_ms: 5000,
+      team: 'home',
+      created_by: 'creator-user',
+    }]);
+
+    expect(possessions.intervals[0]).toEqual(expect.objectContaining({
+      id: '44444444-4444-4444-8444-444444444444',
+      createdBy: 'creator-user',
+    }));
+    expect(sequences[0]).toEqual(expect.objectContaining({
+      id: '55555555-5555-4555-8555-555555555555',
+      createdBy: 'creator-user',
+    }));
+    expect(mapPossessionToCloudRows('match-1', possessions, {
+      clubId: 'club-1',
+      userId: 'editor-user',
+    })[0]).toEqual(expect.objectContaining({
+      id: '44444444-4444-4444-8444-444444444444',
+      created_by: 'creator-user',
+    }));
+    expect(mapSequencesToCloudRows('match-1', sequences, {
+      clubId: 'club-1',
+      userId: 'editor-user',
+    })[0]).toEqual(expect.objectContaining({
+      id: '55555555-5555-4555-8555-555555555555',
+      created_by: 'creator-user',
+    }));
+  });
+
   it('maps Supabase match rows into local match.json fields', () => {
     expect(mapCloudMatchToLocal({
       id: 'match-1',
@@ -637,6 +681,196 @@ describe('cloudMatchService', () => {
     expect(clientSource).not.toHaveBeenCalled();
   });
 
+  it('hydrates cloud events when local-first cache only contains a match summary', async () => {
+    const calls = [];
+    const cloudRows = {
+      events: [{
+        id: 'evt-cloud-1',
+        match_id: 'match-1',
+        timestamp_ms: 12500,
+        event_type: 'ruck',
+        team: 'home',
+        result: 'ganado',
+        payload: {},
+      }],
+      possessions: [],
+      sequences: [],
+      notes: [{
+        id: '66666666-6666-4666-8666-666666666666',
+        author_id: 'creator-user',
+        content: 'Nota del creador',
+        updated_at: '2026-06-01T00:01:00.000Z',
+      }],
+    };
+    const client = {
+      from(table) {
+        calls.push(table);
+        if (table === 'matches') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 'match-1',
+                    club_id: 'club-1',
+                    created_by: 'user-1',
+                    local_team: 'Bigua',
+                    rival_team: 'Rival',
+                    match_date: '2026-06-01',
+                    status: 'tagging',
+      video_references: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        const key = table === 'match_events'
+          ? 'events'
+          : table === 'match_possessions'
+            ? 'possessions'
+            : table === 'match_sequences'
+              ? 'sequences'
+              : 'notes';
+        return {
+          select: () => ({
+            eq: () => ({
+              order: async () => ({ data: cloudRows[key], error: null }),
+            }),
+          }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getById: vi.fn(async () => ({
+          id: 'match-1',
+          homeTeam: 'Bigua',
+          awayTeam: 'Rival',
+          eventCount: 1,
+          cloud: { clubId: 'club-1' },
+        })),
+        upsertCache: vi.fn(async match => match),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService: { enqueue: vi.fn() },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    const result = await service.getMatchById('match-1', { localFirst: true, requireDetails: true });
+
+    expect(result.events).toEqual([expect.objectContaining({ id: 'evt-cloud-1', timestamp: 12.5 })]);
+    expect(result).toEqual(expect.objectContaining({
+      coachNotes: 'Nota del creador',
+      cloud: expect.objectContaining({
+        noteId: '66666666-6666-4666-8666-666666666666',
+        noteAuthorId: 'creator-user',
+      }),
+    }));
+    expect(localApi.matches.upsertCache).toHaveBeenCalledWith(expect.objectContaining({
+      id: 'match-1',
+      events: expect.arrayContaining([expect.objectContaining({ id: 'evt-cloud-1' })]),
+    }));
+    expect(calls).toEqual(['matches', 'match_events', 'match_possessions', 'match_sequences', 'match_notes']);
+  });
+
+  it('downloads all event pages before replacing the local detail cache', async () => {
+    const rangeCalls = [];
+    const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+      id: `evt-${index}`,
+      match_id: 'match-1',
+      timestamp_ms: index * 1000,
+      event_type: 'note',
+      team: null,
+      result: '',
+      payload: {},
+    }));
+    const secondPage = [{
+      id: 'evt-1000',
+      match_id: 'match-1',
+      timestamp_ms: 1000000,
+      event_type: 'note',
+      team: null,
+      result: '',
+      payload: {},
+    }];
+    const client = {
+      from(table) {
+        if (table === 'matches') {
+          return {
+            select: () => ({
+              eq: () => ({
+                single: async () => ({
+                  data: {
+                    id: 'match-1',
+                    club_id: 'club-1',
+                    local_team: 'Bigua',
+                    rival_team: 'Rival',
+                    match_date: '2026-06-01',
+                    status: 'tagging',
+                    video_references: [],
+                  },
+                  error: null,
+                }),
+              }),
+            }),
+          };
+        }
+        return {
+          select: () => ({
+            eq: () => ({
+              order: () => ({
+                range: async (from, to) => {
+                  rangeCalls.push({ table, from, to });
+                  if (table === 'match_events') {
+                    return { data: from === 0 ? firstPage : secondPage, error: null };
+                  }
+                  return { data: [], error: null };
+                },
+              }),
+            }),
+          }),
+        };
+      },
+    };
+    const localApi = {
+      matches: {
+        getById: vi.fn(async () => ({ id: 'match-1', eventCount: 1001, cloud: { clubId: 'club-1' } })),
+        upsertCache: vi.fn(async match => match),
+      },
+    };
+    const service = createCloudMatchService({
+      clientSource: async () => client,
+      localApi,
+      syncService: { enqueue: vi.fn() },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    const result = await service.getMatchById('match-1', { localFirst: true, requireDetails: true });
+
+    expect(result.events).toHaveLength(1001);
+    expect(result.events.at(-1)).toEqual(expect.objectContaining({ id: 'evt-1000', timestamp: 1000 }));
+    expect(rangeCalls).toEqual(expect.arrayContaining([
+      { table: 'match_events', from: 0, to: 999 },
+      { table: 'match_events', from: 1000, to: 1999 },
+    ]));
+    expect(localApi.matches.upsertCache).toHaveBeenCalledWith(expect.objectContaining({
+      events: expect.arrayContaining([expect.objectContaining({ id: 'evt-1000' })]),
+    }));
+  });
+
   it('returns local cache immediately and refreshes cloud summaries in the background', async () => {
     let cached = [{ id: 'cached-match', homeTeam: 'Bigua', awayTeam: 'Old', cloud: null }];
     const client = {
@@ -802,9 +1036,9 @@ describe('cloudMatchService', () => {
       expect.objectContaining({ table: 'matches', method: 'upsert' }),
       expect.objectContaining({ table: 'video_references', method: 'upsert' }),
       expect.objectContaining({ table: 'match_events', method: 'upsert' }),
-      expect.objectContaining({ table: 'match_possessions', method: 'insert' }),
-      expect.objectContaining({ table: 'match_sequences', method: 'insert' }),
-      expect.objectContaining({ table: 'match_notes', method: 'insert' }),
+      expect.objectContaining({ table: 'match_possessions', method: 'upsert' }),
+      expect.objectContaining({ table: 'match_sequences', method: 'upsert' }),
+      expect.objectContaining({ table: 'match_notes', method: 'upsert' }),
     ]));
     expect(calls.find(call => call.table === 'match_events' && call.method === 'upsert')?.payload).toEqual([
       expect.objectContaining({

@@ -10,6 +10,7 @@
 
 .tag-popup {
   width: min(420px, 100%);
+  max-height: 100%;
   border: 1px solid rgba(138, 155, 176, 0.18);
   border-radius: var(--radius-xl);
   background:
@@ -19,7 +20,8 @@
   box-shadow:
     0 26px 76px rgba(0, 0, 0, 0.42),
     0 0 0 1px rgba(200, 16, 46, 0.08);
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
   animation: tag-popup-in 120ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
@@ -276,7 +278,7 @@
   line-height: 1.15;
   text-align: center;
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth), transform var(--duration-fast) var(--ease-smooth);
+  transition: background var(--duration-fast) var(--ease-smooth), border-color var(--duration-fast) var(--ease-smooth), color var(--duration-fast) var(--ease-smooth);
 }
 
 .tag-popup-zone-cell:hover,
@@ -284,10 +286,6 @@
   background: rgba(200, 16, 46, 0.24);
   border-color: rgba(200, 16, 46, 0.52);
   color: var(--color-text-primary);
-}
-
-.tag-popup-zone-cell:hover {
-  transform: translateY(-1px);
 }
 
 .tag-popup-footer {
@@ -304,11 +302,9 @@
 @keyframes tag-popup-in {
   from {
     opacity: 0;
-    transform: scale(0.94);
   }
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
@@ -326,11 +322,9 @@
 @keyframes tag-popup-out {
   from {
     opacity: 1;
-    transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: scale(0.96);
   }
 }
 
@@ -364,6 +358,79 @@
     animation: none;
     opacity: 0.48;
   }
+}
+
+/* Light mode: keep popup surfaces pale and every control readable. */
+:root[data-theme="light"] .tag-popup-host .tag-popup {
+  background:
+    linear-gradient(145deg, rgba(255, 255, 255, 0.92), rgba(232, 239, 248, 0.52)),
+    #f8fafc;
+  border-color: rgba(15, 35, 64, 0.22);
+  box-shadow: 0 26px 76px rgba(15, 35, 64, 0.18), 0 0 0 1px rgba(200, 16, 46, 0.08);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-header,
+:root[data-theme="light"] .tag-popup-host .tag-popup-footer {
+  border-color: rgba(15, 35, 64, 0.16);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-header h2,
+:root[data-theme="light"] .tag-popup-host .tag-popup-step strong,
+:root[data-theme="light"] .tag-popup-host .tag-popup-option,
+:root[data-theme="light"] .tag-popup-host .tag-popup-option span,
+:root[data-theme="light"] .tag-popup-host .tag-popup-zone-cell:hover,
+:root[data-theme="light"] .tag-popup-host .tag-popup-zone-cell.active {
+  color: #102033;
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-step,
+:root[data-theme="light"] .tag-popup-host .tag-popup-note-only,
+:root[data-theme="light"] .tag-popup-host .tag-popup-close,
+:root[data-theme="light"] .tag-popup-host .tag-popup-footer,
+:root[data-theme="light"] .tag-popup-host .tag-popup-zone summary {
+  color: #425873;
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-option,
+:root[data-theme="light"] .tag-popup-host .tag-popup-mic,
+:root[data-theme="light"] .tag-popup-host .tag-popup-note textarea {
+  background: rgba(255, 255, 255, 0.78);
+  border-color: rgba(15, 35, 64, 0.18);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-option:hover,
+:root[data-theme="light"] .tag-popup-host .tag-popup-mic:hover {
+  background: rgba(200, 16, 46, 0.09);
+  border-color: rgba(200, 16, 46, 0.38);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-option kbd,
+:root[data-theme="light"] .tag-popup-host .hotkey-bar kbd {
+  background: #e7edf5;
+  border-color: rgba(15, 35, 64, 0.22);
+  color: #102033;
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-note > span,
+:root[data-theme="light"] .tag-popup-host .tag-autoclose-hint {
+  color: #52657a;
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-field-grid {
+  background: #e7edf5;
+  border-color: rgba(15, 35, 64, 0.2);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-field-grid::before {
+  background:
+    linear-gradient(90deg, transparent 24%, rgba(15, 35, 64, 0.14) 25%, transparent 26%, transparent 49%, rgba(15, 35, 64, 0.18) 50%, transparent 51%, transparent 74%, rgba(15, 35, 64, 0.14) 75%, transparent 76%),
+    linear-gradient(180deg, transparent 49%, rgba(15, 35, 64, 0.12) 50%, transparent 51%);
+}
+
+:root[data-theme="light"] .tag-popup-host .tag-popup-zone-cell {
+  background: rgba(255, 255, 255, 0.74);
+  border-color: rgba(15, 35, 64, 0.16);
+  color: #425873;
 }
 
 @keyframes tag-popup-fade-in {

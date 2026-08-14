@@ -46,7 +46,7 @@ describe('cloudEventService', () => {
       note: 'limpieza',
       player: '9',
     }, { matchId: 'match-1', clubId: 'club-1', userId: 'user-1' })).toMatchObject({
-      id: 'evt-1',
+      id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
       match_id: 'match-1',
       club_id: 'club-1',
       created_by: 'user-1',
@@ -54,6 +54,33 @@ describe('cloudEventService', () => {
       event_type: 'ruck',
       payload: expect.objectContaining({ player: '9' }),
     });
+  });
+
+  it('maps legacy local event IDs to stable UUIDs without losing the local ID', () => {
+    const first = mapLocalEventToCloud({
+      id: 'evt-legacy-1',
+      timestamp: 12,
+      type: 'note',
+      team: null,
+      result: '',
+      subtype: '',
+      note: '',
+    }, { matchId: '11111111-1111-4111-8111-111111111111', clubId: 'club-1', userId: 'user-1' });
+    const second = mapLocalEventToCloud({
+      id: 'evt-legacy-1',
+      timestamp: 20,
+      type: 'note',
+      team: null,
+      result: '',
+      subtype: '',
+      note: '',
+    }, { matchId: '11111111-1111-4111-8111-111111111111', clubId: 'club-1', userId: 'user-1' });
+
+    expect(first.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+    expect(first.id).toBe(second.id);
+    expect(first.id).not.toBe('evt-legacy-1');
+    expect(first.payload.id).toBe('evt-legacy-1');
+    expect(mapCloudEventToLocal({ ...first, payload: first.payload }).id).toBe('evt-legacy-1');
   });
 
   it('uses normalized zoneId as the cloud zone when event.zone is missing', () => {
@@ -94,6 +121,37 @@ describe('cloudEventService', () => {
       type: 'lineout',
       player: '2',
       updatedAt: '2026-05-31T00:01:00.000Z',
+    }));
+  });
+
+  it('preserves the original event creator when another club member edits it', () => {
+    const localEvent = mapCloudEventToLocal({
+      id: 'evt-owned',
+      created_by: 'creator-user',
+      timestamp_ms: 12000,
+      event_type: 'lineout',
+      team: 'away',
+      payload: {},
+    });
+
+    expect(localEvent.createdBy).toBe('creator-user');
+    expect(mapLocalEventToCloud(localEvent, {
+      matchId: 'match-1',
+      clubId: 'club-1',
+      userId: 'editor-user',
+    }).created_by).toBe('creator-user');
+  });
+
+  it('preserves an untimed cloud event as untimed instead of converting null to zero', () => {
+    expect(mapCloudEventToLocal({
+      id: 'evt-untimed',
+      timestamp_ms: null,
+      event_type: 'note',
+      team: 'home',
+      payload: {},
+    })).toEqual(expect.objectContaining({
+      id: 'evt-untimed',
+      timestamp: null,
     }));
   });
 
@@ -287,10 +345,11 @@ describe('cloudEventService', () => {
       action: 'upsert',
       dedupeKey: 'match_events:evt-offline',
       payload: expect.objectContaining({
-        id: 'evt-offline',
+        id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i),
         match_id: 'match-1',
         club_id: '',
         created_by: '',
+        payload: expect.objectContaining({ id: 'evt-offline' }),
       }),
     }));
     expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
@@ -304,5 +363,77 @@ describe('cloudEventService', () => {
         created_by: '',
       }),
     }));
+  });
+
+  it('uses the event resource key for pending deletes so they supersede queued upserts', async () => {
+    const syncService = {
+      enqueue: vi.fn(async operation => operation),
+    };
+    const service = createCloudEventService({
+      clientSource: async () => {
+        throw new Error('offline');
+      },
+      localApi: {
+        events: { delete: vi.fn(async () => undefined) },
+      },
+      syncService,
+      accessProvider: () => null,
+    });
+
+    await service.deleteEvent('match-1', 'evt-delete');
+
+    expect(syncService.enqueue).toHaveBeenCalledWith(expect.objectContaining({
+      matchId: 'match-1',
+      entity: 'match_events',
+      action: 'delete',
+      dedupeKey: 'match_events:evt-delete',
+    }));
+  });
+
+  it('paginates direct event downloads instead of trusting the server row limit', async () => {
+    const firstPage = Array.from({ length: 1000 }, (_, index) => ({
+      id: `evt-${index}`,
+      timestamp_ms: index * 1000,
+      event_type: 'note',
+      team: null,
+      result: '',
+      payload: {},
+    }));
+    const client = {
+      from: vi.fn(() => ({
+        select: () => ({
+          eq: () => ({
+            order: () => ({
+              range: async from => ({
+                data: from === 0 ? firstPage : [{
+                  id: 'evt-1000',
+                  timestamp_ms: 1000000,
+                  event_type: 'note',
+                  team: null,
+                  result: '',
+                  payload: {},
+                }],
+                error: null,
+              }),
+            }),
+          }),
+        }),
+      })),
+    };
+    const service = createCloudEventService({
+      clientSource: async () => client,
+      localApi: {},
+      syncService: { enqueue: vi.fn() },
+      accessProvider: () => ({
+        state: 'active',
+        user: { id: 'user-1' },
+        profile: { club_id: 'club-1' },
+      }),
+    });
+
+    const events = await service.downloadEvents('match-1');
+
+    expect(events).toHaveLength(1001);
+    expect(events.at(-1)).toEqual(expect.objectContaining({ id: 'evt-1000', timestamp: 1000 }));
   });
 });

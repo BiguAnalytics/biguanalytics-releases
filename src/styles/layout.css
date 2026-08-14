@@ -17,52 +17,13 @@
 .main-content-body {
   flex: 1;
   overflow-y: auto;
-  overflow-x: auto;
+  overflow-x: hidden;
   position: relative;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
   touch-action: pan-y;
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: rgba(138, 155, 176, 0.42) transparent;
   background: var(--color-bg-base);
-}
-
-.main-content-body > * {
-  min-width: 100%;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-}
-
-.main-content-body.is-route-swipe-ready {
-  cursor: grab;
-}
-
-.main-content-body.is-route-swiping,
-.main-content-body.is-route-swipe-committing,
-.main-content-body.is-route-swipe-cancelling {
-  cursor: grabbing;
-  user-select: none;
-}
-
-.main-content-body.is-route-swiping > *,
-.main-content-body.is-route-swipe-committing > *,
-.main-content-body.is-route-swipe-cancelling > * {
-  transform: translate3d(var(--route-swipe-offset, 0px), 0, 0);
-  will-change: transform;
-}
-
-.main-content-body.is-route-swiping > * {
-  transition: none;
-}
-
-.main-content-body.is-route-swipe-committing > *,
-.main-content-body.is-route-swipe-cancelling > * {
-  transition: transform var(--duration-module-slide) var(--ease-smooth);
-}
-
-.main-content-body.is-route-swipe-blocked > * {
-  filter: saturate(calc(1 - (var(--route-swipe-progress, 0) * 0.24)));
 }
 
 .main-content-body::-webkit-scrollbar {
@@ -117,10 +78,11 @@
 }
 
 .home-welcome span {
-  background: var(--gradient-brand-text);
+  background: var(--gradient-brand);
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
   animation: club-gradient-shift 7s ease-in-out infinite;
 }
@@ -194,6 +156,7 @@
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
   color: transparent;
   cursor: pointer;
   display: flex;

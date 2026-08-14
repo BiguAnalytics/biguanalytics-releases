@@ -5,6 +5,9 @@ release/
 out/
 coverage/
 .agents/
+.codex/
+test-results/
+tests/exploratory/evidence/
 .env
 .env.*
 !.env.example

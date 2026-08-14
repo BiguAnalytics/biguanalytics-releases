@@ -4,6 +4,12 @@ import { applyCloudOperation, syncService as defaultSyncService } from './sync-s
 import { mapLocalMatchToCloud, normalizeMatchForHome } from './match-mapper.js';
 import { markStartup } from '../startup-timing.js';
 import { normalizeFieldZone } from '../field-zones.js';
+import { uuidv5 } from './uuid-v5.js';
+
+const CLOUD_EVENT_PAGE_SIZE = 1000;
+const CLOUD_EVENT_MAX_PAGES = 100;
+const CLOUD_EVENT_UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const CLOUD_EVENT_NAMESPACE = '9b7e7b87-33d0-4e08-8c9b-6d6f0d0f3a26';
 
 /**
  * @param {number|null|undefined} seconds
@@ -19,6 +25,7 @@ function secondsToMs(seconds) {
  * @returns {number|null}
  */
 function msToSeconds(ms) {
+  if (ms === null || ms === undefined || ms === '') return null;
   const value = Number(ms);
   return Number.isFinite(value) && value >= 0 ? value / 1000 : null;
 }
@@ -39,6 +46,17 @@ function normalizeEventZonePayload(source = {}) {
 }
 
 /**
+ * @param {unknown} eventId
+ * @param {string} matchId
+ * @returns {string}
+ */
+function getCloudEventId(eventId, matchId) {
+  const localId = String(eventId || '').trim();
+  if (CLOUD_EVENT_UUID_RE.test(localId)) return localId;
+  return uuidv5(`${matchId}:${localId}`, CLOUD_EVENT_NAMESPACE);
+}
+
+/**
  * @param {object} event
  * @param {{matchId: string, clubId: string, userId: string}} context
  * @returns {object}
@@ -46,7 +64,7 @@ function normalizeEventZonePayload(source = {}) {
 export function mapLocalEventToCloud(event, context) {
   const zonePayload = normalizeEventZonePayload(event);
   return {
-    id: event.id,
+    id: getCloudEventId(event.id, context.matchId),
     match_id: context.matchId,
     club_id: context.clubId,
     created_by: event.createdBy || event.created_by || context.userId,
@@ -69,13 +87,14 @@ export function mapLocalEventToCloud(event, context) {
  */
 export function mapCloudEventToLocal(row) {
   const payload = row.payload || {};
+  const createdBy = row.created_by || payload.createdBy || payload.created_by;
   const zonePayload = normalizeEventZonePayload({
     ...payload,
     zone: row.zone || payload.zone || payload.zoneId,
   });
   return {
     ...payload,
-    id: row.id,
+    id: payload.id || row.id,
     timestamp: msToSeconds(row.timestamp_ms),
     type: row.event_type,
     team: row.team,
@@ -85,6 +104,7 @@ export function mapCloudEventToLocal(row) {
     note: row.note || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+    ...(createdBy ? { createdBy } : {}),
   };
 }
 
@@ -107,6 +127,37 @@ async function applyOrEnqueue(client, syncService, operation) {
  */
 function getCloudErrorMessage(error) {
   return error instanceof Error && error.message ? error.message : String(error || 'Error de sync cloud');
+}
+
+/**
+ * @param {object} client
+ * @param {string} matchId
+ * @returns {Promise<Array<object>>}
+ */
+async function downloadCloudEventRows(client, matchId) {
+  const rows = [];
+  let offset = 0;
+  let pageCount = 0;
+
+  while (true) {
+    let query = client
+      .from('match_events')
+      .select('*')
+      .eq('match_id', matchId)
+      .order('timestamp_ms', { ascending: true });
+    const supportsRange = typeof query?.range === 'function';
+    if (supportsRange) query = query.range(offset, offset + CLOUD_EVENT_PAGE_SIZE - 1);
+    const result = await query;
+    assertSupabaseOk(result);
+    const page = Array.isArray(result.data) ? result.data : [];
+    rows.push(...page);
+    if (!supportsRange || page.length < CLOUD_EVENT_PAGE_SIZE) return rows;
+    pageCount += 1;
+    if (pageCount >= CLOUD_EVENT_MAX_PAGES) {
+      throw new Error('La descarga de match_events supero el limite de paginas.');
+    }
+    offset += CLOUD_EVENT_PAGE_SIZE;
+  }
 }
 
 /**
@@ -257,7 +308,7 @@ export function createCloudEventService(deps = {}) {
           entity: 'match_events',
           action: 'delete',
           status: 'pending_sync',
-          dedupeKey: `match_events:${eventId}:delete`,
+          dedupeKey: `match_events:${eventId}`,
           payload: { id: eventId },
         };
         await applyOrEnqueue(context.client, activeSyncService, operation);
@@ -268,7 +319,7 @@ export function createCloudEventService(deps = {}) {
             matchId,
             entity: 'match_events',
             action: 'delete',
-            dedupeKey: `match_events:${eventId}:delete`,
+            dedupeKey: `match_events:${eventId}`,
             payload: { id: eventId },
           }, error);
           if (typeof localApi.matches?.getById === 'function') {
@@ -295,13 +346,8 @@ export function createCloudEventService(deps = {}) {
 
     async downloadEvents(matchId) {
       const context = await resolveCloudContext(deps);
-      const result = await context.client
-        .from('match_events')
-        .select('*')
-        .eq('match_id', matchId)
-        .order('timestamp_ms', { ascending: true });
-      assertSupabaseOk(result);
-      return (result.data || []).map(mapCloudEventToLocal);
+      const rows = await downloadCloudEventRows(context.client, matchId);
+      return rows.map(mapCloudEventToLocal);
     },
   };
 }
